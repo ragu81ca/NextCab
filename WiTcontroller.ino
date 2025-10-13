@@ -100,24 +100,9 @@ int lastThrottlePotHighValue = 0;  // highest of the most recent
 int lastThrottlePotValues[] = {0, 0, 0, 0, 0};
 int lastThrottlePotReadTime = -1;
 
-// battery test values
-bool useBatteryTest = USE_BATTERY_TEST;
-#if USE_BATTERY_TEST
-  #if USE_BATTERY_PERCENT_AS_WELL_AS_ICON
-    ShowBattery showBatteryTest = ICON_AND_PERCENT;
-  #else 
-    ShowBattery showBatteryTest = ICON_ONLY;
-  #endif
-#else
-  ShowBattery showBatteryTest = NONE;
-#endif
-bool useBatteryPercentAsWellAsIcon = USE_BATTERY_PERCENT_AS_WELL_AS_ICON;
-int lastBatteryTestValue = 100; 
-int lastBatteryAnalogReadValue = 0;
-double lastBatteryCheckTime = -10000;
-#if USE_BATTERY_TEST
-  Pangodream_18650_CL BL(BATTERY_TEST_PIN,BATTERY_CONVERSION_FACTOR);
-#endif
+// Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
+#include "core/BatteryMonitor.h"
+BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 
 // server variables
 // bool ssidConnected = false;
@@ -1508,30 +1493,11 @@ void throttlePot_loop(bool forceRead) {
 // *********************************************************************************
 
 void batteryTest_loop() {
-  // Read the battery pin
-#if USE_BATTERY_TEST
-  if(millis()-lastBatteryCheckTime>10000) {
-    lastBatteryCheckTime = millis();
-    int batteryTestValue = BL.getBatteryChargeLevel();
-    lastBatteryAnalogReadValue = BL.getLastAnalogReadValue();
-    
-    debug_print("BATTERY TestValue: "); debug_println(batteryTestValue); 
-    debug_print("BATTERY lastAnalogReadValue: "); debug_println(lastBatteryAnalogReadValue); 
-    double analogValue = lastBatteryAnalogReadValue;
-    analogValue = 4.2 / analogValue * 1000;
-    debug_print("BATTERY If Battery full, BATTERY_CONVERSION_FACTOR should be: "); debug_println(analogValue); 
-
-    if (batteryTestValue!=lastBatteryTestValue) { 
-      lastBatteryTestValue = BL.getBatteryChargeLevel();
-      if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing)) {
-        writeOledSpeed();
-      }
-    }
-    if (lastBatteryTestValue<USE_BATTERY_SLEEP_AT_PERCENT) { // shutdown if <x% battery
-      deepSleepStart(SLEEP_REASON_BATTERY);
-    }
+  batteryMonitor.loop();
+  if (batteryMonitor.shouldSleepForLowBattery()) {
+    deepSleepStart(SLEEP_REASON_BATTERY);
   }
-#endif
+  // UI refresh handled elsewhere when speed redraws; we could trigger if value changed in future.
 }
 
 // *********************************************************************************
@@ -1640,7 +1606,8 @@ void setup() {
   debug_println("Start"); 
   debug_print("WiTcontroller - Version: "); debug_println(appVersion);
 
-  batteryTest_loop();  // do the battery check once to start
+  batteryMonitor.begin();
+  batteryTest_loop();  // initial battery check
 
   clearOledArray(); oledText[0] = appName; oledText[6] = appVersion; oledText[2] = MSG_START;
   writeOledBattery();
@@ -1715,7 +1682,7 @@ void loop() {
   else { throttlePot_loop(); }
   additionalButtonLoop(); 
 
-  if (useBatteryTest) { batteryTest_loop(); }
+  if (batteryMonitor.enabled()) { batteryTest_loop(); }
 
 	// debug_println("loop:" );
 }
@@ -2947,18 +2914,7 @@ void changeNumberOfThrottles(bool increase) {
 
 void batteryShowToggle() {
   debug_println("batteryShowToggle()");
-  switch (showBatteryTest) {
-    case ICON_ONLY: 
-      showBatteryTest = ICON_AND_PERCENT;
-      break;
-    case ICON_AND_PERCENT: 
-      showBatteryTest = NONE;
-      break;
-    case NONE: 
-    default:
-      showBatteryTest = ICON_ONLY;
-      break;
-  }
+  batteryMonitor.toggleDisplayMode();
   writeOledSpeed();
 }
 
@@ -3594,7 +3550,7 @@ void writeOledSpeedStepMultiplier() {
 
 void writeOledBattery() {
   // debug_print("writeOledBattery(): time: "); debug_println(lastBatteryCheckTime);
-  if ( (useBatteryTest) && (showBatteryTest!=NONE) && (lastBatteryCheckTime>0)) {
+  if (batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0)) {
     // debug_println("writeOledBattery(): do it"); 
     //int lastBatteryTestValue = random(0,100);
     u8g2.setFont(FONT_GLYPHS);
@@ -3602,23 +3558,24 @@ void writeOledBattery() {
     // int x = 13; int y = 28;
     int x = 120; int y = 11;
     // if (useBatteryPercentAsWellAsIcon) x = 102;
-    if (showBatteryTest==ICON_AND_PERCENT) x = 102;
+    if (batteryMonitor.displayMode()==ICON_AND_PERCENT) x = 102;
     u8g2.drawStr(x, y, String("Z").c_str());
-    if (lastBatteryTestValue>10) u8g2.drawLine(x+1, y-6, x+1, y-3);
-    if (lastBatteryTestValue>25) u8g2.drawLine(x+2, y-6, x+2, y-3);
-    if (lastBatteryTestValue>50) u8g2.drawLine(x+3, y-6, x+3, y-3);
-    if (lastBatteryTestValue>75) u8g2.drawLine(x+4, y-6, x+4, y-3);
-    if (lastBatteryTestValue>90) u8g2.drawLine(x+5, y-6, x+5, y-3);
+    int pct = batteryMonitor.percent();
+    if (pct>10) u8g2.drawLine(x+1, y-6, x+1, y-3);
+    if (pct>25) u8g2.drawLine(x+2, y-6, x+2, y-3);
+    if (pct>50) u8g2.drawLine(x+3, y-6, x+3, y-3);
+    if (pct>75) u8g2.drawLine(x+4, y-6, x+4, y-3);
+    if (pct>90) u8g2.drawLine(x+5, y-6, x+5, y-3);
     
     // if (useBatteryPercentAsWellAsIcon) {
-    if (showBatteryTest==ICON_AND_PERCENT) {
+    if (batteryMonitor.displayMode()==ICON_AND_PERCENT) {
       // x = 13; y = 36;
       x = 112; y = 10;
       u8g2.setFont(FONT_FUNCTION_INDICATORS);
-      if(lastBatteryTestValue<5) {
+      if(pct<5) {
         u8g2.drawStr(x,y, String("LOW").c_str());
       } else {
-        u8g2.drawStr(x,y, String(String(lastBatteryTestValue)+"%").c_str());
+        u8g2.drawStr(x,y, String(String(pct)+"%").c_str());
       }
     }
   }
