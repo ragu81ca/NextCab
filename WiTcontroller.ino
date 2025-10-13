@@ -1156,124 +1156,16 @@ void buildWitEntry() {
 }
 
 // *********************************************************************************
-//   Non-Volitile storage functions
+//   Preferences (moved to PreferencesManager)
+//   Legacy function names kept as thin wrappers for now for minimal intrusion.
 
-void setupPreferences(bool forceClear) {
-  if (preferencesRead) return;
-  debug_println("setupPreferences():");
+#include "core/PreferencesManager.h"
+PreferencesManager preferencesManager;
 
-  nvsPrefs.begin("WitController", true);
-  nvsInit = nvsPrefs.isKey("nvsInit");
-  if ( (nvsInit == false) || (forceClear) ) {
-    debug_println("setupPreferences(): Initialising non-volitile storage ");
-
-    nvsPrefs.end();
-
-    nvsPrefs.begin("WitController", false); // write mode
-    nvsPrefs.putBool("nvsInit", true);
-    nvsInit = true;
-    nvsPrefs.end();
-
-  } else {
-    nvsInit = true;
-    debug_println("setupPreferences(): Non-volitile storage already initialised");
-    readPreferences();
-  }
-}
-
-void readPreferences() {
-  if (preferencesRead) return;
-  debug_println("readPreferences()");
-
-  if (!RESTORE_ACQUIRED_LOCOS) return;
-
-  debug_println("readPreferences(): Reading preferences from non-volitile storage ");
-  nvsPrefs.begin("WitController", true); // read mode
-  nvsInit = nvsPrefs.isKey("nvsInit");
-  if (nvsInit) {
-    debug_println("readPreferences(): Non-volitile storage is initialised");
-    currentThrottleIndex = 0;
-    currentThrottleIndexChar = '0';
-
-    int count = 0;  
-    char key[4];
-    key[3] = 0;
-
-    // int currentThrottle = 0;
-    key[0] = 'L';
-    for (int i=0; i<MAX_THROTTLES; i++) {
-      key[1] = '0' + i;
-      for (int j=0; j<10; j++) { // assume a maximum of 10 locos per throttle
-        key[2] = '0' + j;
-        if (nvsPrefs.isKey(key)) {
-          // if ( (currentThrottle != i) && (count>0) ) {
-          //   doOneStartupCommand("5"); //nextThrottle
-          //   currentThrottle = i;
-          // }
-          String loco = nvsPrefs.getString(key);
-          // doOneStartupCommand("*1" + loco + "#");
-
-          loco = getLocoWithLength(loco);
-          debug_print("add Loco: "); debug_println(loco);
-          wiThrottleProtocol.addLocomotive(key[1], loco);
-          wiThrottleProtocol.getDirection(key[1], loco);
-          wiThrottleProtocol.getSpeed(key[1]);
-          count++;
-        } else {
-          debug_print("readPreferences(): Not Found - Key: "); debug_println(key);
-        }
-      }
-    }
-    currentThrottleIndex = 0;
-    currentThrottleIndexChar = '0';
-    resetFunctionStates(currentThrottleIndex);
-    writeOledSpeed();
-  } else {
-    debug_println("readPreferences(): Non-volitile storage not initialised");
-  }
-  preferencesRead = true;
-  nvsPrefs.end();
-}
-
-void writePreferences() {
-  debug_println("writePreferences(): Writing preferences to non-volitile storage ");
-  nvsPrefs.begin("WitController", false); // write mode
-
-  if (nvsInit) {
-    nvsPrefs.putBool("nvsInit", true);
-
-    int count = 0;  
-    char key[4];
-    key[3] = 0;
-
-    key[0] = 'L';
-    for (int i=0; i<maxThrottles; i++) {
-      key[1] = '0' + i;
-      for (int j=0; j<10; j++) {
-        key[2] = '0' + j;
-        if (j<wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i))) {
-          String loco = wiThrottleProtocol.getLocomotiveAtPosition(getMultiThrottleChar(i), j);
-          String locoNumber = loco.substring(1);
-          nvsPrefs.putString(key, locoNumber);
-          debug_print("writePreferences(): Key: "); debug_print(key); debug_print(" - "); debug_println(locoNumber);
-          count++;
-        } else {
-          if (nvsPrefs.isKey(key)) {
-            nvsPrefs.remove(key);
-            debug_print("writePreferences(): Removed Key: "); debug_println(key);
-          }
-        }
-      }
-    }
-  } else {
-    debug_println("writePreferences(): Non-volitile storage not initialised");
-  }
-  nvsPrefs.end();
-}
-
-void clearPreferences() {
-  setupPreferences(true);
-}
+void setupPreferences(bool forceClear) { preferencesManager.begin(forceClear); }
+void readPreferences() { preferencesManager.restoreLocos(wiThrottleProtocol); }
+void writePreferences() { preferencesManager.saveLocos(wiThrottleProtocol, maxThrottles); }
+void clearPreferences() { preferencesManager.clear(); }
 
 
 // *********************************************************************************
