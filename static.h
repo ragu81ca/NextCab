@@ -1,11 +1,14 @@
-const String appVersion = "v1.93";
-#ifndef CUSTOM_APPNAME
-   const String appName = "WiTcontroller";
-#else
-   const String appName = CUSTOM_APPNAME;
-#endif
+// Added include guard via pragma once and converted definitions to declarations
+// String constants are now defined in static.cpp to prevent multiple definition errors
+#pragma once
+
+#include <Arduino.h>
+
+extern const String appVersion;
+extern const String appName;
+
 #ifndef DEVICE_NAME
-   #define DEVICE_NAME "WiTcontroller"
+  #define DEVICE_NAME "WiTcontroller"
 #endif
 
 
@@ -62,48 +65,37 @@ const String appVersion = "v1.93";
    #define MENU_TEXT_ENTER_SSID_PASSWORD       "E Chrs  E.btn Slct  # Go  * Bck"
 #endif
 
-const String menu_text[14] = {
-  MENU_TEXT_MENU,
-  MENU_TEXT_MENU_HASH_IS_FUNCTIONS,
-  MENU_TEXT_FINISH,
-  MENU_TEXT_CANCEL,
-  MENU_TEXT_SHOW_DIRECT,
-  MENU_TEXT_ROSTER,
-  MENU_TEXT_TURNOUT_LIST,
-  MENU_TEXT_ROUTE_LIST,
-  MENU_TEXT_FUNCTION_LIST,
-  MENU_TEXT_SELECT_WIT_SERVICE,
-  MENU_TEXT_SELECT_WIT_ENTRY,
-  MENU_TEXT_SELECT_SSIDS,
-  MENU_TEXT_SELECT_SSIDS_FROM_FOUND,
-  MENU_TEXT_ENTER_SSID_PASSWORD
+extern const String menu_text[14];
+
+enum {
+   menu_menu = 0,
+   menu_menu_hash_is_functions = 1,
+   menu_finish = 2,
+   menu_cancel = 3,
+   menu_show_direct = 4,
+   menu_roster = 5,
+   menu_turnout_list = 6,
+   menu_route_list = 7,
+   menu_function_list = 8,
+   menu_select_wit_service = 9,
+   menu_select_wit_entry = 10,
+   menu_select_ssids = 11,
+   menu_select_ssids_from_found = 12,
+   menu_enter_ssid_password = 13
 };
 
-const int menu_menu =                     0;
-const int menu_menu_hash_is_functions =   1;
-const int menu_finish =                   2;
-const int menu_cancel =                   3;
-const int menu_show_direct =              4;
-const int menu_roster =                   5;
-const int menu_turnout_list =             6;
-const int menu_route_list =               7;
-const int menu_function_list =            8;
-const int menu_select_wit_service =       9;
-const int menu_select_wit_entry =        10;
-const int menu_select_ssids =            11;
-const int menu_select_ssids_from_found = 12;
-const int menu_enter_ssid_password =     13;
-
-const int last_oled_screen_speed =            0;
-const int last_oled_screen_roster =           1;
-const int last_oled_screen_turnout_list =     2;
-const int last_oled_screen_route_list =       3;
-const int last_oled_screen_function_list =    4;
-const int last_oled_screen_menu          =    5;
-const int last_oled_screen_extra_submenu =    6;
-const int last_oled_screen_all_locos =        7;
-const int last_oled_screen_edit_consist =     8;
-const int last_oled_screen_direct_commands =  9;
+enum {
+   last_oled_screen_speed = 0,
+   last_oled_screen_roster = 1,
+   last_oled_screen_turnout_list = 2,
+   last_oled_screen_route_list = 3,
+   last_oled_screen_function_list = 4,
+   last_oled_screen_menu = 5,
+   last_oled_screen_extra_submenu = 6,
+   last_oled_screen_all_locos = 7,
+   last_oled_screen_edit_consist = 8,
+   last_oled_screen_direct_commands = 9
+};
 
 typedef enum ShowBattery {
     NONE = 0,
@@ -507,7 +499,7 @@ const int glyph_speed_step = 0x00d6;
   const bool speedDisplayAs0to28 = false;
 #endif
 
-String witServerIpAndPortEntryMask = "###.###.###.###:#####";
+extern String witServerIpAndPortEntryMask; // defined in static.cpp
 
 #ifndef DEFAULT_IP_AND_PORT 
   #define DEFAULT_IP_AND_PORT ""
@@ -738,14 +730,20 @@ const char ssidPasswordBlankChar = 164;
 #ifdef U8X8_HAVE_HW_I2C
     #include <Wire.h>                      // add to include path [Arduino install]\hardware\arduino\avr\libraries\Wire\src
 #endif
+#include <U8g2lib.h>
+
+// Extern declaration for global display instance created in display_init.cpp
+#ifdef OLED_TYPE
+// NOTE: This assumes the configured OLED_TYPE in config_buttons.h corresponds to U8G2_SSD1309_128X64_NONAME2_F_HW_I2C; adjust if you change OLED_TYPE.
+extern U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2;
+#else
+extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
+#endif
 
 // U8g2 Constructor List (Frame Buffer)
 // you can overide this in config_buttons.h     DO NOT CHANGE IT HERE
-#ifndef OLED_TYPE
-    U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ 22, /* data=*/ 23);
-#else
-    OLED_TYPE
-#endif
+// Display object defined in display_init.cpp (concrete type chosen via OLED_TYPE macro or default).
+// Intentionally no extern declaration here to avoid type conflicts with user-specified constructor macro.
 
 // *******************************************************************************************************************
 // additional / optional commands

@@ -1,6 +1,6 @@
-// PreferencesManager.cpp
-#include "PreferencesManager.h"
-#include "static.h" // for RESTORE_ACQUIRED_LOCOS etc.
+// PreferencesManager.cpp (moved to root for Arduino build system recognition)
+#include "core/PreferencesManager.h"
+#include "static.h"
 
 PreferencesManager::PreferencesManager() : nvsInit(false), preferencesRead(false) {}
 
@@ -30,12 +30,11 @@ void PreferencesManager::restoreLocos(WiThrottleProtocol &proto, char throttleIn
     if (!nvsInit) { close(); return; }
 
     for (int i=0; i<MAX_THROTTLES; i++) {
-        char throttleChar = throttleIndexCharStart + i; // usually '0'+i
-        for (int j=0; j<10; j++) { // max 10 locos per throttle in legacy implementation
+        char throttleChar = throttleIndexCharStart + i;
+        for (int j=0; j<10; j++) {
             char key[4]; key[0]='L'; key[1]=throttleChar; key[2]='0'+j; key[3]='\0';
             if (prefs.isKey(key)) {
                 String locoNum = prefs.getString(key);
-                // Determine length indicator (S/L) copying legacy logic: if address has leading zero > short limit or > limit
                 int locoNo = locoNum.toInt();
                 String locoWithLength;
                 if ( (locoNo > SHORT_DCC_ADDRESS_LIMIT) || ((locoNo <= SHORT_DCC_ADDRESS_LIMIT) && (locoNum.charAt(0)=='0')) ) {
@@ -54,7 +53,7 @@ void PreferencesManager::restoreLocos(WiThrottleProtocol &proto, char throttleIn
 }
 
 void PreferencesManager::saveLocos(WiThrottleProtocol &proto, int maxThrottles) {
-    if (!nvsInit) return; // nothing to do
+    if (!nvsInit) return;
     open("WitController", false);
     prefs.putBool("nvsInit", true);
     for (int i=0; i<maxThrottles; i++) {
@@ -63,7 +62,6 @@ void PreferencesManager::saveLocos(WiThrottleProtocol &proto, int maxThrottles) 
             char key[4]; key[0]='L'; key[1]=throttleChar; key[2]='0'+j; key[3]='\0';
             if (j < proto.getNumberOfLocomotives(throttleChar)) {
                 String loco = proto.getLocomotiveAtPosition(throttleChar, j);
-                // persist address without S/L prefix to match legacy format
                 String locoNumber = loco.substring(1);
                 prefs.putString(key, locoNumber);
             } else {
@@ -74,6 +72,4 @@ void PreferencesManager::saveLocos(WiThrottleProtocol &proto, int maxThrottles) 
     close();
 }
 
-void PreferencesManager::clear() {
-    begin(true);
-}
+void PreferencesManager::clear() { begin(true); }

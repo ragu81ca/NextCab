@@ -1,3 +1,7 @@
+#include "core/ThrottleManager.h"
+#include <Keypad.h> // for KeypadEvent typedef
+
+extern ThrottleManager throttleManager;
 //
 // DO NOT alter this file
 // 
@@ -101,6 +105,8 @@ extern int lastSpeedThrottleIndex;
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 
 extern int currentThrottleIndex;
+extern int maxThrottles;              // number of active throttles (was local in .ino)
+extern char currentThrottleIndexChar; // multi-throttle character for current index
 
 // function prototypes
 

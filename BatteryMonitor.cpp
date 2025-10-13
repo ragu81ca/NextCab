@@ -1,5 +1,5 @@
-// BatteryMonitor.cpp
-#include "BatteryMonitor.h"
+// BatteryMonitor.cpp (moved to root for Arduino build system recognition)
+#include "core/BatteryMonitor.h"
 
 BatteryMonitor::BatteryMonitor()
   : useBatteryTest(USE_BATTERY_TEST),
@@ -14,14 +14,12 @@ BatteryMonitor::BatteryMonitor()
     lastBatteryTestValue(100),
     lastBatteryAnalogReadValue(0),
     lastBatteryCheckTime(-10000)
-{
-}
+{}
 
 void BatteryMonitor::begin() {
 #if USE_BATTERY_TEST
-    // Construct battery monitor with configured pin & conversion factor
     Pangodream_18650_CL temp(BATTERY_TEST_PIN, BATTERY_CONVERSION_FACTOR);
-    battery = temp; // copy
+    battery = temp;
 #endif
 }
 

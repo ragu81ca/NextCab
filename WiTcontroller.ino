@@ -34,7 +34,7 @@
 
 // DO NOT ALTER these files
 #include "config_keypad_etc.h"
-#include "static.h"
+#include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h; avoid double include
 #include "actions.h"
 #include "WiTcontroller.h"
 
@@ -103,6 +103,9 @@ int lastThrottlePotReadTime = -1;
 // Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
 #include "core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
+// Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
+#include "core/ThrottleManager.h"
+ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 
 // server variables
 // bool ssidConnected = false;
@@ -1539,6 +1542,9 @@ void setup() {
     currentDirection[i] = Forward;
     currentSpeedStep[i] = speedStep;
   }
+
+  // Initialize new ThrottleManager (modular refactor)
+  throttleManager.begin(&wiThrottleProtocol);
   
   WiFi.setHostname(DEVICE_NAME);
   #if USE_COUNTRY_CODE
@@ -2421,84 +2427,27 @@ String getLocoWithLength(String loco) {
 }
 
 void speedEstop() {
-  debug_println("Speed EStop"); 
-  wiThrottleProtocol.emergencyStop();
-  for (int i=0; i<maxThrottles; i++) {
-    speedSet(getMultiThrottleChar(i),0);
-    currentSpeed[i] = 0;
-  }
-  writeOledSpeed();
+  throttleManager.speedEstopAll();
 }
 
 void speedEstopCurrentLoco() {
-  debug_println("Speed EStop Curent Loco"); 
-  wiThrottleProtocol.emergencyStop(currentThrottleIndexChar);
-  speedSet(currentThrottleIndexChar,0);
-  writeOledSpeed();
+  throttleManager.speedEstopCurrent();
 }
 
 void speedDown(int multiThrottleIndex, int amt) {
-  if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(multiThrottleIndex)) > 0) {
-    int newSpeed = currentSpeed[multiThrottleIndex] - amt;
-    debug_print("Speed Down: "); debug_println(amt);
-    speedSet(multiThrottleIndex, newSpeed);
-  }
+  throttleManager.speedDown(multiThrottleIndex, amt);
 }
 
 void speedUp(int multiThrottleIndex, int amt) {
-  if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(multiThrottleIndex)) > 0) {
-    int newSpeed = currentSpeed[multiThrottleIndex] + amt;
-    debug_print("Speed Up: "); debug_println(amt);
-    speedSet(multiThrottleIndex, newSpeed);
-  }
+  throttleManager.speedUp(multiThrottleIndex, amt);
 }
 
 void speedSet(int multiThrottleIndex, int amt) {
-  debug_println("setSpeed()");
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  if (wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar) > 0) {
-    int newSpeed = amt;
-    if (newSpeed >126) { newSpeed = 126; }
-    if (newSpeed <0) { newSpeed = 0; }
-    wiThrottleProtocol.setSpeed(multiThrottleIndexChar, newSpeed);
-    currentSpeed[multiThrottleIndex] = newSpeed;
-    debug_print("Speed Set: "); debug_println(newSpeed);
-
-    // used to avoid bounce
-    lastSpeedSentTime = millis();
-    lastSpeedSent = newSpeed;
-    // lastDirectionSent = -1;
-    lastSpeedThrottleIndex = multiThrottleIndex;
-
-    if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) 
-    && (multiThrottleIndex==currentThrottleIndex) ) {
-      writeOledSpeed();
-    }
-  }
+  throttleManager.speedSet(multiThrottleIndex, amt);
 }
 
 int getDisplaySpeed(int multiThrottleIndex) {
-  if (speedDisplayAsPercent) {
-    float speed = currentSpeed[multiThrottleIndex];
-    speed = speed / 126 *100;
-    int iSpeed = speed;
-    if (iSpeed-speed >= 0.5) {
-      iSpeed = iSpeed + 1;
-    }
-    return iSpeed;
-  } else {
-    if (speedDisplayAs0to28) {
-      float speed = currentSpeed[multiThrottleIndex];
-      speed = speed / 126 *28;
-      int iSpeed = speed;
-      if (iSpeed-speed >= 0.5) {
-        iSpeed = iSpeed + 1;
-      }
-      return iSpeed;
-    } else {
-      return currentSpeed[multiThrottleIndex];
-    }
-  }
+  return throttleManager.getDisplaySpeed(multiThrottleIndex);
 }
 
 void stealLoco(int multiThrottleIndex, String loco) {
@@ -2601,29 +2550,8 @@ void releaseOneLocoByIndex(int multiThrottleIndex, int index) {
   debug_println("releaseOneLocoByIndex(): end");
 }
 
-void toggleAdditionalMultiplier() {
-  // if (speedStep != currentSpeedStep) {
-  //   currentSpeedStep = speedStep;
-  // } else {
-  //   currentSpeedStep = speedStep * speedStepAdditionalMultiplier;
-  // }
-  switch (speedStepCurrentMultiplier) {
-    case 1: 
-      speedStepCurrentMultiplier = speedStepAdditionalMultiplier;
-      break;
-    case speedStepAdditionalMultiplier:
-      speedStepCurrentMultiplier = speedStepAdditionalMultiplier*2;
-      break;
-    case speedStepAdditionalMultiplier*2:
-      speedStepCurrentMultiplier = 1;
-      break;
-  }
-
-  for (int i=0; i<maxThrottles; i++) {
-    currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier;
-  }
-  writeOledSpeed();
-}
+// Thin wrapper retained for backward compatibility; real logic in ThrottleManager
+void toggleAdditionalMultiplier() { throttleManager.toggleAdditionalMultiplier(); }
 
 void toggleHeartbeatCheck() {
   heartbeatCheckEnabled = !heartbeatCheckEnabled;
@@ -2645,49 +2573,11 @@ void toggleDropBeforeAquire() {
 }
 
 void toggleDirection(int multiThrottleIndex) {
-  if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(multiThrottleIndex)) > 0) {
-    changeDirection(multiThrottleIndex, (currentDirection[multiThrottleIndex] == Forward) ? Reverse : Forward );
-    writeOledSpeed();
-  }
+  throttleManager.toggleDirection(multiThrottleIndex);
 }
 
 void changeDirection(int multiThrottleIndex, Direction direction) {
-  String loco; String leadLoco; 
-  Direction leadLocoCurrentDirection;
-  char multiThrottleChar = getMultiThrottleChar(multiThrottleIndex);
-  int locoCount = wiThrottleProtocol.getNumberOfLocomotives(multiThrottleChar);
-
-  if (locoCount > 0) {
-    currentDirection[multiThrottleIndex] = direction;
-    debug_print("changeDirection(): "); debug_println( (direction==Forward) ? "Forward" : "Reverse");
-
-    if (locoCount == 1) {
-      debug_println("changeDirection(): one loco");
-      wiThrottleProtocol.setDirection(multiThrottleChar, direction);  // change all
-
-    } else {
-      debug_println("changeDirection(): multiple locos");
-      leadLoco = wiThrottleProtocol.getLeadLocomotive(multiThrottleChar);
-      leadLocoCurrentDirection = wiThrottleProtocol.getDirection(multiThrottleChar, leadLoco);
-
-      for (int i=1; i<locoCount; i++) {
-        loco = wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleChar, i);
-        Direction currentDirection = wiThrottleProtocol.getDirection(multiThrottleChar, loco);
-        if (currentDirection == leadLocoCurrentDirection) {
-          wiThrottleProtocol.setDirection(multiThrottleChar, loco, direction);
-        } else {
-          if (direction == Reverse) {
-            wiThrottleProtocol.setDirection(multiThrottleChar, loco, Forward);
-          } else {
-            wiThrottleProtocol.setDirection(multiThrottleChar, loco, Reverse);
-          }
-        }
-      }
-      wiThrottleProtocol.setDirection(multiThrottleChar, leadLoco, direction);
-    } 
-  }
-  writeOledSpeed();
-  // debug_println("changeDirection(): end "); 
+  throttleManager.changeDirection(multiThrottleIndex, direction);
 }
 
 void doDirectFunction(int multiThrottleIndex, int functionNumber, bool pressed) {
@@ -2762,46 +2652,15 @@ void powerToggle() {
 }
 
 void nextThrottle() {
-  debug_print("nextThrottle(): "); 
-  int wasThrottle = currentThrottleIndex;
-  currentThrottleIndex++;
-  if (currentThrottleIndex >= maxThrottles) {
-    currentThrottleIndex = 0;
-  }
-  currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-
-  if (currentThrottleIndex!=wasThrottle) {
-    writeOledSpeed();
-  }
+  throttleManager.nextThrottle();
 }
 
 void throttle(int throttleIndex) {
-  debug_print("throttle(): "); 
-  int wasThrottle = currentThrottleIndex;
-  currentThrottleIndex = throttleIndex;
-  currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-
-  if (currentThrottleIndex!=wasThrottle) {
-    writeOledSpeed();
-  }
+  throttleManager.selectThrottle(throttleIndex);
 }
 
 void changeNumberOfThrottles(bool increase) {
-  if (increase) {
-    maxThrottles++;
-    if (maxThrottles>6) maxThrottles = 6;   /// can't have more than 6
-  } else {
-    maxThrottles--;
-    if (maxThrottles<1) {   /// can't have less than 1
-      maxThrottles = 1;
-    } else {
-      releaseAllLocos(maxThrottles+1);
-      if (currentThrottleIndex>=maxThrottles) {
-        nextThrottle();
-      }
-    }
-  }
-  writeOledSpeed();
+  throttleManager.changeNumberOfThrottles(increase);
 }
 
 void batteryShowToggle() {
