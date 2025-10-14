@@ -37,6 +37,8 @@
 #include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h; avoid double include
 #include "actions.h"
 #include "WiTcontroller.h"
+#include "core/ThrottleManager.h"
+#include "core/OledRenderer.h"
 
 #if WITCONTROLLER_DEBUG == 0
  #define debug_print(params...) Serial.print(params)
@@ -2891,149 +2893,17 @@ void refreshOled() {
 }
 
 
-void writeOledFoundSSids(String soFar) {
-  menuIsShowing = true;
-  keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
-  if (soFar == "") { // nothing entered yet
-    clearOledArray();
-    for (int i=0; i<5 && i<foundSsidsCount; i++) {
-      if (foundSsids[(page*5)+i].length()>0) {
-        oledText[i] = String(i) + ": " + foundSsids[(page*5)+i] + "   (" + foundSsidRssis[(page*5)+i] + ")" ;
-      }
-    }
-    oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_select_ssids_from_found];
-    writeOledArray(false, false);
-  // } else {
-  //   int cmd = menuCommand.substring(0, 1).toInt();
-  }
-}
+void writeOledFoundSSids(String soFar) { oledRenderer.renderFoundSsids(soFar); }
 
-void writeOledRoster(String soFar) {
-  lastOledScreen = last_oled_screen_roster;
-  lastOledStringParameter = soFar;
+void writeOledRoster(String soFar) { oledRenderer.renderRoster(soFar); }
 
-  menuIsShowing = true;
-  keypadUseType = KEYPAD_USE_SELECT_ROSTER;
-  if (soFar == "") { // nothing entered yet
-    clearOledArray();
-    for (int i=0; i<5 && ((page*5)+i<rosterSize); i++) {
-      int index = rosterSortedIndex[(page*5)+i];
-      if (rosterAddress[index] != 0) {
-        oledText[i] = String(i) + ": " + rosterName[index] + " (" + rosterAddress[index] + ")" ;
-      }
-    }
-    oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_roster];
-    writeOledArray(false, false);
-  // } else {
-  //   int cmd = menuCommand.substring(0, 1).toInt();
-  }
-}
+void writeOledTurnoutList(String soFar, TurnoutAction action) { oledRenderer.renderTurnoutList(soFar, action); }
 
-void writeOledTurnoutList(String soFar, TurnoutAction action) {
-  lastOledScreen = last_oled_screen_turnout_list;
-  lastOledStringParameter = soFar;
-  lastOledTurnoutParameter = action;
+void writeOledRouteList(String soFar) { oledRenderer.renderRouteList(soFar); }
 
-  menuIsShowing = true;
-  if (action == TurnoutThrow) {
-    keypadUseType = KEYPAD_USE_SELECT_TURNOUTS_THROW;
-  } else {
-    keypadUseType = KEYPAD_USE_SELECT_TURNOUTS_CLOSE;
-  }
-  if (soFar == "") { // nothing entered yet
-    clearOledArray();
-    int j = 0;
-    for (int i=0; i<10 && i<turnoutListSize; i++) {
-      j = (i<5) ? i : i+1;
-      if (turnoutListUserName[(page*10)+i].length()>0) {
-        oledText[j] = String(turnoutListIndex[i]) + ": " + turnoutListUserName[(page*10)+i].substring(0,10);
-      }
-    }
-    oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_turnout_list];
-    writeOledArray(false, false);
-  // } else {
-  //   int cmd = menuCommand.substring(0, 1).toInt();
-  }
-}
+void writeOledFunctionList(String soFar) { oledRenderer.renderFunctionList(soFar); }
 
-void writeOledRouteList(String soFar) {
-  lastOledScreen = last_oled_screen_route_list;
-  lastOledStringParameter = soFar;
-
-  menuIsShowing = true;
-  keypadUseType = KEYPAD_USE_SELECT_ROUTES;
-  if (soFar == "") { // nothing entered yet
-    clearOledArray();
-    int j = 0;
-    for (int i=0; i<10 && i<routeListSize; i++) {
-      j = (i<5) ? i : i+1;
-      if (routeListUserName[(page*10)+i].length()>0) {
-        oledText[j] = String(routeListIndex[i]) + ": " + routeListUserName[(page*10)+i].substring(0,10);
-      }
-    }
-    oledText[5] =  "(" + String(page+1) +  ") " + menu_text[menu_route_list];
-    writeOledArray(false, false);
-  // } else {
-  //   int cmd = menuCommand.substring(0, 1).toInt();
-  }
-}
-
-void writeOledFunctionList(String soFar) {
-  lastOledScreen = last_oled_screen_function_list;
-  lastOledStringParameter = soFar;
-
-  menuIsShowing = true;
-  keypadUseType = KEYPAD_USE_SELECT_FUNCTION;
-  functionHasBeenSelected = false;
-  
-  if (soFar == "") { // nothing entered yet
-    clearOledArray();
-    if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0 ) {
-      int j = 0; int k = 0;
-      for (int i=0; i<10; i++) {
-        k = (functionPage*10) + i;
-        if (k < MAX_FUNCTIONS) {
-          j = (i<5) ? i : i+1;
-            oledText[j] = String(i) + ": " 
-            + ((k<10) ? functionLabels[currentThrottleIndex][k].substring(0,10) : String(k) 
-            + "-" + functionLabels[currentThrottleIndex][k].substring(0,7)) ;
-            
-            if (functionStates[currentThrottleIndex][k]) {
-              oledTextInvert[j] = true;
-            }
-        }
-      }
-      oledText[5] = "(" + String(functionPage) +  ") " + menu_text[menu_function_list];
-    } else {
-      oledText[0] = MSG_NO_FUNCTIONS;
-      oledText[2] = MSG_THROTTLE_NUMBER + String(currentThrottleIndex+1);
-      oledText[3] = MSG_NO_LOCO_SELECTED;
-      // oledText[5] = menu_cancel;
-      setMenuTextForOled(menu_cancel);
-    }
-    writeOledArray(false, false);
-  // } else {
-  //   int cmd = menuCommand.substring(0, 1).toInt();
-  }
-}
-
-void writeOledEnterPassword() {
-  keypadUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
-  encoderUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
-  clearOledArray(); 
-  String tempSsidPasswordEntered;
-  tempSsidPasswordEntered = ssidPasswordEntered+ssidPasswordCurrentChar;
-  if (tempSsidPasswordEntered.length()>12) {
-    tempSsidPasswordEntered = "\253"+tempSsidPasswordEntered.substring(tempSsidPasswordEntered.length()-12);
-  } else {
-    tempSsidPasswordEntered = " "+tempSsidPasswordEntered;
-  }
-  oledText[0] = MSG_ENTER_PASSWORD;
-  oledText[2] = tempSsidPasswordEntered;
-  // oledText[5] = menu_enter_ssid_password;
-  setMenuTextForOled(menu_enter_ssid_password);
-  writeOledArray(false, true);
-}
+void writeOledEnterPassword() { oledRenderer.renderEnterPassword(); }
 
 void writeOledMenu(String soFar, bool primeMenu) {
   debug_print("writeOledMenu() : "); debug_print(primeMenu); debug_print(" : "); debug_println(soFar);
@@ -3114,350 +2984,25 @@ void writeOledAllLocos(bool hideLeadLoco) {
   }
 }
 
-void writeOledEditConsist() {
-  lastOledScreen = last_oled_screen_edit_consist;
+void writeOledEditConsist() { oledRenderer.renderEditConsist(); }
+void writeHeartbeatCheck() { oledRenderer.renderHeartbeatCheck(); }
 
-  menuIsShowing = false;
-  clearOledArray();
-  debug_println("writeOledEditConsist(): ");
-  keypadUseType = KEYPAD_USE_EDIT_CONSIST;
-  writeOledAllLocos(true);
-  oledText[0] = MENU_ITEM_TEXT_TITLE_EDIT_CONSIST;
-  oledText[5] = MENU_ITEM_TEXT_MENU_EDIT_CONSIST;
-  writeOledArray(false, false);
-}
+// NOTE: writeOledSpeed is now wrapped by OledRenderer::renderSpeed() (Phase 1 extraction)
+void writeOledSpeed() { oledRenderer.renderSpeed(); }
 
-void writeHeartbeatCheck() {
-  menuIsShowing = false;
-  clearOledArray();
-  oledText[0] = MENU_ITEM_TEXT_TITLE_HEARTBEAT;
-  if (heartbeatCheckEnabled) {
-    oledText[1] = MSG_HEARTBEAT_CHECK_ENABLED; 
-  } else {
-    oledText[1] = MSG_HEARTBEAT_CHECK_DISABLED; 
-  }
-  oledText[5] = MENU_ITEM_TEXT_MENU_HEARTBEAT;
-  writeOledArray(false, false);
-}
+void writeOledSpeedStepMultiplier() { oledRenderer.renderSpeedStepMultiplier(); }
 
-void writeOledSpeed() {
-  lastOledScreen = last_oled_screen_speed;
+void writeOledBattery() { oledRenderer.renderBattery(); }
 
-  // debug_println("writeOledSpeed() ");
-  
-  menuIsShowing = false;
-  String sLocos = "";
-  String sSpeed = "";
-  String sDirection = "";
-  String sSpaceBetweenLocos = " ";
+void writeOledFunctions() { oledRenderer.renderFunctions(); }
 
-  bool foundNextThrottle = false;
-  String sNextThrottleNo = "";
-  String sNextThrottleSpeedAndDirection = "";
+void writeOledArray(bool a, bool b) { oledRenderer.renderArray(a,b); }
+void writeOledArray(bool a, bool b, bool c) { oledRenderer.renderArray(a,b,c); }
+void writeOledArray(bool a, bool b, bool c, bool d) { oledRenderer.renderArray(a,b,c,d); }
 
-  clearOledArray();
-  
-  bool drawTopLine = false;
+void clearOledArray() { oledRenderer.clearArray(); }
 
-  if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0 ) {
-    // oledText[0] = label_locos; oledText[2] = label_speed;
-  
-    for (int i=0; i < wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar); i++) {
-      // sLocos = sLocos + sSpaceBetweenLocos + wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, i);
-      sLocos = sLocos + sSpaceBetweenLocos + getDisplayLocoString(currentThrottleIndex, i);
-      sSpaceBetweenLocos = CONSIST_SPACE_BETWEEN_LOCOS;
-    }
-    // sSpeed = String(currentSpeed[currentThrottleIndex]);
-    sSpeed = String(getDisplaySpeed(currentThrottleIndex));
-    sDirection = (currentDirection[currentThrottleIndex]==Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
-
-    //find the next Throttle that has any locos selected - if there is one
-    if (maxThrottles > 1) {
-      int nextThrottleIndex = currentThrottleIndex + 1;
-
-      for (int i = nextThrottleIndex; i<maxThrottles; i++) {
-        if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0 ) {
-          foundNextThrottle = true;
-          nextThrottleIndex = i;
-          break;
-        }
-      }
-      if ( (!foundNextThrottle) && (currentThrottleIndex>0) ) {
-        for (int i = 0; i<currentThrottleIndex; i++) {
-          if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0 ) {
-            foundNextThrottle = true;
-            nextThrottleIndex = i;
-            break;
-          }
-        }
-      }
-      if (foundNextThrottle) {
-        sNextThrottleNo =  String(nextThrottleIndex+1);
-        int speed = getDisplaySpeed(nextThrottleIndex);
-        sNextThrottleSpeedAndDirection = String(speed);
-        // if (speed>0) {
-          if (currentDirection[nextThrottleIndex]==Forward) {
-            sNextThrottleSpeedAndDirection = sNextThrottleSpeedAndDirection + DIRECTION_FORWARD_TEXT_SHORT;
-          } else {
-            sNextThrottleSpeedAndDirection = DIRECTION_REVERSE_TEXT_SHORT + sNextThrottleSpeedAndDirection;
-          }
-        // }
-        // + " " + ((currentDirection[nextThrottleIndex]==Forward) ? DIRECTION_FORWARD_TEXT_SHORT : DIRECTION_REVERSE_TEXT_SHORT);
-        sNextThrottleSpeedAndDirection = "     " + sNextThrottleSpeedAndDirection ;
-        sNextThrottleSpeedAndDirection = sNextThrottleSpeedAndDirection.substring(sNextThrottleSpeedAndDirection.length()-5);
-      }
-    }
-
-    oledText[0] = "   "  + sLocos; 
-    //oledText[7] = "     " + sDirection;  // old function state format
-
-    drawTopLine = true;
-
-  } else {
-    setAppnameForOled();
-    oledText[2] = MSG_THROTTLE_NUMBER + String(currentThrottleIndex+1);
-    oledText[3] = MSG_NO_LOCO_SELECTED;
-    drawTopLine = true;
-  }
-
-  if (!hashShowsFunctionsInsteadOfKeyDefs) {
-      // oledText[5] = menu_menu;
-      setMenuTextForOled(menu_menu);
-    } else {
-    // oledText[5] = menu_menu_hash_is_functions;
-    setMenuTextForOled(menu_menu_hash_is_functions);
-  }
-
-  writeOledArray(false, false, false, drawTopLine);
-
-  if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0 ) {
-    writeOledFunctions();
-
-     // throttle number
-    u8g2.setDrawColor(0);
-    u8g2.drawBox(0,0,12,16);
-    u8g2.setDrawColor(1);
-    u8g2.setFont(FONT_THROTTLE_NUMBER); // medium
-    u8g2.drawStr(2,15, String(currentThrottleIndex+1).c_str());
-  }
-
-  writeOledBattery();
-  writeOledSpeedStepMultiplier();
-
-  if (trackPower == PowerOn) {
-    // u8g2.drawBox(0,41,15,8);
-    u8g2.drawRBox(0,40,9,9,1);
-    u8g2.setDrawColor(0);
-  }
-  u8g2.setFont(FONT_GLYPHS);
-  // u8g2.drawStr(0, 48, label_track_power.c_str());
-  u8g2.drawGlyph(1, 48, glyph_track_power);
-  u8g2.setDrawColor(1);
-
-  if (!heartbeatCheckEnabled) {
-    u8g2.setFont(FONT_GLYPHS);
-    u8g2.drawGlyph(13, 49, glyph_heartbeat_off);
-    u8g2.setDrawColor(2);
-    u8g2.drawLine(13, 48, 20, 41);
-    // u8g2.drawLine(13, 48, 21, 40);
-    u8g2.setDrawColor(1);
-  }
-
-  // direction
-  // needed for new function state format
-  u8g2.setFont(FONT_DIRECTION); // medium
-  u8g2.drawStr(79,36, sDirection.c_str());
-
-  // speed
-  const char *cSpeed = sSpeed.c_str();
-  // u8g2.setFont(u8g2_font_inb21_mn); // big
-  u8g2.setFont(FONT_SPEED); // big
-  int width = u8g2.getStrWidth(cSpeed);
-  u8g2.drawStr(22+(55-width),45, cSpeed);
-
-  // speed and direction of next throttle
-  if ( (maxThrottles > 1) && (foundNextThrottle) ) {
-    u8g2.setFont(FONT_NEXT_THROTTLE);
-    u8g2.drawStr(85+34,38, sNextThrottleNo.c_str() );
-    u8g2.drawStr(85+12,48, sNextThrottleSpeedAndDirection.c_str() );
-  }
-
-  u8g2.sendBuffer();
-
-  // debug_println("writeOledSpeed(): end");
-}
-
-void writeOledSpeedStepMultiplier() {
-  if (speedStep != currentSpeedStep[currentThrottleIndex]) {
-    // oledText[3] = "X " + String(speedStepCurrentMultiplier);
-    u8g2.setDrawColor(1);
-    u8g2.setFont(FONT_GLYPHS);
-    u8g2.drawGlyph(1, 38, glyph_speed_step);
-    u8g2.setFont(FONT_DEFAULT);
-    // u8g2.drawStr(0, 37, ("X " + String(speedStepCurrentMultiplier)).c_str());
-    u8g2.drawStr(9, 37, String(speedStepCurrentMultiplier).c_str());
-  }
-}
-
-void writeOledBattery() {
-  // debug_print("writeOledBattery(): time: "); debug_println(lastBatteryCheckTime);
-  if (batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0)) {
-    // debug_println("writeOledBattery(): do it"); 
-    //int lastBatteryTestValue = random(0,100);
-    u8g2.setFont(FONT_GLYPHS);
-    u8g2.setDrawColor(1);
-    // int x = 13; int y = 28;
-    int x = 120; int y = 11;
-    // if (useBatteryPercentAsWellAsIcon) x = 102;
-    if (batteryMonitor.displayMode()==ICON_AND_PERCENT) x = 102;
-    u8g2.drawStr(x, y, String("Z").c_str());
-    int pct = batteryMonitor.percent();
-    if (pct>10) u8g2.drawLine(x+1, y-6, x+1, y-3);
-    if (pct>25) u8g2.drawLine(x+2, y-6, x+2, y-3);
-    if (pct>50) u8g2.drawLine(x+3, y-6, x+3, y-3);
-    if (pct>75) u8g2.drawLine(x+4, y-6, x+4, y-3);
-    if (pct>90) u8g2.drawLine(x+5, y-6, x+5, y-3);
-    
-    // if (useBatteryPercentAsWellAsIcon) {
-    if (batteryMonitor.displayMode()==ICON_AND_PERCENT) {
-      // x = 13; y = 36;
-      x = 112; y = 10;
-      u8g2.setFont(FONT_FUNCTION_INDICATORS);
-      if(pct<5) {
-        u8g2.drawStr(x,y, String("LOW").c_str());
-      } else {
-        u8g2.drawStr(x,y, String(String(pct)+"%").c_str());
-      }
-    }
-  }
-}
-
-void writeOledFunctions() {
-  lastOledScreen = last_oled_screen_speed;
-
-  debug_println("writeOledFunctions():");
-  //  int x = 99;
-  // bool anyFunctionsActive = false;
-   for (int i=0; i < MAX_FUNCTIONS; i++) {
-     if (functionStates[currentThrottleIndex][i]) {
-      // old function state format
-  //     //  debug_print("Fn On "); debug_println(i);
-  //     if (i < 12) {
-  //     int y = (i+2)*10-8;
-  //     if ((i>=4) && (i<8)) { 
-  //       x = 109; 
-  //       y = (i-2)*10-8;
-  //     } else if (i>=8) { 
-  //       x = 119; 
-  //       y = (i-6)*10-8;
-  //     }
-      
-  //     u8g2.drawBox(x,y,8,8);
-  //     u8g2.setDrawColor(0);
-  //     u8g2.setFont(u8g2_font_profont10_tf);
-  //     u8g2.drawStr( x+2, y+7, String( (i<10) ? i : i-10 ).c_str());
-  //     u8g2.setDrawColor(1);
-  //   //  } else {
-  //   //    debug_print("Fn Off "); debug_println(i);
-
-      // new function state format
-      // anyFunctionsActive = true;
-      // u8g2.drawBox(i*4+12,12,5,7);
-      u8g2.drawRBox(i*4+12,12+1,5,7,2);
-      u8g2.setDrawColor(0);
-      u8g2.setFont(FONT_FUNCTION_INDICATORS);   
-      u8g2.drawUTF8( i*4+1+12, 18+1, String( (i<10) ? i : ((i<20) ? i-10 : i-20)).c_str());
-      u8g2.setDrawColor(1);
-     }
-    //  if (anyFunctionsActive) {
-    //     u8g2.drawStr( 0, 18, (function_states).c_str());
-    // //     u8g2.drawHLine(0,19,128);
-    //  }
-   }
-  debug_println("writeOledFunctions(): end");
-}
-
-void writeOledArray(bool isThreeColums, bool isPassword) {
-  writeOledArray(isThreeColums, isPassword, true, false);
-}
-
-void writeOledArray(bool isThreeColums, bool isPassword, bool sendBuffer) {
-  writeOledArray(isThreeColums, isPassword, sendBuffer, false);
-}
-
-void writeOledArray(bool isThreeColums, bool isPassword, bool sendBuffer, bool drawTopLine) {
-  // debug_println("Start writeOledArray()");
-  u8g2.clearBuffer();					// clear the internal memory
-
-  u8g2.setFont(FONT_DEFAULT); // small
-  
-  int x=0;
-  int y=10;
-  int xInc = 64; 
-  int max = 12;
-  if (isThreeColums) {
-    xInc = 42;
-    max = 18;
-  }
-
-  for (int i=0; i < max; i++) {
-    const char *cLine1 = oledText[i].c_str();
-    if ((isPassword) && (i==2)) u8g2.setFont(FONT_PASSWORD); 
-
-    if (oledTextInvert[i]) {
-      u8g2.drawBox(x,y-8,62,10);
-      u8g2.setDrawColor(0);
-    }
-    u8g2.drawUTF8(x,y, cLine1);
-    u8g2.setDrawColor(1);
-
-    if ((isPassword) && (i==2)) u8g2.setFont(FONT_DEFAULT); 
-    y = y + 10;
-    if ((i==5) || (i==11)) {
-      x = x + xInc;
-      y = 10;
-    }
-  }
-
-  if (drawTopLine) {
-    u8g2.drawHLine(0,11,128);
-    writeOledBattery();
-  }
-  u8g2.drawHLine(0,51,128);
-
-  if (sendBuffer) u8g2.sendBuffer();					// transfer internal memory to the display
-  // debug_println("writeOledArray(): end ");
-}
-
-void clearOledArray() {
-  for (int i=0; i < 15; i++) {
-    oledText[i] = "";
-    oledTextInvert[i] = false;
-  }
-}
-
-void writeOledDirectCommands() {
-  lastOledScreen = last_oled_screen_direct_commands;
-
-  oledDirectCommandsAreBeingDisplayed = true;
-  clearOledArray();
-  oledText[0] = DIRECT_COMMAND_LIST;
-  for (int i=0; i < 4; i++) {
-    oledText[i+1] = directCommandText[i][0];
-  }
-  int j = 0;
-  for (int i=6; i < 10; i++) {
-    oledText[i+1] = directCommandText[j][1];
-    j++;
-  }
-  j=0;
-  for (int i=12; i < 16; i++) {
-    oledText[i+1] = directCommandText[j][2];
-    j++;
-  }
-  writeOledArray(true, false);
-  menuCommandStarted = false;
-}
+void writeOledDirectCommands() { oledRenderer.renderDirectCommands(); }
 
 // *********************************************************************************
 

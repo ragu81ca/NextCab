@@ -1,7 +1,15 @@
-#include "core/ThrottleManager.h"
+// Prevent multiple inclusion and circular dependency amplification
+#pragma once
+
 #include <Keypad.h> // for KeypadEvent typedef
+#include <WiThrottleProtocol.h> // bring in Direction, TrackPower, TurnoutAction enums
+
+// Forward declarations to break cyclic dependency (definitions in respective headers)
+class ThrottleManager;
+class OledRenderer;
 
 extern ThrottleManager throttleManager;
+extern OledRenderer oledRenderer;
 //
 // DO NOT alter this file
 // 
@@ -69,6 +77,7 @@ extern int rosterIndex[];
 extern String rosterName[]; 
 extern int rosterAddress[];
 extern char rosterLength[];
+extern int rosterSortedIndex[]; // sorted index order
 
 extern int page;
 
@@ -87,6 +96,8 @@ extern bool functionStates[][MAX_FUNCTIONS];
 extern String functionLabels[][MAX_FUNCTIONS];
 extern int functionFollow[][MAX_FUNCTIONS];
 extern int currentSpeedStep[];
+extern int functionPage; // page within function list
+extern bool functionHasBeenSelected; // selection flag for function list UI
 extern int heartbeatPeriod;
 extern long lastServerResponseTime;
 extern bool heartbeatCheckEnabled;
@@ -101,12 +112,22 @@ extern long lastSpeedSentTime;
 extern int lastSpeedSent;
 // extern int lastDirectionSent;
 extern int lastSpeedThrottleIndex;
+// renderer state caching (used for refresh logic)
+extern int lastOledScreen;
+extern String lastOledStringParameter;
+extern TurnoutAction lastOledTurnoutParameter;
 
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 
 extern int currentThrottleIndex;
 extern int maxThrottles;              // number of active throttles (was local in .ino)
 extern char currentThrottleIndexChar; // multi-throttle character for current index
+extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
+// Additional globals used by OledRenderer (migrated rendering logic)
+extern bool oledDirectCommandsAreBeingDisplayed;
+extern bool hashShowsFunctionsInsteadOfKeyDefs;
+String getDisplayLocoString(int multiThrottleIndex, int index); // helper for speed screen
+int getDisplaySpeed(int multiThrottleIndex);
 
 // function prototypes
 
