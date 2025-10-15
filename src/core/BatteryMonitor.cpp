@@ -1,7 +1,6 @@
 // BatteryMonitor.cpp - relocated
+// Dependencies (static.h, Pangodream_18650_CL) already pulled in via BatteryMonitor.h
 #include "BatteryMonitor.h"
-#include "../../static.h"
-#include "../../Pangodream_18650_CL.h"
 BatteryMonitor::BatteryMonitor()
   : useBatteryTest(USE_BATTERY_TEST),
     useBatteryPercentAsWellAsIcon(USE_BATTERY_PERCENT_AS_WELL_AS_ICON),

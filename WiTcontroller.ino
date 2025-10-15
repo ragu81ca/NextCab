@@ -24,8 +24,7 @@
 #include <U8g2lib.h>              // https://github.com/olikraus/u8g2  (Just get "U8g2" via the Arduino IDE Library Manager)   new-bsd
 #include <WiThrottleProtocol.h>   // https://github.com/flash62au/WiThrottleProtocol                           Creative Commons 4.0  Attribution-ShareAlike
 
-// this library is included with the WiTController code
-#include "Pangodream_18650_CL.h"  // https://github.com/pangodream/18650CL                                     Copyright (c) 2019 Pangodream
+// Pangodream_18650_CL.h now only needed inside BatteryMonitor implementation
 
 // create these files by copying the example files and editing them as needed
 #include "config_network.h"      // LAN networks (SSIDs and passwords)
