@@ -914,6 +914,39 @@ If you are interested, please contact me directly for instructions.
 
 ## Modifying the code
 
+### Refactored modular core (October 2025)
+
+The project has begun an incremental refactor to separate newly introduced classes from the original monolithic sketch.  All new code that encapsulates specific responsibilities now lives under `src/core`:
+
+* `OledRenderer.*` – centralised all display rendering logic (menus, speed screen, lists, heartbeat).
+* `UIState.*` – holds transient UI line buffers and flags (replaces many former global arrays / booleans with a struct).
+* `ThrottleManager.*` – consolidates speed, direction and multi‑throttle selection logic.
+* `BatteryMonitor.*` – encapsulates battery percentage / icon handling and low‑battery checks.
+* `PreferencesManager.*` – wraps ESP32 Preferences (NVS) access for restoring/saving acquired locomotives.
+* `RenderModel.h` & `HeartbeatPresenter.h` – first presenter example (MVP style) building a model for the heartbeat check screen.
+
+Legacy global variables are still defined in `WiTcontroller.ino`, but many are now accessed via lightweight macros in `WiTcontroller.h` that map to the `UIState` instance (e.g. `oledText`, `menuIsShowing`). This keeps the public API stable for existing code while enabling progressive isolation and testability.
+
+#### Transitional stubs
+
+Previously duplicated root `*.cpp` files (e.g. `ThrottleManager.cpp` at the project root) have been removed; authoritative implementations exist only in `src/core`. If you still have local untracked stub files, you can delete them safely once you confirm builds are clean.
+
+#### Why this structure?
+
+* Avoids touching the original large sketch all at once (lower merge / regression risk).
+* Eases future unit testing by giving coherent, single‑purpose classes.
+* Provides a pattern (Presenter + RenderModel) for future screens reducing direct OLED side‑effects sprinkled across the sketch.
+
+#### Next refactor steps (not yet done)
+
+* Migrate remaining rendering helpers into `OledRenderer` or additional presenters.
+* Reduce macro bridging in `WiTcontroller.h` by moving more state directly into `UIState`.
+* Make `renderAllLocos` private again once external legacy calls are redirected.
+* Add unit tests (where practical) for `ThrottleManager` and `BatteryMonitor` behavior.
+
+If you contribute new modules following this pattern, prefer placing them in `src/core` (or a subfolder) and include them from the sketch using a relative path (`#include "src/core/YourClass.h"`).
+
+
 If you plan to modify the code to make you own version, it is recommended that you create your own GitHub fork of my repository and post your mods there.
 
 [Instructions on how to do so are here](forking.md).

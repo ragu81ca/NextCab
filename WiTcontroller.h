@@ -3,6 +3,7 @@
 
 #include <Keypad.h> // for KeypadEvent typedef
 #include <WiThrottleProtocol.h> // bring in Direction, TrackPower, TurnoutAction enums
+#include "src/core/UIState.h" // relocated centralized UI state
 
 // Forward declarations to break cyclic dependency (definitions in respective headers)
 class ThrottleManager;
@@ -26,10 +27,10 @@ extern int encoderUseType;
 
 extern bool menuCommandStarted;
 extern String menuCommand;
-extern bool menuIsShowing;
-
-extern String oledText[];
-extern bool oledTextInvert[];
+// UI state (bridging): map legacy names directly to uiState fields via macros (no separate globals)
+#define menuIsShowing uiState.menuIsShowing
+#define oledText uiState.lines
+#define oledTextInvert uiState.invert
 
 extern int currentSpeed[];
 extern Direction currentDirection[];
@@ -79,7 +80,7 @@ extern int rosterAddress[];
 extern char rosterLength[];
 extern int rosterSortedIndex[]; // sorted index order
 
-extern int page;
+#define page uiState.page
 
 extern int turnoutListSize;
 extern int turnoutListIndex[]; 
@@ -96,8 +97,8 @@ extern bool functionStates[][MAX_FUNCTIONS];
 extern String functionLabels[][MAX_FUNCTIONS];
 extern int functionFollow[][MAX_FUNCTIONS];
 extern int currentSpeedStep[];
-extern int functionPage; // page within function list
-extern bool functionHasBeenSelected; // selection flag for function list UI
+#define functionPage uiState.functionPage
+#define functionHasBeenSelected uiState.functionHasBeenSelected
 extern int heartbeatPeriod;
 extern long lastServerResponseTime;
 extern bool heartbeatCheckEnabled;
@@ -113,10 +114,10 @@ extern int lastSpeedSent;
 // extern int lastDirectionSent;
 extern int lastSpeedThrottleIndex;
 // renderer state caching (used for refresh logic)
-extern int lastOledScreen;
-extern String lastOledStringParameter;
-extern bool lastOledBoolParameter;
-extern TurnoutAction lastOledTurnoutParameter;
+#define lastOledScreen uiState.lastScreen
+#define lastOledStringParameter uiState.lastStringParam
+#define lastOledBoolParameter uiState.lastBoolParam
+#define lastOledTurnoutParameter uiState.lastTurnoutParam
 
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 

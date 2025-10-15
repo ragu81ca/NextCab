@@ -1,0 +1,37 @@
+// OledRenderer.h - relocated to src/core
+#pragma once
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <WiThrottleProtocol.h> // for TurnoutAction
+
+class OledRenderer {
+public:
+    explicit OledRenderer(U8G2 &display);
+
+    // Public rendering entry points used by application code
+    void renderFoundSsids(const String &soFar);
+    void renderRoster(const String &soFar);
+    void renderTurnoutList(const String &soFar, TurnoutAction action);
+    void renderRouteList(const String &soFar);
+    void renderFunctionList(const String &soFar);
+    void renderEnterPassword();
+    void renderEditConsist();
+    void renderHeartbeatCheck();
+    void renderMenu(const String &soFar, bool primeMenu); // primeMenu=true for main menu
+    void renderSpeed();
+    void renderDirectCommands();
+    void renderBattery();
+    void renderSpeedStepMultiplier();
+    void renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer=true, bool drawTopLine=false);
+    void clearArray();
+    // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
+    void renderAllLocosScreen(bool hideLeadLoco);
+
+private:
+    void renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine);
+    void renderFunctions();
+    void renderAllLocos(bool hideLeadLoco); // now private again
+    // (kept declaration moved to public)
+
+    U8G2 &display;
+};

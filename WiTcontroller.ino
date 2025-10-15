@@ -37,8 +37,9 @@
 #include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h; avoid double include
 #include "actions.h"
 #include "WiTcontroller.h"
-#include "core/ThrottleManager.h"
-#include "core/OledRenderer.h"
+// Refactored modules (relocated under src/core)
+#include "src/core/ThrottleManager.h"
+#include "src/core/OledRenderer.h"
 
 #if WITCONTROLLER_DEBUG == 0
  #define debug_print(params...) Serial.print(params)
@@ -68,13 +69,11 @@ int encoderButtonAction = ENCODER_BUTTON_ACTION;
 
 bool menuCommandStarted = false;
 String menuCommand = "";
-bool menuIsShowing = false;
+// migrated: menuIsShowing now in uiState (see ui_state_bridge.cpp)
 
 String startupCommands[4] = {STARTUP_COMMAND_1, STARTUP_COMMAND_2, STARTUP_COMMAND_3, STARTUP_COMMAND_4};
 
-String oledText[18] = {"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""};
-bool oledTextInvert[18] = {false, false, false, false, false, false, false, false, false, 
-                           false, false, false, false, false, false, false, false, false};
+// migrated: oledText / oledTextInvert now in uiState.lines / uiState.invert
 
 int currentSpeed[6];   // set to maximum possible (6)
 Direction currentDirection[6];   // set to maximum possible (6)
@@ -103,10 +102,10 @@ int lastThrottlePotValues[] = {0, 0, 0, 0, 0};
 int lastThrottlePotReadTime = -1;
 
 // Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
-#include "core/BatteryMonitor.h"
+#include "src/core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
-#include "core/ThrottleManager.h"
+#include "src/core/ThrottleManager.h"
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 
 // server variables
@@ -160,9 +159,7 @@ char rosterSortStrings[maxRoster][14];
 char* rosterSortPointers[maxRoster]; 
 int rosterSortedIndex[maxRoster]; 
 
-int page = 0;
-int functionPage = 0;
-bool functionHasBeenSelected = false;
+// migrated: page, functionPage, functionHasBeenSelected now in uiState
 
 // Broadcast msessage
 String broadcastMessageText = "";
@@ -170,11 +167,8 @@ long broadcastMessageTime = 0;
 long lastReceivingServerDetailsTime = 0;
 
 // remember oLED state
-int lastOledScreen = 0;
-String lastOledStringParameter = "";
-int lastOledIntParameter = 0;
-bool lastOledBoolParameter = false;
-TurnoutAction lastOledTurnoutParameter = TurnoutToggle;
+// migrated: lastOled* variables now in uiState (except lastOledIntParameter retained locally if still needed)
+int lastOledIntParameter = 0; // TODO: consider moving this as presenters evolve
 
 // turnout variables
 int turnoutListSize = 0;
@@ -1164,7 +1158,7 @@ void buildWitEntry() {
 //   Preferences (moved to PreferencesManager)
 //   Legacy function names kept as thin wrappers for now for minimal intrusion.
 
-#include "core/PreferencesManager.h"
+#include "src/core/PreferencesManager.h"
 PreferencesManager preferencesManager;
 
 void setupPreferences(bool forceClear) { preferencesManager.begin(forceClear); }
@@ -2881,7 +2875,7 @@ void refreshOled() {
   oledRenderer.renderMenu(lastOledStringParameter, false);
       break;
     case last_oled_screen_all_locos:
-  oledRenderer.renderAllLocos(lastOledBoolParameter);
+  oledRenderer.renderAllLocosScreen(lastOledBoolParameter);
       break;
     case last_oled_screen_edit_consist:
       writeOledEditConsist();
