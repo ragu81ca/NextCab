@@ -74,7 +74,7 @@ String startupCommands[4] = {STARTUP_COMMAND_1, STARTUP_COMMAND_2, STARTUP_COMMA
 
 int currentSpeed[6];   // set to maximum possible (6)
 Direction currentDirection[6];   // set to maximum possible (6)
-int speedStepCurrentMultiplier = 1;
+// (moved to ThrottleManager) int speedStepCurrentMultiplier
 
 TrackPower trackPower = PowerUnknown;
 String turnoutPrefix = "";
@@ -104,7 +104,6 @@ int lastThrottlePotReadTime = -1;
 #include "src/core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
-#include "src/core/ThrottleManager.h"
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 
 // server variables
@@ -196,19 +195,14 @@ int functionFollow[6][MAX_FUNCTIONS];   // set to maximum possible (6 throttles)
 int currentSpeedStep[6];   // set to maximum possible (6 throttles)
 
 // throttle
-int currentThrottleIndex = 0;
-char currentThrottleIndexChar = '0';
-int maxThrottles = MAX_THROTTLES;
+// (moved to ThrottleManager) currentThrottleIndex / currentThrottleIndexChar / maxThrottles
 
 int heartbeatPeriod = DEFAULT_HEARTBEAT_PERIOD; // default to 10 seconds
 long lastServerResponseTime;  // seconds since start of Arduino
 bool heartbeatCheckEnabled = HEARTBEAT_ENABLED;
 
 // used to stop speed bounces
-long lastSpeedSentTime = 0;
-int lastSpeedSent = 0;
-// int lastDirectionSent = -1;
-int lastSpeedThrottleIndex = 0;
+// (moved to ThrottleManager) lastSpeedSentTime / lastSpeedSent / lastSpeedThrottleIndex
 
 bool dropBeforeAcquire = DROP_BEFORE_ACQUIRE;
 
@@ -326,211 +320,8 @@ void displayUpdateFromWit(int multiThrottleIndex) {
   }
 }
 
-// WiThrottleProtocol Delegate class
-class MyDelegate : public WiThrottleProtocolDelegate {
-  
-  public:
-    void heartbeatConfig(int seconds) { 
-      debug_print("Received heartbeat. From: "); debug_print(heartbeatPeriod); 
-      debug_print(" To: "); debug_println(seconds); 
-      heartbeatPeriod = seconds;
-    }
-    void receivedVersion(String version) {    
-      debug_printf("Received Version: %s\n",version.c_str()); 
-    }
-    void receivedServerDescription(String description) {
-      debug_print("Received Description: "); debug_println(description);
-      serverType = description.substring(0,description.indexOf(" "));
-      debug_print("ServerType: "); debug_println(serverType);
-      if (serverType.equals("DCC-EX")) {
-      // if (description.substring(0,6).equals("DCC-EX")) {
-        debug_println("resetting prefixes");
-        turnoutPrefix = DCC_EX_TURNOUT_PREFIX;
-        routePrefix = DCC_EX_ROUTE_PREFIX;
-      }
-    }
-    void receivedMessage(String message) {
-      debug_print("Broadcast Message: ");
-      debug_println(message);
-      if ( (!message.equals("Connected")) && (!message.equals("Connecting..")) ) {
-        broadcastMessageText = String(message);
-        broadcastMessageTime = millis();
-        refreshOled();
-      }
-    }
-    void receivedAlert(String message) {
-      debug_print("Broadcast Alert: ");
-      debug_println(message);
-      if ( (!message.equals("Connected")) 
-          && (!message.equals("Connecting.."))
-          && (!message.equals("Steal from other WiThrottle or JMRI throttle Required"))
-        ) {
-        broadcastMessageText = String(message);
-        broadcastMessageTime = millis();
-        refreshOled();
-      }
-    }
-    void receivedSpeedMultiThrottle(char multiThrottle, int speed) {             // Vnnn
-      debug_print("Received Speed: ("); debug_print(millis()); debug_print(") throttle: "); debug_print(multiThrottle);  debug_print(" speed: "); debug_println(speed); 
-      int multiThrottleIndex = getMultiThrottleIndex(multiThrottle);
-
-      if (currentSpeed[multiThrottleIndex] != speed) {
-        
-        // check for bounce. (intermediate speed sent back from the server, but is not up to date with the throttle)
-        if ( (lastSpeedThrottleIndex!=multiThrottleIndex)
-             || ((millis()-lastSpeedSentTime)>500)
-        ) {
-          currentSpeed[multiThrottleIndex] = speed;
-          displayUpdateFromWit(multiThrottleIndex);
-        } else {
-          debug_print("Received Speed: skipping response: ("); debug_print(millis()); debug_print(") speed: "); debug_println(speed);
-        }
-      }
-    }
-    void receivedDirectionMultiThrottle(char multiThrottle, Direction dir) {     // R{0,1}
-      debug_print("Received Direction: "); debug_println(dir); 
-      int multiThrottleIndex = getMultiThrottleIndex(multiThrottle);
-
-      if (currentDirection[multiThrottleIndex] != dir) {
-        currentDirection[multiThrottleIndex] = dir;
-        displayUpdateFromWit(multiThrottleIndex);
-      }
-    }
-    void receivedDirectionMultiThrottle(char multiThrottle, String loco, Direction dir) {     // R{0,1}
-      debug_print("Received Direction: loco: "); debug_print(loco); debug_print(" Received Direction: "); debug_println(dir); 
-      // int multiThrottleIndex = getMultiThrottleIndex(multiThrottle);
-
-      // if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) {
-      //   for (int index=0; index < wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar); index++) {  //can only show first 8
-      //     if (loco.equals(wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, index));
-      //       if (wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco) == Reverse) {
-      //         oledTextInvert[j+1] = true;
-      //       }
-      //   } 
-      // }
-    }
-    void receivedFunctionStateMultiThrottle(char multiThrottle, uint8_t func, bool state) { 
-      debug_print("Received Fn: "); debug_print(func); debug_print(" State: "); debug_println( (state) ? "True" : "False" );
-      int multiThrottleIndex = getMultiThrottleIndex(multiThrottle);
-
-      if (functionStates[multiThrottleIndex][func] != state) {
-        functionStates[multiThrottleIndex][func] = state;
-        displayUpdateFromWit(multiThrottleIndex);
-      }
-    }
-    void receivedRosterFunctionListMultiThrottle(char multiThrottle, String functions[MAX_FUNCTIONS]) { 
-      debug_println("Received Fn List: "); 
-      int multiThrottleIndex = getMultiThrottleIndex(multiThrottle);
-
-      for(int i = 0; i < MAX_FUNCTIONS; i++) {
-        functionLabels[multiThrottleIndex][i] = functions[i];
-        debug_print(" Function: "); debug_print(i); debug_print(" - "); debug_println( functions[i] );
-      }
-    }
-    void receivedTrackPower(TrackPower state) { 
-      debug_print("Received TrackPower: "); debug_println(state);
-      if (trackPower != state) {
-        trackPower = state;
-        displayUpdateFromWit(-1); // dummry multithrottle
-        refreshOled();
-      }
-    }
-    void receivedRosterEntries(int size) {
-      debug_print("Received Roster Entries. Size: "); debug_println(size);
-      rosterSize = (size<maxRoster) ? size : maxRoster;
-
-      if (rosterSize==0) {
-        setupPreferences(false);  // if not roster read the prefeences immediately otherwise wait till we get them all
-      }
-    }
-    void receivedRosterEntry(int index, String name, int address, char length) {
-      debug_print("Received Roster Entry, index: "); debug_print(index); debug_println(" - " + name);
-      if (index < rosterSize) {
-        rosterIndex[index] = index; 
-        rosterSortedIndex[index] = index; // default to unsorted
-        rosterName[index] = name; 
-        rosterAddress[index] = address;
-        rosterLength[index] = length;
-
-        if (ROSTER_SORT_SEQUENCE == 1) {
-          strncpy(rosterSortStrings[index], ((name+"          ").substring(0,10) + ":" + (index < 10 ? "0" : "") + String(index)).c_str(), 13);
-          rosterSortPointers[index] = rosterSortStrings[index];
-        } else if (ROSTER_SORT_SEQUENCE == 2) { 
-          char buf[11];
-          sprintf(buf, "%10d", rosterAddress[index]);
-          strncpy(rosterSortStrings[index], (String(buf) + ":" + (index < 10 ? "0" : "") + String(index)).c_str(), 13);
-          rosterSortPointers[index] = rosterSortStrings[index];
-        } 
-
-        if ( (index==(rosterSize-1)) && (ROSTER_SORT_SEQUENCE>0)) { // got them all now.  and we need to sort them
-          qsort(rosterSortPointers, rosterSize, sizeof rosterSortPointers[0], compareStrings);
-          for (int i=0; i<rosterSize; i++) {
-            rosterSortedIndex[i] = (rosterSortPointers[i][11]-'0')*10 + (rosterSortPointers[i][12]-'0');
-            debug_print("Roster sorted: "); debug_print(rosterSortPointers[i]); debug_print(" | "); debug_println(rosterName[rosterSortedIndex[i]]);
-          }
-
-          setupPreferences(false);  // if there is a roster, we will have waited 
-        }
-      }
-      receivingServerInfoOled(index, rosterSize);
-
-      #if ACQUIRE_ROSTER_ENTRY_IF_ONLY_ONE
-        if ( (rosterSize == 1) && (index == 0) ) {
-          doOneStartupCommand("*1#0");
-        }
-      #endif
-
-    }
-    void receivedTurnoutEntries(int size) {
-      debug_print("Received Turnout Entries. Size: "); debug_println(size);
-      turnoutListSize = (size<maxTurnoutList) ? size : maxTurnoutList;
-    }
-    void receivedTurnoutEntry(int index, String sysName, String userName, int state) {
-      if (index < maxTurnoutList) {
-        turnoutListIndex[index] = index; 
-        turnoutListSysName[index] = sysName; 
-        turnoutListUserName[index] = userName;
-        turnoutListState[index] = state;
-      }
-      receivingServerInfoOled(index, turnoutListSize);
-    }
-
-    void receivedRouteEntries(int size) {
-      debug_print("Received Route Entries. Size: "); debug_println(size);
-      routeListSize = (size<maxRouteList) ? size : maxRouteList;
-    }
-    void receivedRouteEntry(int index, String sysName, String userName, int state) {
-      if (index < maxRouteList) {
-        routeListIndex[index] = index; 
-        routeListSysName[index] = sysName; 
-        routeListUserName[index] = userName;
-        routeListState[index] = state;
-      }
-      receivingServerInfoOled(index, routeListSize);
-    }
-
-    void addressStealNeeded(String address, String entry) { // MTSaddr<;>addr
-      // char multiThrottleIndexChar;
-      // for(int i=0;i<MAX_THROTTLES;i++) {
-      //   multiThrottleIndexChar = getMultiThrottleChar(i);
-      //   for(int j=0;j<wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar);j++) {
-      //     if (wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, j).equals(address)) {
-      //       wiThrottleProtocol.stealLocomotive(multiThrottleIndexChar, address);
-      //       return;
-      //     }
-      //   }
-      // }
-      stealLoco(currentThrottleIndex, address);      
-    }
-
-    void addressStealNeededMultiThrottle(char multiThrottle, String address, String entry) {      
-      // wiThrottleProtocol.stealLocomotive(multiThrottle, address);
-      stealLoco(multiThrottle, address);
-    }
-    void receivedUnknownCommand(String unknownCommand) {
-      debug_print("Received unknown command: "); debug_println(unknownCommand);
-    }
-};
+#include "src/core/protocol/WiThrottleDelegate.h"
+static WiThrottleDelegate myDelegate; // delegate class (file renamed)
 
 int getMultiThrottleIndex(char multiThrottle) {
     int mThrottle = multiThrottle - '0';
@@ -547,7 +338,6 @@ char getMultiThrottleChar(int multiThrottleIndex) {
 
 WiFiClient client;
 WiThrottleProtocol wiThrottleProtocol;
-MyDelegate myDelegate;
 int deviceId = random(1000,9999);
 
 // *********************************************************************************
@@ -2230,6 +2020,12 @@ int getDisplaySpeed(int multiThrottleIndex) {
 
 void stealLoco(int multiThrottleIndex, String loco) {
   wiThrottleProtocol.stealLocomotive(multiThrottleIndex, loco);  
+}
+
+// Overload added to support protocol delegate call using multiThrottle char
+void stealLoco(char multiThrottle, String loco) {
+  int idx = getMultiThrottleIndex(multiThrottle);
+  stealLoco(idx, loco);
 }
 
 void toggleLocoFacing(int multiThrottleIndex, String loco) {

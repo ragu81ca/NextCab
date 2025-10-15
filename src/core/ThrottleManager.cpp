@@ -3,7 +3,7 @@
 #include "../../WiTcontroller.h"
 #include "OledRenderer.h"
 ThrottleManager::ThrottleManager() {}
-void ThrottleManager::begin(WiThrottleProtocol *p) { proto = p; }
+void ThrottleManager::begin(WiThrottleProtocol *p) { proto = p; currentThrottleIndex = 0; currentThrottleIndexChar = '0'; }
 void ThrottleManager::writeSpeedIfVisible(int throttle) { if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) && (throttle==currentThrottleIndex) ) oledRenderer.renderSpeed(); }
 void ThrottleManager::speedUp(int throttle, int amt) { if (!proto) return; if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) > 0) speedSet(throttle, currentSpeed[throttle] + amt); }
 void ThrottleManager::speedDown(int throttle, int amt) { if (!proto) return; if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) > 0) speedSet(throttle, currentSpeed[throttle] - amt); }
@@ -18,3 +18,10 @@ void ThrottleManager::nextThrottle() { int was = currentThrottleIndex; currentTh
 void ThrottleManager::selectThrottle(int idx) { if (idx<0 || idx>=maxThrottles) return; int was = currentThrottleIndex; currentThrottleIndex = idx; currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex); if (currentThrottleIndex!=was) oledRenderer.renderSpeed(); }
 void ThrottleManager::changeNumberOfThrottles(bool increase) { if (increase) { maxThrottles++; if (maxThrottles>6) maxThrottles = 6; } else { maxThrottles--; if (maxThrottles<1) maxThrottles = 1; if (currentThrottleIndex>=maxThrottles) nextThrottle(); } oledRenderer.renderSpeed(); }
 void ThrottleManager::toggleAdditionalMultiplier() { switch (speedStepCurrentMultiplier) { case 1: speedStepCurrentMultiplier = speedStepAdditionalMultiplier; break; case speedStepAdditionalMultiplier: speedStepCurrentMultiplier = speedStepAdditionalMultiplier*2; break; default: speedStepCurrentMultiplier = 1; break; } for (int i=0; i<maxThrottles; i++) currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier; oledRenderer.renderSpeed(); }
+
+// new wrappers
+void ThrottleManager::setMaxThrottles(int value) { maxThrottles = value; if (maxThrottles<1) maxThrottles=1; if (maxThrottles>6) maxThrottles=6; if (currentThrottleIndex>=maxThrottles) nextThrottle(); }
+void ThrottleManager::setCurrentThrottleIndex(int idx) { selectThrottle(idx); }
+void ThrottleManager::cycleNextThrottle() { nextThrottle(); }
+void ThrottleManager::resetSpeedStepMultiplier() { speedStepCurrentMultiplier = 1; for (int i=0; i<maxThrottles; i++) currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier; }
+void ThrottleManager::applyAdditionalMultiplier() { toggleAdditionalMultiplier(); }
