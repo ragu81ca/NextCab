@@ -42,7 +42,6 @@ extern String routeListSysName[];
 extern String routeListUserName[];
 extern int routeListState[];
 extern TrackPower trackPower;
-extern int heartbeatPeriod;
 extern long lastSpeedSentTime;
 extern int lastSpeedThrottleIndex;
 extern int currentThrottleIndex;

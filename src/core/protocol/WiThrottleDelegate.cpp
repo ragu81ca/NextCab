@@ -1,11 +1,13 @@
 #include "WiThrottleDelegate.h"
 #include "../ThrottleManager.h" // full definition for method calls
 #include "../../../WiTcontroller.h" // extern throttleManager instance declaration
+#include "../heartbeat/HeartbeatMonitor.h"
+extern HeartbeatMonitor heartbeatMonitor;
 
 // Forward declaration for helper defined in sketch
 void stealCurrentLoco(String address);
 
-void WiThrottleDelegate::heartbeatConfig(int seconds) { heartbeatPeriod = seconds; }
+void WiThrottleDelegate::heartbeatConfig(int seconds) { heartbeatMonitor.setPeriod(seconds); }
 void WiThrottleDelegate::receivedVersion(String version) { debug_printf("Received Version: %s\n", version.c_str()); }
 void WiThrottleDelegate::receivedServerDescription(String description) {
     serverType = description.substring(0, description.indexOf(" "));

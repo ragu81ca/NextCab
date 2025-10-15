@@ -197,9 +197,9 @@ int functionFollow[6][MAX_FUNCTIONS];   // set to maximum possible (6 throttles)
 // throttle
 // (moved to ThrottleManager) currentThrottleIndex / currentThrottleIndexChar / maxThrottles
 
-int heartbeatPeriod = DEFAULT_HEARTBEAT_PERIOD; // default to 10 seconds
-long lastServerResponseTime;  // seconds since start of Arduino
-bool heartbeatCheckEnabled = HEARTBEAT_ENABLED;
+// Heartbeat monitoring now encapsulated
+#include "src/core/heartbeat/HeartbeatMonitor.h"
+HeartbeatMonitor heartbeatMonitor; // manages heartbeat period / last response / enabled flag (global for extern linkage)
 
 // used to stop speed bounces
 // (moved to ThrottleManager) lastSpeedSentTime / lastSpeedSent / lastSpeedThrottleIndex
@@ -837,7 +837,7 @@ void connectWitServer() {
     }
 
     witConnectionState = CONNECTION_STATE_CONNECTED;
-    setLastServerResponseTime(true);
+  heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), true);
 
     oledText[3] = MSG_CONNECTED;
     if (!hashShowsFunctionsInsteadOfKeyDefs) {
@@ -1112,6 +1112,18 @@ void setup() {
 
   // Initialize new ThrottleManager (modular refactor)
   throttleManager.begin(&wiThrottleProtocol);
+  // Initialize HeartbeatMonitor with defaults
+  heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED);
+  // Reconnect automatically if heartbeat times out
+  heartbeatMonitor.setOnTimeout([](){
+    debug_println("Heartbeat timeout - initiating reconnect");
+    witConnectionState = CONNECTION_STATE_DISCONNECTED;
+    ssidConnectionState = CONNECTION_STATE_CONNECTED; // keep WiFi, force protocol reconnect
+  });
+  // Log any protocol-driven heartbeat period changes
+  heartbeatMonitor.setOnPeriodChange([](unsigned long p){
+    debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
+  });
   throttleInputManager.begin(); // init chosen throttle input implementation
   
   WiFi.setHostname(DEVICE_NAME);
@@ -1133,13 +1145,8 @@ void loop() {
     } else {
       wiThrottleProtocol.check();    // parse incoming messages
 
-      setLastServerResponseTime(false);
-
-      if ( (lastServerResponseTime+(heartbeatPeriod*4) < millis()/1000) 
-      && (heartbeatCheckEnabled) ) {
-        debug_print("Disconnected - Last:");  debug_print(lastServerResponseTime); debug_print(" Current:");  debug_println(millis()/1000);
-        reconnect();
-      }
+      heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), false);
+      heartbeatMonitor.loop();
     }
   }
   // char key = keypad.getKey();
@@ -1854,7 +1861,7 @@ void doMenuCommand(char menuItem) {
         break;
       } 
     case MENU_ITEM_HEARTBEAT_TOGGLE: { // disable/enable the heartbeat Check
-        toggleHeartbeatCheck();
+  heartbeatMonitor.toggleEnabled(); wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled()); writeHeartbeatCheck();
   oledRenderer.renderSpeed();
         break;
       }
@@ -2131,15 +2138,9 @@ void releaseOneLocoByIndex(int multiThrottleIndex, int index) {
 void toggleAdditionalMultiplier() { throttleManager.toggleAdditionalMultiplier(); }
 
 void toggleHeartbeatCheck() {
-  heartbeatCheckEnabled = !heartbeatCheckEnabled;
-  debug_print("Heartbeat Check: "); 
-  if (heartbeatCheckEnabled) {
-    debug_println("Enabled");
-    wiThrottleProtocol.requireHeartbeat(true);
-  } else {
-    debug_println("Disabled");
-    wiThrottleProtocol.requireHeartbeat(false);
-  }
+  heartbeatMonitor.toggleEnabled();
+  debug_print("Heartbeat Check: "); debug_println(heartbeatMonitor.enabled() ? "Enabled" : "Disabled");
+  wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled());
   writeHeartbeatCheck();
 }
 
@@ -2267,12 +2268,7 @@ void reconnect() {
   disconnectWitServer();
 }
 
-void setLastServerResponseTime(bool force) {
-  // debug_print("setLastServerResponseTime "); debug_println((force) ? "True": "False");
-  lastServerResponseTime = wiThrottleProtocol.getLastServerResponseTime();
-  if ( (lastServerResponseTime==0) || (force) ) lastServerResponseTime = millis() /1000;
-  // debug_print("setLastServerResponseTime "); debug_println(lastServerResponseTime);
-}
+void setLastServerResponseTime(bool force) { heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), force); }
 
 void checkForShutdownOnNoResponse() {
   if (millis()-startWaitForSelection > MAX_HEARTBEAT_PERIOD) {  // default is 4 minutes

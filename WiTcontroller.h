@@ -93,9 +93,10 @@ extern String functionLabels[][MAX_FUNCTIONS];
 extern int functionFollow[][MAX_FUNCTIONS];
 #define functionPage uiState.functionPage
 #define functionHasBeenSelected uiState.functionHasBeenSelected
-extern int heartbeatPeriod;
-extern long lastServerResponseTime;
-extern bool heartbeatCheckEnabled;
+// Heartbeat state migrated to HeartbeatMonitor (no longer exposed as globals)
+// extern int heartbeatPeriod;
+// extern long lastServerResponseTime;
+// extern bool heartbeatCheckEnabled;
 extern const char* deviceName;
 extern const bool encoderRotationClockwiseIsIncreaseSpeed;
 extern const bool toggleDirectionOnEncoderButtonPressWhenStationary;
