@@ -72,9 +72,9 @@ String startupCommands[4] = {STARTUP_COMMAND_1, STARTUP_COMMAND_2, STARTUP_COMMA
 
 // migrated: oledText / oledTextInvert now in uiState.lines / uiState.invert
 
-int currentSpeed[6];   // set to maximum possible (6)
-Direction currentDirection[6];   // set to maximum possible (6)
-// (moved to ThrottleManager) int speedStepCurrentMultiplier
+// migrated to ThrottleManager: int currentSpeed[6];
+// migrated to ThrottleManager: Direction currentDirection[6];
+// migrated to ThrottleManager: int speedStepCurrentMultiplier
 
 TrackPower trackPower = PowerUnknown;
 String turnoutPrefix = "";
@@ -192,7 +192,7 @@ String functionLabels[6][MAX_FUNCTIONS];   // set to maximum possible (6 throttl
 int functionFollow[6][MAX_FUNCTIONS];   // set to maximum possible (6 throttles)
 
 // speedstep
-int currentSpeedStep[6];   // set to maximum possible (6 throttles)
+// migrated to ThrottleManager: int currentSpeedStep[6];
 
 // throttle
 // (moved to ThrottleManager) currentThrottleIndex / currentThrottleIndexChar / maxThrottles
@@ -315,7 +315,7 @@ void displayUpdateFromWit(int multiThrottleIndex) {
   debug_print(" multiThrottleIndex "); debug_print(multiThrottleIndex);
   debug_println("");
   if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) 
-  && (multiThrottleIndex==currentThrottleIndex) ) {
+  && (multiThrottleIndex==throttleManager.getCurrentThrottleIndex()) ) {
   oledRenderer.renderSpeed();
   }
 }
@@ -334,6 +334,12 @@ int getMultiThrottleIndex(char multiThrottle) {
 
 char getMultiThrottleChar(int multiThrottleIndex) {
   return '0' + multiThrottleIndex;
+}
+
+// Convenience wrapper: steal the specified locomotive address for the current throttle.
+// Reduces repeated calls passing throttleManager.getCurrentThrottleChar() explicitly.
+void stealCurrentLoco(String address) {
+  stealLoco(throttleManager.getCurrentThrottleChar(), address);
 }
 
 WiFiClient client;
@@ -868,7 +874,7 @@ void enterWitServer() {
 
 void disconnectWitServer() {
   debug_println("disconnectWitServer()");
-  for (int i=0; i<maxThrottles; i++) {
+  for (int i=0; i<throttleManager.getMaxThrottles(); i++) {
     releaseAllLocos(i);
   }
   wiThrottleProtocol.disconnect();
@@ -951,7 +957,7 @@ PreferencesManager preferencesManager;
 
 void setupPreferences(bool forceClear) { preferencesManager.begin(forceClear); }
 void readPreferences() { preferencesManager.restoreLocos(wiThrottleProtocol); }
-void writePreferences() { preferencesManager.saveLocos(wiThrottleProtocol, maxThrottles); }
+void writePreferences() { preferencesManager.saveLocos(wiThrottleProtocol, throttleManager.getMaxThrottles()); }
 void clearPreferences() { preferencesManager.clear(); }
 
 
@@ -1032,7 +1038,7 @@ void additionalButtonLoop() {
           if ( ((additionalButtonType[i] == INPUT_PULLUP) && (additionalButtonRead[i] == LOW)) 
               || ((additionalButtonType[i] == INPUT) && (additionalButtonRead[i] == HIGH)) ) {
             debug_print("Additional Button Pressed: "); debug_print(i); debug_print(" pin:"); debug_print(additionalButtonPin[i]); debug_print(" action:"); debug_println(additionalButtonActions[i]); 
-            if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) { // only process if there are locos aquired
+            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) { // only process if there are locos acquired
               doDirectAdditionalButtonCommand(i,true);
             } else { // check for actions not releted to a loco
               int buttonAction = additionalButtonActions[i];
@@ -1042,7 +1048,7 @@ void additionalButtonLoop() {
             }
           } else {
             debug_print("Additional Button Released: "); debug_print(i); debug_print(" pin:"); debug_print(additionalButtonPin[i]); debug_print(" action:"); debug_println(additionalButtonActions[i]); 
-            if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) { // only process if there are locos aquired
+            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) { // only process if there are locos acquired
               doDirectAdditionalButtonCommand(i,false);
             } else { // check for actions not releted to a loco
               int buttonAction = additionalButtonActions[i];
@@ -1101,11 +1107,8 @@ void setup() {
   resetAllFunctionLabels();
   resetAllFunctionFollow();
 
-  for (int i=0; i< 6; i++) {
-    currentSpeed[i] = 0;
-    currentDirection[i] = Forward;
-    currentSpeedStep[i] = speedStep;
-  }
+  // migrated arrays initialized inside throttleManager.begin(); legacy loop retained as no-op
+  for (int i=0; i< 6; i++) { /* no-op */ }
 
   // Initialize new ThrottleManager (modular refactor)
   throttleManager.begin(&wiThrottleProtocol);
@@ -1470,7 +1473,7 @@ void doKeyPress(char key, bool pressed) {
         switch (key){
           case '0': case '1': case '2': case '3': case '4': 
           case '5': case '6': case '7': case '8': case '9':
-            if ( (key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)) {
+            if ( (key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
               selectEditConsistList(key - '0');
             }
             break;
@@ -1502,7 +1505,7 @@ void doKeyPress(char key, bool pressed) {
       case KEYPAD_USE_SELECT_FUNCTION:
         if (functionHasBeenSelected) {
           debug_println("doKeyPress(): Operation - Process key release KEYPAD_USE_SELECT_FUNCTION");
-          doFunction(currentThrottleIndex, (key - '0')+(functionPage*10), false);
+          doFunction(throttleManager.getCurrentThrottleIndex(), (key - '0')+(functionPage*10), false);
           keypadUseType = KEYPAD_USE_OPERATION;
           functionHasBeenSelected = false;
         }
@@ -1524,7 +1527,7 @@ void doDirectCommand(char key, bool pressed) {
   debug_print("doDirectCommand(): Action: "); debug_println(buttonAction);
   if (buttonAction!=FUNCTION_NULL) {
     if ( (buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31) ) {
-      doDirectFunction(currentThrottleIndex, buttonAction, pressed);
+  doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed);
   } else {
       if (pressed) { // only process these on the key press, not the release
         doDirectAction(buttonAction);
@@ -1543,19 +1546,19 @@ void doDirectAdditionalButtonCommand (int buttonIndex, bool pressed) {
 
       if (additionalButtonOverrideDefaultLatching) {
         bool latch = additionalButtonLatching[buttonIndex];
-        bool currentlyOn = functionStates[currentThrottleIndex][buttonAction];
+  bool currentlyOn = functionStates[throttleManager.getCurrentThrottleIndex()][buttonAction];
 
         if (!latch) {
-          doDirectFunction(currentThrottleIndex, buttonAction, pressed, true);
+          doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, true);
         } else {
           if ( (!currentlyOn) && (pressed) ) {
-            doDirectFunction(currentThrottleIndex, buttonAction, true, true);
+            doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, true, true);
           } else if ( (currentlyOn) && (pressed) ) {
-            doDirectFunction(currentThrottleIndex, buttonAction, false, true);
+            doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, false, true);
           }
         }
       } else {
-        doDirectFunction(currentThrottleIndex, buttonAction, pressed, false);
+  doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, false);
       }
     } else { // not a function
       if (pressed) { // only process these on the key press, not the release
@@ -1570,35 +1573,35 @@ void doDirectAction(int buttonAction) {
   debug_println("doDirectAction(): ");
   switch (buttonAction) {
       case DIRECTION_FORWARD: {
-        changeDirection(currentThrottleIndex, Forward);
+        changeDirection(throttleManager.getCurrentThrottleIndex(), Forward);
         break; 
       }
       case DIRECTION_REVERSE: {
-        changeDirection(currentThrottleIndex, Reverse);
+        changeDirection(throttleManager.getCurrentThrottleIndex(), Reverse);
         break; 
       }
       case DIRECTION_TOGGLE: {
-        toggleDirection(currentThrottleIndex);
+        toggleDirection(throttleManager.getCurrentThrottleIndex());
         break; 
       }
       case SPEED_STOP: {
-        speedSet(currentThrottleIndex, 0);
+        speedSet(throttleManager.getCurrentThrottleIndex(), 0);
         break; 
       }
       case SPEED_UP: {
-        speedUp(currentThrottleIndex, currentSpeedStep[currentThrottleIndex]);
+  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex()));
         break; 
       }
       case SPEED_DOWN: {
-        speedDown(currentThrottleIndex, currentSpeedStep[currentThrottleIndex]);
+  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex()));
         break; 
       }
       case SPEED_UP_FAST: {
-        speedUp(currentThrottleIndex, currentSpeedStep[currentThrottleIndex]*speedStepMultiplier);
+  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex())*speedStepMultiplier);
         break; 
       }
       case SPEED_DOWN_FAST: {
-        speedDown(currentThrottleIndex, currentSpeedStep[currentThrottleIndex]*speedStepMultiplier);
+  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex())*speedStepMultiplier);
         break; 
       }
       case SPEED_MULTIPLIER: {
@@ -1744,16 +1747,16 @@ void doMenuCommand(char menuItem) {
     switch (menuItem) {
     case MENU_ITEM_ADD_LOCO: { // select loco
         if (menuCommand.length()>startAt) {
-          if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)>0) ) {
-            wiThrottleProtocol.releaseLocomotive(currentThrottleIndexChar, "*");
+          if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
+            wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
           }
           loco = menuCommand.substring(startAt, menuCommand.length());
           loco = getLocoWithLength(loco);
           debug_print("add Loco: "); debug_println(loco);
-          wiThrottleProtocol.addLocomotive(currentThrottleIndexChar, loco);
-          wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco);
-          wiThrottleProtocol.getSpeed(currentThrottleIndexChar);
-          resetFunctionStates(currentThrottleIndex);
+          wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
+          wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
+          wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
+          resetFunctionStates(throttleManager.getCurrentThrottleIndex());
           oledRenderer.renderSpeed();
         } else {
           page = 0;
@@ -1766,18 +1769,18 @@ void doMenuCommand(char menuItem) {
         if (loco!="") { // a loco is specified
           if (!CONSIST_RELEASE_BY_INDEX) {
             loco = getLocoWithLength(loco);
-            releaseOneLoco(currentThrottleIndex, loco);
+            releaseOneLoco(throttleManager.getCurrentThrottleIndex(), loco);
           } else {
-            releaseOneLocoByIndex(currentThrottleIndex, loco.toInt());
+            releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), loco.toInt());
           }
         } else { //not loco specified so release all
-          releaseAllLocos(currentThrottleIndex);
+          releaseAllLocos(throttleManager.getCurrentThrottleIndex());
         }
   oledRenderer.renderSpeed();
         break;
       }
-    case MENU_ITEM_TOGGLE_DIRECTION: { // change direction
-        toggleDirection(currentThrottleIndex);
+  case MENU_ITEM_TOGGLE_DIRECTION: { // change direction
+    toggleDirection(throttleManager.getCurrentThrottleIndex());
         break;
       }
      case MENU_ITEM_SPEED_STEP_MULTIPLIER: { // toggle speed step additional Multiplier
@@ -1841,7 +1844,7 @@ void doMenuCommand(char menuItem) {
         char key = menuCommand.charAt(startAt);
         if (menuCommand.length()>startAt) {
           if ( ((key-'0') > 0) // can't change lead
-          && ((key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)) ) {
+          && ((key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) ) {
             selectEditConsistList(key - '0');
           }
           oledRenderer.renderSpeed();
@@ -1896,7 +1899,7 @@ void doMenuCommand(char menuItem) {
           function = menuCommand.substring(startAt, menuCommand.length());
           int functionNumber = function.toInt();
           if (function != "") { // a function is specified
-            doFunction(currentThrottleIndex, functionNumber, true, true);  // always act like latching i.e. pressed
+            doFunction(throttleManager.getCurrentThrottleIndex(), functionNumber, true, true);  // always act like latching i.e. pressed
           }
           oledRenderer.renderSpeed();
         } else {
@@ -1939,7 +1942,7 @@ void resetFunctionLabels(int multiThrottleIndex) {
 }
 
 void resetAllFunctionLabels() {
-  for (int i=0; i<maxThrottles; i++) {
+  for (int i=0; i<throttleManager.getMaxThrottles(); i++) {
     resetFunctionLabels(i);
   }
 }
@@ -2244,14 +2247,14 @@ void batteryShowToggle() {
 }
 
 void stopThenToggleDirection() {
-  if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)>0) {
-    if (currentSpeed[currentThrottleIndex] != 0) {
+  if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) {
+    if (throttleManager.getCurrentSpeed(throttleManager.getCurrentThrottleIndex()) != 0) {
       // wiThrottleProtocol.setSpeed(currentThrottleIndexChar, 0);
-      speedSet(currentThrottleIndex,0);
+  speedSet(throttleManager.getCurrentThrottleIndex(),0);
     } else {
-      if (toggleDirectionOnEncoderButtonPressWhenStationary) toggleDirection(currentThrottleIndex);
+  if (toggleDirectionOnEncoderButtonPressWhenStationary) toggleDirection(throttleManager.getCurrentThrottleIndex());
     }
-    currentSpeed[currentThrottleIndex] = 0;
+  throttleManager.speeds()[throttleManager.getCurrentThrottleIndex()] = 0;
   }
 }
 
@@ -2323,18 +2326,18 @@ void selectRoster(int selection) {
   debug_print("selectRoster() "); debug_println(selection);
 
   if ((selection>=0) && (selection < rosterSize)) {
-    if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)>0) ) {
-      wiThrottleProtocol.releaseLocomotive(currentThrottleIndexChar, "*");
+    if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
+      wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
     }
     int index = rosterSortedIndex[selection];
     String loco = String(rosterLength[index]) + rosterAddress[index];
     
     // String loco = String(rosterLength[selection]) + rosterAddress[selection];
     debug_print("add Loco: "); debug_println(loco);
-    wiThrottleProtocol.addLocomotive(currentThrottleIndexChar, loco);
-    wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco);
-    wiThrottleProtocol.getSpeed(currentThrottleIndexChar);
-    resetFunctionStates(currentThrottleIndex);
+  wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
+  wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
+  wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
+  resetFunctionStates(throttleManager.getCurrentThrottleIndex());
   oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
   }
@@ -2368,9 +2371,9 @@ void selectFunctionList(int selection) {
   debug_print("selectFunctionList() "); debug_println(selection);
 
   if ((selection>=0) && (selection < MAX_FUNCTIONS)) {
-    String function = functionLabels[currentThrottleIndex][selection];
+  String function = functionLabels[throttleManager.getCurrentThrottleIndex()][selection];
     debug_print("Function Selected: "); debug_println(function);
-    doFunction(currentThrottleIndex, selection, true,false);
+  doFunction(throttleManager.getCurrentThrottleIndex(), selection, true,false);
     functionHasBeenSelected = true;    
   oledRenderer.renderSpeed();
     // keypadUseType = KEYPAD_USE_OPERATION;   // don't reset it now.  Do so on the release.
@@ -2380,9 +2383,9 @@ void selectFunctionList(int selection) {
 void selectEditConsistList(int selection) {
   debug_print("selectEditConsistList() "); debug_println(selection);
 
-  if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 1 ) {
-    String loco = wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, selection);
-    toggleLocoFacing(currentThrottleIndex, loco);
+  if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 1 ) {
+    String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleManager.getCurrentThrottleChar(), selection);
+    toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
   oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;

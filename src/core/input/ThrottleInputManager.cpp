@@ -6,8 +6,9 @@
 #include "static.h"               // for ENCODER_USE_* and KEYPAD_USE_* macro constants
 #include "src/core/OledRenderer.h" // need full type for render calls
 
-// Forward declarations for speed and password handling from sketch context
-extern int currentThrottleIndex; // defined in sketch
+// Access current throttle index via ThrottleManager instead of legacy global
+#include "src/core/ThrottleManager.h"
+extern ThrottleManager throttleManager; // provided by sketch
 void speedSet(int throttleIndex, int speed); // existing function
 extern bool useRotaryEncoderForThrottle; // existing flag
 // We avoid direct dependency on internal speed arrays; we'll query via a lightweight accessor if present.
@@ -44,7 +45,7 @@ void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
             case ThrottleInputEventType::SpeedSetAbsolute: {
                 int newSpeed = evt.value;
                 if (newSpeed < 0) newSpeed = 0; else if (newSpeed > 127) newSpeed = 127;
-                speedSet(currentThrottleIndex, newSpeed);
+                speedSet(throttleManager.getCurrentThrottleIndex(), newSpeed);
                 cachedSpeed = newSpeed;
                 break;
             }

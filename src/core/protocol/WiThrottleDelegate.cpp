@@ -1,4 +1,9 @@
 #include "WiThrottleDelegate.h"
+#include "../ThrottleManager.h" // full definition for method calls
+#include "../../../WiTcontroller.h" // extern throttleManager instance declaration
+
+// Forward declaration for helper defined in sketch
+void stealCurrentLoco(String address);
 
 void WiThrottleDelegate::heartbeatConfig(int seconds) { heartbeatPeriod = seconds; }
 void WiThrottleDelegate::receivedVersion(String version) { debug_printf("Received Version: %s\n", version.c_str()); }
@@ -14,13 +19,19 @@ void WiThrottleDelegate::receivedAlert(String message) {
 }
 void WiThrottleDelegate::receivedSpeedMultiThrottle(char multiThrottle, int speed) {
     int idx = getMultiThrottleIndex(multiThrottle);
-    if (currentSpeed[idx] != speed) {
-        if ((lastSpeedThrottleIndex != idx) || ((millis() - lastSpeedSentTime) > 500)) { currentSpeed[idx] = speed; displayUpdateFromWit(idx); }
+    // Use throttleManager internal arrays
+    if (throttleManager.getCurrentSpeed(idx) != speed) {
+        // basic debounce similar to previous logic
+        if ((throttleManager.getLastSpeedThrottleIndex() != idx) || ((millis() - throttleManager.getLastSpeedSentTime()) > 500)) {
+            // Directly set internal array (avoid triggering outbound command) then refresh
+            throttleManager.speeds()[idx] = speed;
+            displayUpdateFromWit(idx);
+        }
     }
 }
 void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, Direction dir) {
     int idx = getMultiThrottleIndex(multiThrottle);
-    if (currentDirection[idx] != dir) { currentDirection[idx] = dir; displayUpdateFromWit(idx); }
+    if (throttleManager.directions()[idx] != dir) { throttleManager.directions()[idx] = dir; displayUpdateFromWit(idx); }
 }
 void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, String loco, Direction dir) { /* placeholder */ }
 void WiThrottleDelegate::receivedFunctionStateMultiThrottle(char multiThrottle, uint8_t func, bool state) {
@@ -57,6 +68,6 @@ void WiThrottleDelegate::receivedRouteEntry(int index, String sysName, String us
     if (index < routeListSize) { routeListIndex[index] = index; routeListSysName[index] = sysName; routeListUserName[index] = userName; routeListState[index] = state; }
     receivingServerInfoOled(index, routeListSize);
 }
-void WiThrottleDelegate::addressStealNeeded(String address, String entry) { stealLoco(currentThrottleIndex, address); }
+void WiThrottleDelegate::addressStealNeeded(String address, String entry) { stealCurrentLoco(address); }
 void WiThrottleDelegate::addressStealNeededMultiThrottle(char multiThrottle, String address, String entry) { stealLoco(multiThrottle, address); }
 void WiThrottleDelegate::receivedUnknownCommand(String unknownCommand) { debug_print("Received unknown command: "); debug_println(unknownCommand); }

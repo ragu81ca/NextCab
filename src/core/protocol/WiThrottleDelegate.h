@@ -46,7 +46,6 @@ extern int heartbeatPeriod;
 extern long lastSpeedSentTime;
 extern int lastSpeedThrottleIndex;
 extern int currentThrottleIndex;
-extern char currentThrottleIndexChar;
 extern String serverType;
 extern String turnoutPrefix;
 extern String routePrefix;

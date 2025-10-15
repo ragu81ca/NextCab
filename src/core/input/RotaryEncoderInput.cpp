@@ -5,6 +5,7 @@
 #include <AiEsp32RotaryEncoder.h>
 
 // Reuse existing pins/macros from project root header.
+#include "../ThrottleManager.h"
 #include "WiTcontroller.h"
 
 // We assume pin macros are already defined via project-wide config includes compiled before this TU.
@@ -44,11 +45,9 @@ void RotaryEncoderInput::begin() {
     rotaryEncoder.begin();
     rotaryEncoder.setup([](){ RotaryEncoderInput::handleISR(); });
     _lastEncoderValue = rotaryEncoder.readEncoder();
-    // Sync from current system throttle speed if available
-    extern int currentThrottleIndex;      // defined in sketch
-    extern int currentSpeed[];            // global array of throttle speeds
-    if (currentThrottleIndex >= 0) {
-        _absoluteSpeed = currentSpeed[currentThrottleIndex];
+    // Sync from current system throttle speed via ThrottleManager
+    if (throttleManager.getCurrentThrottleIndex() >= 0) {
+        _absoluteSpeed = throttleManager.getCurrentSpeed(throttleManager.getCurrentThrottleIndex());
         if (_absoluteSpeed < 0) _absoluteSpeed = 0; else if (_absoluteSpeed > 127) _absoluteSpeed = 127;
     } else {
         _absoluteSpeed = 0;

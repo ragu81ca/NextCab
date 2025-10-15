@@ -32,9 +32,6 @@ extern String menuCommand;
 #define oledText uiState.lines
 #define oledTextInvert uiState.invert
 
-extern int currentSpeed[];
-extern Direction currentDirection[];
-extern int speedStepCurrentMultiplier;
 
 extern TrackPower trackPower;
 extern String turnoutPrefix;
@@ -94,7 +91,6 @@ extern int routeListState[];
 extern bool functionStates[][MAX_FUNCTIONS];
 extern String functionLabels[][MAX_FUNCTIONS];
 extern int functionFollow[][MAX_FUNCTIONS];
-extern int currentSpeedStep[];
 #define functionPage uiState.functionPage
 #define functionHasBeenSelected uiState.functionHasBeenSelected
 extern int heartbeatPeriod;
@@ -107,10 +103,6 @@ extern int buttonActions[];
 extern const String directCommandText[][3];
 extern int additionalButtonActions[];
 
-extern long lastSpeedSentTime;
-extern int lastSpeedSent;
-// extern int lastDirectionSent;
-extern int lastSpeedThrottleIndex;
 // renderer state caching (used for refresh logic)
 #define lastOledScreen uiState.lastScreen
 #define lastOledStringParameter uiState.lastStringParam
@@ -119,9 +111,6 @@ extern int lastSpeedThrottleIndex;
 
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 
-extern int currentThrottleIndex;
-extern int maxThrottles;              // number of active throttles (was local in .ino)
-extern char currentThrottleIndexChar; // multi-throttle character for current index
 extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
 // Additional globals used by OledRenderer (migrated rendering logic)
 extern bool oledDirectCommandsAreBeingDisplayed;
