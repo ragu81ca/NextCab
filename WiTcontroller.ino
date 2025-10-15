@@ -1178,17 +1178,7 @@ void clearPreferences() { preferencesManager.clear(); }
 // *********************************************************************************
 
 
-// *********************************************************************************
-//   Battery Test
-// *********************************************************************************
-
-void batteryTest_loop() {
-  batteryMonitor.loop();
-  if (batteryMonitor.shouldSleepForLowBattery()) {
-    deepSleepStart(SLEEP_REASON_BATTERY);
-  }
-  // UI refresh handled elsewhere when speed redraws; we could trigger if value changed in future.
-}
+// Battery monitoring now called directly at setup and in main loop (wrapper removed)
 
 // *********************************************************************************
 //   keypad
@@ -1297,7 +1287,9 @@ void setup() {
   debug_print("WiTcontroller - Version: "); debug_println(appVersion);
 
   batteryMonitor.begin();
-  batteryTest_loop();  // initial battery check
+  // Initial battery service
+  batteryMonitor.loop();
+  if (batteryMonitor.shouldSleepForLowBattery()) { deepSleepStart(SLEEP_REASON_BATTERY); }
 
   clearOledArray(); oledText[0] = appName; oledText[6] = appVersion; oledText[2] = MSG_START;
   oledRenderer.renderBattery();
@@ -1364,7 +1356,10 @@ void loop() {
   throttleInputManager.loop();
   additionalButtonLoop(); 
 
-  if (batteryMonitor.enabled()) { batteryTest_loop(); }
+  if (batteryMonitor.enabled()) {
+    batteryMonitor.loop();
+    if (batteryMonitor.shouldSleepForLowBattery()) { deepSleepStart(SLEEP_REASON_BATTERY); }
+  }
 
 	// debug_println("loop:" );
 }
