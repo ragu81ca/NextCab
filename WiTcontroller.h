@@ -41,8 +41,6 @@ extern String turnoutPrefix;
 extern String routePrefix;
 
 extern bool circleValues;
-extern int encoderValue;
-extern int lastEncoderValue;
 
 extern String selectedSsid;
 extern String selectedSsidPassword;
@@ -156,10 +154,6 @@ void ssidPasswordAddChar(char);
 void ssidPasswordDeleteChar(char);
 void buildWitEntry(void);
 
-void IRAM_ATTR readEncoderISR(void);
-void rotary_onButtonClick(void);
-void rotary_loop(void);
-void encoderSpeedChange(bool, int);
 void keypadEvent(KeypadEvent);
 void initialiseAdditionalButtons(void);
 void additionalButtonLoop(void);

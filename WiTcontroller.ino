@@ -23,7 +23,6 @@
 #include <Keypad.h>               // https://www.arduinolibraries.info/libraries/keypad                        GPL 3.0
 #include <U8g2lib.h>              // https://github.com/olikraus/u8g2  (Just get "U8g2" via the Arduino IDE Library Manager)   new-bsd
 #include <WiThrottleProtocol.h>   // https://github.com/flash62au/WiThrottleProtocol                           Creative Commons 4.0  Attribution-ShareAlike
-#include <AiEsp32RotaryEncoder.h> // https://github.com/igorantolic/ai-esp32-rotary-encoder                    GPL 2.0
 
 // this library is included with the WiTController code
 #include "Pangodream_18650_CL.h"  // https://github.com/pangodream/18650CL                                     Copyright (c) 2019 Pangodream
@@ -34,8 +33,7 @@
 
 // DO NOT ALTER these files
 #include "config_keypad_etc.h"
-#include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h; avoid double include
-#include "actions.h"
+#include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h
 #include "WiTcontroller.h"
 // Refactored modules (relocated under src/core)
 #include "src/core/ThrottleManager.h"
@@ -85,11 +83,13 @@ String routePrefix = "";
 
 // encoder variables
 bool circleValues = true;
-int encoderValue = 0;
-int lastEncoderValue = 0;
 
 // throttle pot values
 bool useRotaryEncoderForThrottle = USE_ROTARY_ENCODER_FOR_THROTTLE;
+
+// New unified throttle input manager (experimental abstraction)
+#include "src/core/input/ThrottleInputManager.h"
+static ThrottleInputManager throttleInputManager;
 int throttlePotPin = THROTTLE_POT_PIN;
 bool throttlePotUseNotches = THROTTLE_POT_USE_NOTCHES;
 int throttlePotNotchValues[] = THROTTLE_POT_NOTCH_VALUES; 
@@ -218,8 +218,7 @@ bool dropBeforeAcquire = DROP_BEFORE_ACQUIRE;
 
 const char* deviceName = DEVICE_NAME;
 
-static unsigned long rotaryEncoderButtonLastTimePressed = 0;
-const int rotaryEncoderButtonEncoderDebounceTime = ROTARY_ENCODER_DEBOUNCE_TIME;   // in miliseconds
+// rotary encoder debounce variables removed (handled inside RotaryEncoderInput)
 
 const bool encoderRotationClockwiseIsIncreaseSpeed = ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED;
 // false = Counterclockwise  true = clockwise
@@ -1168,216 +1167,16 @@ void clearPreferences() { preferencesManager.clear(); }
 
 
 // *********************************************************************************
-//   Rotary Encoder
+//   Rotary Encoder (moved into RotaryEncoderInput abstraction)
 // *********************************************************************************
 
-AiEsp32RotaryEncoder rotaryEncoder = AiEsp32RotaryEncoder(ROTARY_ENCODER_A_PIN, ROTARY_ENCODER_B_PIN, ROTARY_ENCODER_BUTTON_PIN, ROTARY_ENCODER_VCC_PIN, ROTARY_ENCODER_STEPS);
-void IRAM_ATTR readEncoderISR(void) {
-  rotaryEncoder.readEncoder_ISR();
-}
-
-void rotary_onButtonClick() {
-   if (encoderUseType == ENCODER_USE_OPERATION) {
-    if ( (keypadUseType!=KEYPAD_USE_SELECT_WITHROTTLE_SERVER)
-        && (keypadUseType!=KEYPAD_USE_ENTER_WITHROTTLE_SERVER)
-        && (keypadUseType!=KEYPAD_USE_SELECT_SSID) 
-        && (keypadUseType!=KEYPAD_USE_SELECT_SSID_FROM_FOUND) ) {
-
-      if ( (millis() - rotaryEncoderButtonLastTimePressed) < rotaryEncoderButtonEncoderDebounceTime) {   //ignore multiple press in that specified time
-        debug_println("encoder button debounce");
-        return;
-      }
-      rotaryEncoderButtonLastTimePressed = millis();
-
-      // if (encoderButtonAction == SPEED_STOP_THEN_TOGGLE_DIRECTION) {
-      //   if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)>0) {
-      //     if (currentSpeed[currentThrottleIndex] != 0) {
-      //       // wiThrottleProtocol.setSpeed(currentThrottleIndexChar, 0);
-      //       speedSet(currentThrottleIndex,0);
-      //     } else {
-      //       if (toggleDirectionOnEncoderButtonPressWhenStationary) toggleDirection(currentThrottleIndex);
-      //     }
-      //     currentSpeed[currentThrottleIndex] = 0;
-      //   }
-      // } else {
-        doDirectAction(encoderButtonAction);
-      // }
-      debug_println("encoder button pressed");
-  oledRenderer.renderSpeed();
-    }  else {
-      deepSleepStart();
-    }
-   } else {
-    if (ssidPasswordCurrentChar!=ssidPasswordBlankChar) {
-      ssidPasswordEntered = ssidPasswordEntered + ssidPasswordCurrentChar;
-      ssidPasswordCurrentChar = ssidPasswordBlankChar;
-  oledRenderer.renderEnterPassword();
-    }
-   }
-}
-
-void rotary_loop() {
-  if (rotaryEncoder.encoderChanged()) {   //don't print anything unless value changed
-    
-    encoderValue = rotaryEncoder.readEncoder();
-    debug_print("Encoder From: "); debug_print(lastEncoderValue);  debug_print(" to: "); debug_println(encoderValue);
-
-    if ( (millis() - rotaryEncoderButtonLastTimePressed) < rotaryEncoderButtonEncoderDebounceTime) {   //ignore the encoder change if the button was pressed recently
-      debug_println("encoder button debounce - in Rotary_loop()");
-      return;
-    // } else {
-    //   debug_print("encoder button debounce - time since last press: ");
-    //   debug_println(millis() - rotaryEncoderButtonLastTimePressed);
-    }
-
-    if (abs(encoderValue-lastEncoderValue) > 800) { // must have passed through zero
-      if (encoderValue > 800) {
-        lastEncoderValue = 1001; 
-      } else {
-        lastEncoderValue = 0; 
-      }
-      debug_print("Corrected Encoder From: "); debug_print(lastEncoderValue); debug_print(" to: "); debug_println(encoderValue);
-    }
- 
-    if (encoderUseType == ENCODER_USE_OPERATION) {
-      if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)>0) {
-        if (encoderValue > lastEncoderValue) {
-          if (abs(encoderValue-lastEncoderValue)<50) {
-            encoderSpeedChange(true, currentSpeedStep[currentThrottleIndex]);
-          } else {
-            encoderSpeedChange(true, currentSpeedStep[currentThrottleIndex]*speedStepMultiplier);
-          }
-        } else {
-          if (abs(encoderValue-lastEncoderValue)<50) {
-            encoderSpeedChange(false, currentSpeedStep[currentThrottleIndex]);
-          } else {
-            encoderSpeedChange(false, currentSpeedStep[currentThrottleIndex]*speedStepMultiplier);
-          }
-        } 
-      }
-    } else { // (encoderUseType == ENCODER_USE_SSID_PASSWORD) 
-        if (encoderValue > lastEncoderValue) {
-          if (ssidPasswordCurrentChar==ssidPasswordBlankChar) {
-            ssidPasswordCurrentChar = 66; // 'B'
-          } else {
-            ssidPasswordCurrentChar = ssidPasswordCurrentChar - 1;
-            if ((ssidPasswordCurrentChar < 32) ||(ssidPasswordCurrentChar > 126) ) {
-              ssidPasswordCurrentChar = 126;  // '~'
-            }
-          }
-        } else {
-          if (ssidPasswordCurrentChar==ssidPasswordBlankChar) {
-            ssidPasswordCurrentChar = 64; // '@'
-          } else {
-            ssidPasswordCurrentChar = ssidPasswordCurrentChar + 1;
-            if (ssidPasswordCurrentChar > 126) {
-              ssidPasswordCurrentChar = 32; // ' ' space
-            }
-          }
-        }
-        ssidPasswordChanged = true;
-  oledRenderer.renderEnterPassword();
-    }
-    lastEncoderValue = encoderValue;
-  }
-  
-  if (rotaryEncoder.isEncoderButtonClicked()) {
-    rotary_onButtonClick();
-  }
-}
-
-void encoderSpeedChange(bool rotationIsClockwise, int speedChange) {
-  if (encoderRotationClockwiseIsIncreaseSpeed) {
-    if (rotationIsClockwise) {
-      speedUp(currentThrottleIndex, speedChange);
-    } else {
-      speedDown(currentThrottleIndex, speedChange);
-    }
-  } else {
-    if (rotationIsClockwise) {
-      speedDown(currentThrottleIndex, speedChange);
-    } else {
-      speedUp(currentThrottleIndex, speedChange);
-    }
-  }
-}
+// rotary_onButtonClick removed; logic inlined in ThrottleInputManager ButtonShortPress handling
+// encoderSpeedChange removed (handled by unified throttle input manager now)
 
 // *********************************************************************************
 //   Throttle Pot
 // *********************************************************************************
 
-void throttlePot_loop() {
-  throttlePot_loop(false);
-}
-void throttlePot_loop(bool forceRead) {
-  // debug_println("throttlePot_loop() start: ");
-
-  if ( (millis() < lastThrottlePotReadTime + 100) 
-    && (!forceRead) ) { // only ready it one every x seconds
-    return;
-  }
-  lastThrottlePotReadTime = millis();
-
-  // Read the throttle pot to see what notch it is on.
-  int currentThrottlePotNotch = throttlePotNotch;
-  int potValue = analogRead(throttlePotPin);  //Reads the analog value on the throttle pin.
-  // potValue = analogRead(throttlePotPin);
-  debug_println("Pot Value: "); debug_println(potValue);
-
-  // average out the last x values from the pot
-  int noElements = sizeof(lastThrottlePotValues) / sizeof(lastThrottlePotValues[0]);
-  int avgPotValue = 0;
-  for (int i=1; i<noElements; i++) {
-    lastThrottlePotValues[i-1] = lastThrottlePotValues[i];
-    avgPotValue = avgPotValue + lastThrottlePotValues[i-1];
-  }
-  lastThrottlePotValues[noElements-1] = potValue;
-  avgPotValue = (avgPotValue + potValue) / noElements;
-
-  // get the highest recent value
-  lastThrottlePotHighValue = -1;
-  for (int i=0; i<noElements; i++) {
-    if (lastThrottlePotValues[i] > lastThrottlePotHighValue) 
-    lastThrottlePotHighValue = lastThrottlePotValues[i];
-  }
-
-  // // save the lowest and highest pot values seen
-  // if (avgPotValue<lowestThrottlePotValue) lowestThrottlePotValue = avgPotValue;
-  // if (avgPotValue>highestThrottlePotValue) highestThrottlePotValue = avgPotValue;
-
-  // only do something if the pot value is sufficiently different
-  // or deliberate read 
-  if ( (avgPotValue<lastThrottlePotValue-5) || (avgPotValue>lastThrottlePotValue+5)
-  || (forceRead) )  { 
-   
-    lastThrottlePotValue = avgPotValue;
-    debug_print("Avg Pot Value: "); debug_println(avgPotValue);
-
-    if (throttlePotUseNotches) { // use notches
-      throttlePotNotch = 0;
-      for (int i=0; i<8; i++) {
-        if (avgPotValue < throttlePotNotchValues[i]) {    /// Check to see if it is in notch i
-          throttlePotTargetSpeed = throttlePotNotchSpeeds[i];
-          throttlePotNotch = i;
-          break;
-        }                
-      } 
-      if (throttlePotNotch!=currentThrottlePotNotch) {
-            speedSet(currentThrottleIndex, throttlePotTargetSpeed);
-      }
-
-    } else { // use a linear speed
-      double newSpeed = potValue-throttlePotNotchValues[0];
-      newSpeed = newSpeed / (throttlePotNotchValues[7]-throttlePotNotchValues[0]);
-      newSpeed = newSpeed * 127;
-      if (newSpeed<0) { newSpeed = 0; }
-      else if (newSpeed>127) { newSpeed = 127; }
-      int iSpeed = newSpeed;
-      debug_print("newSpeed: "); debug_print(newSpeed); debug_print(" iSpeed: "); debug_println(iSpeed);
-      speedSet(currentThrottleIndex, iSpeed);
-    }  
-  }
-}
 
 // *********************************************************************************
 //   Battery Test
@@ -1504,19 +1303,7 @@ void setup() {
   oledRenderer.renderBattery();
   oledRenderer.renderArray(false, false, true, true);
 
-  rotaryEncoder.begin();  //initialize rotary encoder
-  rotaryEncoder.setup(readEncoderISR);
-  //set boundaries and if values should cycle or not 
-  rotaryEncoder.setBoundaries(0, 1000, circleValues); //minValue, maxValue, circleValues true|false (when max go to min and vice versa)
-  //rotaryEncoder.disableAcceleration(); //acceleration is now enabled by default - disable if you don't need it
-  rotaryEncoder.setAcceleration(100); //or set the value - larger number = more acceleration; 0 or 1 means disabled acceleration
-
-  //if EC11 is used in hardware build WITHOUT physical pullup resistore, then make then enable GPIO pullups on EC11 A and B inputs
-  if (EC11_PULLUPS_REQUIRED) {
-    // debug_println("EC11 A and B input pins, enabling GPIO pullups " );
-    pinMode(ROTARY_ENCODER_A_PIN, INPUT_PULLUP);
-    pinMode(ROTARY_ENCODER_B_PIN, INPUT_PULLUP);
-  }
+  // Rotary initialization now handled in throttleInputManager.begin() if rotary selected.
 
   keypad.addEventListener(keypadEvent); // Add an event listener for this keypad
   keypad.setDebounceTime(KEYPAD_DEBOUNCE_TIME);
@@ -1541,6 +1328,7 @@ void setup() {
 
   // Initialize new ThrottleManager (modular refactor)
   throttleManager.begin(&wiThrottleProtocol);
+  throttleInputManager.begin(); // init chosen throttle input implementation
   
   WiFi.setHostname(DEVICE_NAME);
   #if USE_COUNTRY_CODE
@@ -1572,8 +1360,8 @@ void loop() {
   }
   // char key = keypad.getKey();
   keypad.getKey(); 
-  if (useRotaryEncoderForThrottle) { rotary_loop(); }
-  else { throttlePot_loop(); }
+  // New unified input manager replaces direct rotary/pot loops (legacy functions retained temporarily)
+  throttleInputManager.loop();
   additionalButtonLoop(); 
 
   if (batteryMonitor.enabled()) { batteryTest_loop(); }

@@ -11,6 +11,7 @@ public:
 	void speedUp(int throttle, int amt);
 	void speedDown(int throttle, int amt);
 	void speedSet(int throttle, int value);
+	int getCurrentSpeed(int throttle) const; // raw 0-126 value
 	int getDisplaySpeed(int throttle) const;
 	void speedEstopAll();
 	void speedEstopCurrent();
