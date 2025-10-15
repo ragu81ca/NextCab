@@ -32,6 +32,8 @@ public:
     void renderFunctions();
     void renderEditConsist();
     void renderHeartbeatCheck();
+    void renderAllLocos(bool hideLeadLoco);
+    void renderMenu(const String &soFar, bool primeMenu);
 
 private:
     U8G2 &display;

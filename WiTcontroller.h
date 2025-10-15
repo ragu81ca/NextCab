@@ -115,6 +115,7 @@ extern int lastSpeedThrottleIndex;
 // renderer state caching (used for refresh logic)
 extern int lastOledScreen;
 extern String lastOledStringParameter;
+extern bool lastOledBoolParameter;
 extern TurnoutAction lastOledTurnoutParameter;
 
 // extern AiEsp32RotaryEncoder rotaryEncoder;
@@ -214,25 +215,7 @@ void setAppnameForOled(void);
 void receivingServerInfoOled(int, int);
 void setMenuTextForOled(int);
 void refreshOled();
-void writeOledFoundSSids(String);
-void writeOledRoster(String);
-void writeOledTurnoutList(String, TurnoutAction);
-void writeOledRouteList(String);
-void writeOledFunctionList(String);
-void writeOledEnterPassword(void);
-void writeOledMenu(String, bool);
-void writeOledAllLocos(bool);
-void writeOledEditConsist();
-void writeHeartbeatCheck(void);
-void writeOledSpeed(void);
-void writeOledSpeedStepMultiplier();
-void writeOledBattery();
-void writeOledFunctions(void);
-void writeOledArray(bool, bool);
-void writeOledArray(bool, bool, bool);
-void writeOledArray(bool, bool, bool, bool);
-void clearOledArray();
-void writeOledDirectCommands(void);
+// Legacy OLED menu/all-locos helpers migrated into OledRenderer (renderMenu, renderAllLocos)
 
 void deepSleepStart();
 void deepSleepStart(int);

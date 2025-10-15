@@ -1,6 +1,7 @@
 // ThrottleManager.cpp (moved to root for Arduino build system recognition)
 #include "core/ThrottleManager.h"
 #include "WiTcontroller.h"
+#include "core/OledRenderer.h" // direct rendering (legacy writeOled* delegators removed)
 
 ThrottleManager::ThrottleManager() {}
 
@@ -8,7 +9,7 @@ void ThrottleManager::begin(WiThrottleProtocol *p) { proto = p; }
 
 void ThrottleManager::writeSpeedIfVisible(int throttle) {
     if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) && (throttle==currentThrottleIndex) ) {
-        writeOledSpeed();
+        oledRenderer.renderSpeed();
     }
 }
 
@@ -36,7 +37,7 @@ void ThrottleManager::speedSet(int throttle, int value) {
     lastSpeedSentTime = millis();
     lastSpeedSent = newSpeed;
     lastSpeedThrottleIndex = throttle;
-    writeSpeedIfVisible(throttle);
+    oledRenderer.renderSpeed();
 }
 
 int ThrottleManager::getDisplaySpeed(int throttle) const {
@@ -61,13 +62,13 @@ void ThrottleManager::speedEstopAll() {
         speedSet(i,0);
         currentSpeed[i] = 0;
     }
-    writeOledSpeed();
+    oledRenderer.renderSpeed();
 }
 void ThrottleManager::speedEstopCurrent() {
     if (!proto) return;
     proto->emergencyStop(currentThrottleIndexChar);
     speedSet(currentThrottleIndex,0);
-    writeOledSpeed();
+    oledRenderer.renderSpeed();
 }
 
 void ThrottleManager::changeDirection(int throttle, Direction direction) {
@@ -92,7 +93,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
         }
         proto->setDirection(tChar, leadLoco, direction);
     }
-    writeOledSpeed();
+    oledRenderer.renderSpeed();
 }
 void ThrottleManager::toggleDirection(int throttle) {
     if (!proto) return;
@@ -106,14 +107,14 @@ void ThrottleManager::nextThrottle() {
     currentThrottleIndex++;
     if (currentThrottleIndex >= maxThrottles) currentThrottleIndex = 0;
     currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-    if (currentThrottleIndex!=was) writeOledSpeed();
+    if (currentThrottleIndex!=was) oledRenderer.renderSpeed();
 }
 void ThrottleManager::selectThrottle(int idx) {
     if (idx<0 || idx>=maxThrottles) return;
     int was = currentThrottleIndex;
     currentThrottleIndex = idx;
     currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-    if (currentThrottleIndex!=was) writeOledSpeed();
+    if (currentThrottleIndex!=was) oledRenderer.renderSpeed();
 }
 void ThrottleManager::changeNumberOfThrottles(bool increase) {
     if (increase) {
@@ -122,7 +123,7 @@ void ThrottleManager::changeNumberOfThrottles(bool increase) {
         maxThrottles--; if (maxThrottles<1) maxThrottles = 1;
         if (currentThrottleIndex>=maxThrottles) nextThrottle();
     }
-    writeOledSpeed();
+    oledRenderer.renderSpeed();
 }
 void ThrottleManager::toggleAdditionalMultiplier() {
     switch (speedStepCurrentMultiplier) {
@@ -133,5 +134,5 @@ void ThrottleManager::toggleAdditionalMultiplier() {
     for (int i=0; i<maxThrottles; i++) {
         currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier;
     }
-    writeOledSpeed();
+    oledRenderer.renderSpeed();
 }

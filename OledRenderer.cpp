@@ -14,14 +14,14 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
     menuIsShowing = true;
     keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
     if (soFar == "") {
-        clearOledArray();
+    clearArray();
         for (int i=0; i<5 && i<foundSsidsCount; i++) {
             if (foundSsids[(page*5)+i].length()>0) {
                 oledText[i] = String(i) + ": " + foundSsids[(page*5)+i] + "   (" + foundSsidRssis[(page*5)+i] + ")";
             }
         }
         oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_select_ssids_from_found];
-        writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
     }
 }
 
@@ -31,7 +31,7 @@ void OledRenderer::renderRoster(const String &soFar) {
     menuIsShowing = true;
     keypadUseType = KEYPAD_USE_SELECT_ROSTER;
     if (soFar == "") {
-        clearOledArray();
+    clearArray();
         for (int i=0; i<5 && ((page*5)+i<rosterSize); i++) {
             int index = rosterSortedIndex[(page*5)+i];
             if (rosterAddress[index] != 0) {
@@ -39,7 +39,7 @@ void OledRenderer::renderRoster(const String &soFar) {
             }
         }
         oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_roster];
-        writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
     }
 }
 
@@ -50,7 +50,7 @@ void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) 
     menuIsShowing = true;
     keypadUseType = (action == TurnoutThrow) ? KEYPAD_USE_SELECT_TURNOUTS_THROW : KEYPAD_USE_SELECT_TURNOUTS_CLOSE;
     if (soFar == "") {
-        clearOledArray();
+    clearArray();
         int j = 0;
         for (int i=0; i<10 && i<turnoutListSize; i++) {
             j = (i<5) ? i : i+1;
@@ -59,7 +59,7 @@ void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) 
             }
         }
         oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_turnout_list];
-        writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
     }
 }
 
@@ -69,7 +69,7 @@ void OledRenderer::renderRouteList(const String &soFar) {
     menuIsShowing = true;
     keypadUseType = KEYPAD_USE_SELECT_ROUTES;
     if (soFar == "") {
-        clearOledArray();
+    clearArray();
         int j = 0;
         for (int i=0; i<10 && i<routeListSize; i++) {
             j = (i<5) ? i : i+1;
@@ -78,7 +78,7 @@ void OledRenderer::renderRouteList(const String &soFar) {
             }
         }
         oledText[5] =  "(" + String(page+1) +  ") " + menu_text[menu_route_list];
-        writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
     }
 }
 
@@ -89,7 +89,7 @@ void OledRenderer::renderFunctionList(const String &soFar) {
     keypadUseType = KEYPAD_USE_SELECT_FUNCTION;
     functionHasBeenSelected = false;
     if (soFar == "") {
-        clearOledArray();
+    clearArray();
         if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0 ) {
             int j = 0; int k = 0;
             for (int i=0; i<10; i++) {
@@ -109,14 +109,14 @@ void OledRenderer::renderFunctionList(const String &soFar) {
             oledText[3] = MSG_NO_LOCO_SELECTED;
             setMenuTextForOled(menu_cancel);
         }
-        writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
     }
 }
 
 void OledRenderer::renderEnterPassword() {
     keypadUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
     encoderUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
-    clearOledArray();
+    clearArray();
     String temp = ssidPasswordEntered+ssidPasswordCurrentChar;
     if (temp.length()>12) {
         temp = "\253"+temp.substring(temp.length()-12);
@@ -126,7 +126,7 @@ void OledRenderer::renderEnterPassword() {
     oledText[0] = MSG_ENTER_PASSWORD;
     oledText[2] = temp;
     setMenuTextForOled(menu_enter_ssid_password);
-    writeOledArray(false, true);
+    renderArrayInternal(false,true,true,false);
 }
 
 // Newly migrated from monolithic sketch
@@ -146,21 +146,85 @@ void OledRenderer::renderFunctions() {
 void OledRenderer::renderEditConsist() {
     lastOledScreen = last_oled_screen_edit_consist;
     menuIsShowing = false;
-    clearOledArray();
+    clearArray();
     keypadUseType = KEYPAD_USE_EDIT_CONSIST;
-    writeOledAllLocos(true); // relies on existing global function
+    renderAllLocos(true); // show all locos (hide lead loco)
     oledText[0] = MENU_ITEM_TEXT_TITLE_EDIT_CONSIST;
     oledText[5] = MENU_ITEM_TEXT_MENU_EDIT_CONSIST;
-    writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
 }
 
 void OledRenderer::renderHeartbeatCheck() {
     menuIsShowing = false;
-    clearOledArray();
+    clearArray();
     oledText[0] = MENU_ITEM_TEXT_TITLE_HEARTBEAT;
     oledText[1] = heartbeatCheckEnabled ? MSG_HEARTBEAT_CHECK_ENABLED : MSG_HEARTBEAT_CHECK_DISABLED;
     oledText[5] = MENU_ITEM_TEXT_MENU_HEARTBEAT;
-    writeOledArray(false, false);
+    renderArrayInternal(false,false,true,false);
+}
+
+void OledRenderer::renderAllLocos(bool hideLeadLoco) {
+    lastOledScreen = last_oled_screen_all_locos;
+    lastOledBoolParameter = hideLeadLoco;
+    int startAt = (hideLeadLoco) ? 1 : 0;
+    String loco; int j=0; int i=0;
+    if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) {
+        for (int index=0; ((index < wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)) && (i < 8)); index++) {
+            j = (i<4) ? i : i+2;
+            loco = wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, index);
+            if (i>=startAt) {
+                oledText[j+1] = String(i) + ": " + loco;
+                if (wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco) == Reverse) {
+                    oledTextInvert[j+1] = true;
+                }
+            }
+            i++;
+        }
+    }
+}
+
+void OledRenderer::renderMenu(const String &soFar, bool primeMenu) {
+    lastOledStringParameter = soFar;
+    int offset = 0;
+    lastOledScreen = last_oled_screen_menu;
+    if (!primeMenu) { offset = 10; lastOledScreen = last_oled_screen_extra_submenu; }
+    menuIsShowing = true;
+    bool drawTopLine = false;
+    if ( (soFar == "") || ((!primeMenu) && (soFar.length()==1)) ) {
+        clearArray();
+        int j=0;
+        for (int i=1+offset; i<10+offset; i++) {
+            j = (i<6+offset) ? i-offset : i+1-offset;
+            oledText[j-1] = String(i-offset) + ": " + menuText[i][0];
+        }
+        oledText[10] = "0: " + menuText[0+offset][0];
+        setMenuTextForOled(menu_cancel);
+        renderArrayInternal(false,false,true,false);
+    } else {
+        int cmd = menuCommand.substring(0,1).toInt();
+        clearArray();
+        oledText[0] = ">> " + menuText[cmd][0] + ":";
+        oledText[6] = menuCommand.substring(1, menuCommand.length());
+        oledText[5] = menuText[cmd+offset][1];
+        switch (soFar.charAt(0)) {
+            case MENU_ITEM_DROP_LOCO: {
+                if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) {
+                    renderAllLocos(false);
+                    drawTopLine = true;
+                }
+            } // fall through
+            case MENU_ITEM_FUNCTION:
+            case MENU_ITEM_TOGGLE_DIRECTION: {
+                if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) <= 0) {
+                    oledText[2] = MSG_THROTTLE_NUMBER + String(currentThrottleIndex+1);
+                    oledText[3] = MSG_NO_LOCO_SELECTED;
+                    setMenuTextForOled(menu_cancel);
+                }
+                break;
+            }
+        }
+        renderArrayInternal(false,false,true,drawTopLine);
+    }
 }
 
 // Internal array renderer used by the public overload wrappers

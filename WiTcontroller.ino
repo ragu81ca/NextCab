@@ -330,7 +330,7 @@ void displayUpdateFromWit(int multiThrottleIndex) {
   debug_println("");
   if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) 
   && (multiThrottleIndex==currentThrottleIndex) ) {
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
   }
 }
 
@@ -590,8 +590,8 @@ void browseSsids() { // show the found SSIDs
   clearOledArray(); 
   setAppnameForOled();
   oledText[2] = MSG_BROWSING_FOR_SSIDS;
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
 
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
@@ -633,11 +633,11 @@ void browseSsids() { // show the found SSIDs
 
     clearOledArray(); oledText[10] = MSG_SSIDS_FOUND;
 
-    writeOledFoundSSids("");
+  oledRenderer.renderFoundSsids("");
 
     // oledText[5] = menu_select_ssids_from_found;
     setMenuTextForOled(menu_select_ssids_from_found);
-    writeOledArray(false, false);
+  oledRenderer.renderArray(false, false);
 
     keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
     ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
@@ -701,7 +701,7 @@ void enterSsidPassword() {
   encoderUseType = ENCODER_USE_SSID_PASSWORD;
   if (ssidPasswordChanged) { // don't refresh the screen if nothing nothing has changed
     debug_println("enterSsidPassword()");
-    writeOledEnterPassword();
+  oledRenderer.renderEnterPassword();
     ssidPasswordChanged = false;
   }
 }
@@ -711,13 +711,13 @@ void showListOfSsids() {  // show the list from the specified values in config_n
 
   clearOledArray(); 
   setAppnameForOled(); 
-  writeOledBattery();
-  writeOledArray(false, false);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false);
 
   if (maxSsids == 0) {
     oledText[1] = MSG_NO_SSIDS_FOUND;
-    writeOledBattery();
-    writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
     debug_println(oledText[1]);
   
   } else {
@@ -744,7 +744,7 @@ void showListOfSsids() {  // show the list from the specified values in config_n
       // oledText[5] = menu_select_ssids;
       setMenuTextForOled(menu_select_ssids);
     }
-    writeOledArray(false, false);
+  oledRenderer.renderArray(false, false);
 
     if (maxSsids == 1) {
       selectedSsid = ssids[0];
@@ -779,8 +779,8 @@ void connectSsid() {
   clearOledArray(); 
   setAppnameForOled();
   oledText[1] = selectedSsid; oledText[2] + "connecting...";
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
 
   double startTime = millis();
   double nowTime = startTime;
@@ -794,8 +794,8 @@ void connectSsid() {
     setAppnameForOled(); 
     for (int i = 0; i < 3; ++i) {  // Try three times
       oledText[1] = selectedSsid; oledText[2] =  String(MSG_TRYING_TO_CONNECT) + " (" + String(i) + ")";
-      writeOledBattery();
-      writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
 
       nowTime = startTime;
       debug_print("hostname ");debug_println(WiFi.getHostname());
@@ -808,8 +808,8 @@ void connectSsid() {
             && ((nowTime-startTime) <= SSID_CONNECTION_TIMEOUT) ) { // wait for X seconds to see if the connection worked
         if (millis() > tempTimer + 250) {
           oledText[3] = getDots(j);
-          writeOledBattery();
-          writeOledArray(false, false, true, true);
+          oledRenderer.renderBattery();
+          oledRenderer.renderArray(false, false, true, true);
           j++;
           debug_print(".");
           tempTimer = millis();
@@ -830,8 +830,8 @@ void connectSsid() {
       debug_print("Connected. IP address: "); debug_println(WiFi.localIP());
       oledText[2] = MSG_CONNECTED; 
       oledText[3] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
-      writeOledBattery();
-      writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
       // ssidConnected = true;
       ssidConnectionState = CONNECTION_STATE_CONNECTED;
       keypadUseType = KEYPAD_USE_SELECT_WITHROTTLE_SERVER;
@@ -840,8 +840,8 @@ void connectSsid() {
       if (!MDNS.begin("WiTcontroller")) {
         debug_println("Error setting up MDNS responder!");
         oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
-        writeOledBattery();
-        writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
         delay(2000);
         ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
       } else {
@@ -851,8 +851,8 @@ void connectSsid() {
     } else {
       debug_println(MSG_CONNECTION_FAILED);
       oledText[2] = MSG_CONNECTION_FAILED;
-      writeOledBattery();
-      writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
       delay(2000);
       
       WiFi.disconnect();      
@@ -896,8 +896,8 @@ void browseWitService() {
   clearOledArray(); 
   oledText[0] = appName; oledText[6] = appVersion; 
   oledText[1] = selectedSsid;   oledText[2] = MSG_BROWSING_FOR_SERVICE;
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
   
   startWaitForSelection = millis();
 
@@ -905,8 +905,8 @@ void browseWitService() {
   if ( (selectedSsid.substring(0,6) == "DCCEX_") && (selectedSsid.length()==12) ) {
     debug_println(MSG_BYPASS_WIT_SERVER_SEARCH);
     oledText[1] = MSG_BYPASS_WIT_SERVER_SEARCH;
-    writeOledBattery();
-    writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
     delay(500);
   } else {
     int j = 0;
@@ -914,8 +914,8 @@ void browseWitService() {
     && ((nowTime-startTime) <= 10000)) { // try for 10 seconds 
       noOfWitServices = MDNS.queryService(service, proto);
       oledText[3] = getDots(j);
-      writeOledBattery();
-      writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
       j++;
       debug_print(".");
       nowTime = millis();
@@ -953,8 +953,8 @@ void browseWitService() {
 
   if (foundWitServersCount == 0) {
     oledText[1] = MSG_NO_SERVICES_FOUND;
-    writeOledBattery();
-    writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
     debug_println(oledText[1]);
     delay(1000);
     buildWitEntry();
@@ -978,7 +978,7 @@ void browseWitService() {
       // oledText[5] = menu_select_wit_service;
       setMenuTextForOled(menu_select_wit_service);
     }
-    writeOledArray(false, false);
+  oledRenderer.renderArray(false, false);
 
     if ( (foundWitServersCount == 1) && (autoConnectToFirstWiThrottleServer) ) {
       debug_println("WiT Selection - only 1");
@@ -1018,15 +1018,15 @@ void connectWitServer() {
   setAppnameForOled(); 
   oledText[1] = "        " + selectedWitServerIP.toString() + " : " + String(selectedWitServerPort); 
   oledText[2] = "        " + selectedWitServerName; oledText[3] + MSG_CONNECTING;
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
   
   startWaitForSelection = millis();
 
   if (!client.connect(selectedWitServerIP, selectedWitServerPort)) {
     debug_println(MSG_CONNECTION_FAILED);
     oledText[3] = MSG_CONNECTION_FAILED;
-    writeOledArray(false, false, true, true);
+  oledRenderer.renderArray(false, false, true, true);
     delay(5000);
     
     witConnectionState = CONNECTION_STATE_DISCONNECTED;
@@ -1059,8 +1059,8 @@ void connectWitServer() {
       // oledText[5] = menu_menu_hash_is_functions;
       setMenuTextForOled(menu_menu_hash_is_functions);
     }
-    writeOledArray(false, false, true, true);
-    writeOledBattery();
+  oledRenderer.renderArray(false, false, true, true);
+  oledRenderer.renderBattery();
     u8g2.sendBuffer();
 
     keypadUseType = KEYPAD_USE_OPERATION;
@@ -1079,7 +1079,7 @@ void enterWitServer() {
     oledText[3] = witServerIpAndPortConstructed;
     // oledText[5] = menu_select_wit_entry;
       setMenuTextForOled(menu_select_wit_entry);
-    writeOledArray(false, false, true, true);
+  oledRenderer.renderArray(false, false, true, true);
     witServerIpAndPortChanged = false;
   }
 }
@@ -1092,7 +1092,7 @@ void disconnectWitServer() {
   wiThrottleProtocol.disconnect();
   debug_println("Disconnected from wiThrottle server\n");
   clearOledArray(); oledText[0] = MSG_DISCONNECTED;
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderArray(false, false, true, true);
   witConnectionState = CONNECTION_STATE_DISCONNECTED;
   witServerIpAndPortChanged = true;
 }
@@ -1209,7 +1209,7 @@ void rotary_onButtonClick() {
         doDirectAction(encoderButtonAction);
       // }
       debug_println("encoder button pressed");
-      writeOledSpeed();
+  oledRenderer.renderSpeed();
     }  else {
       deepSleepStart();
     }
@@ -1217,7 +1217,7 @@ void rotary_onButtonClick() {
     if (ssidPasswordCurrentChar!=ssidPasswordBlankChar) {
       ssidPasswordEntered = ssidPasswordEntered + ssidPasswordCurrentChar;
       ssidPasswordCurrentChar = ssidPasswordBlankChar;
-      writeOledEnterPassword();
+  oledRenderer.renderEnterPassword();
     }
    }
 }
@@ -1282,7 +1282,7 @@ void rotary_loop() {
           }
         }
         ssidPasswordChanged = true;
-        writeOledEnterPassword();
+  oledRenderer.renderEnterPassword();
     }
     lastEncoderValue = encoderValue;
   }
@@ -1507,8 +1507,8 @@ void setup() {
   batteryTest_loop();  // initial battery check
 
   clearOledArray(); oledText[0] = appName; oledText[6] = appVersion; oledText[2] = MSG_START;
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
 
   rotaryEncoder.begin();  //initialize rotary encoder
   rotaryEncoder.setup(readEncoderISR);
@@ -1605,11 +1605,11 @@ void doKeyPress(char key, bool pressed) {
             menuCommand = "";
             if (menuCommandStarted) { // then cancel the menu
               resetMenu();
-              writeOledSpeed();
+              oledRenderer.renderSpeed();
             } else {
               menuCommandStarted = true;
               debug_println("doKeyPress(): Command started");
-              writeOledMenu("", true);
+              oledRenderer.renderMenu("", true);
             }
             break;
 
@@ -1620,13 +1620,13 @@ void doKeyPress(char key, bool pressed) {
             } else {
               if (!hashShowsFunctionsInsteadOfKeyDefs) {
                 if (!oledDirectCommandsAreBeingDisplayed) {
-                  writeOledDirectCommands();
+                  oledRenderer.renderDirectCommands();
                 } else {
                   oledDirectCommandsAreBeingDisplayed = false;
-                  writeOledSpeed();
+                  oledRenderer.renderSpeed();
                 }
               } else {
-                writeOledFunctionList(""); 
+                oledRenderer.renderFunctionList(""); 
               }
             }
             break;
@@ -1668,7 +1668,7 @@ void doKeyPress(char key, bool pressed) {
                 && (menuCommand.length() == 0)) {  // menu type needs only one char
                   debug_println("doKeyPress(): MENU_ITEM_TYPE_SUB_MENU : "); 
                   menuCommand += key;
-                  writeOledMenu(menuCommand, false);
+                  oledRenderer.renderMenu(menuCommand, false);
                 // } else if ( (menuCharsRequired[index0] == MENU_ITEM_TYPE_SELECT_FROM_LIST) 
                 //           && (menuCommand.length() == 0)) {  // menu type needs only one char
                 //   debug_println("doKeyPress(): MENU_ITEM_TYPE_SELECT_FROM_LIST : "); 
@@ -1677,7 +1677,7 @@ void doKeyPress(char key, bool pressed) {
                 } else {  //menu type allows/requires more than one char
                   debug_println("doKeyPress(): MENU_ITEM_TYPE_ONE_OR_MORE_CHARS");
                   menuCommand += key;
-                  writeOledMenu(menuCommand, true);
+                  oledRenderer.renderMenu(menuCommand, true);
                 }
               }
             } else {
@@ -1781,7 +1781,7 @@ void doKeyPress(char key, bool pressed) {
               } else {
                 page = 0;
               }
-              writeOledFoundSSids(""); 
+              oledRenderer.renderFoundSsids(""); 
             }
             break;
           case '9': // show in code list of SSIDs
@@ -1808,12 +1808,12 @@ void doKeyPress(char key, bool pressed) {
               } else {
                 page = 0;
               }
-              writeOledRoster(""); 
+              oledRenderer.renderRoster(""); 
             }
             break;
           case '*':  // cancel
             resetMenu();
-            writeOledSpeed();
+            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -1835,12 +1835,12 @@ void doKeyPress(char key, bool pressed) {
               } else {
                 page = 0;
               }
-              writeOledTurnoutList("", (keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW) ? TurnoutThrow : TurnoutClose); 
+              oledRenderer.renderTurnoutList("", (keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW) ? TurnoutThrow : TurnoutClose); 
             }
             break;
           case '*':  // cancel
             resetMenu();
-            writeOledSpeed();
+            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -1861,12 +1861,12 @@ void doKeyPress(char key, bool pressed) {
               } else {
                 page = 0;
               }
-              writeOledRouteList(""); 
+              oledRenderer.renderRouteList(""); 
             }
             break;
           case '*':  // cancel
             resetMenu();
-            writeOledSpeed();
+            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -1883,16 +1883,16 @@ void doKeyPress(char key, bool pressed) {
           case '#':  // next page
             if ( (functionPage+1)*10 < MAX_FUNCTIONS ) {
               functionPage++;
-              writeOledFunctionList(""); 
+              oledRenderer.renderFunctionList(""); 
             } else {
               functionPage = 0;
               keypadUseType = KEYPAD_USE_OPERATION;
-              writeOledDirectCommands();
+              oledRenderer.renderDirectCommands();
             }
             break;
           case '*':  // cancel
             resetMenu();
-            writeOledSpeed();
+            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -1910,7 +1910,7 @@ void doKeyPress(char key, bool pressed) {
             break;
           case '*':  // cancel
             resetMenu();
-            writeOledSpeed();
+            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -2154,7 +2154,7 @@ void doMenu() {
           menuCommandStartedTemp = true;
         } else {
           // debug_println("doMenu(): else");
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         }
         break;
       }
@@ -2188,10 +2188,10 @@ void doMenuCommand(char menuItem) {
           wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco);
           wiThrottleProtocol.getSpeed(currentThrottleIndexChar);
           resetFunctionStates(currentThrottleIndex);
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           page = 0;
-          writeOledRoster("");
+          oledRenderer.renderRoster("");
         }
         break;
       }
@@ -2207,7 +2207,7 @@ void doMenuCommand(char menuItem) {
         } else { //not loco specified so release all
           releaseAllLocos(currentThrottleIndex);
         }
-        writeOledSpeed();
+  oledRenderer.renderSpeed();
         break;
       }
     case MENU_ITEM_TOGGLE_DIRECTION: { // change direction
@@ -2225,10 +2225,10 @@ void doMenuCommand(char menuItem) {
             debug_print("throw point: "); debug_println(turnout);
             wiThrottleProtocol.setTurnout(turnout, TurnoutThrow);
           // }
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           page = 0;
-          writeOledTurnoutList("", TurnoutThrow);
+          oledRenderer.renderTurnoutList("", TurnoutThrow);
         }
         break;
       }
@@ -2239,10 +2239,10 @@ void doMenuCommand(char menuItem) {
             debug_print("close point: "); debug_println(turnout);
             wiThrottleProtocol.setTurnout(turnout, TurnoutClose);
           // }
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           page = 0;
-          writeOledTurnoutList("",TurnoutClose);
+          oledRenderer.renderTurnoutList("",TurnoutClose);
         }
         break;
       }
@@ -2253,10 +2253,10 @@ void doMenuCommand(char menuItem) {
             debug_print("route: "); debug_println(route);
             wiThrottleProtocol.setRoute(route);
           // }
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           page = 0;
-          writeOledRouteList("");
+          oledRenderer.renderRouteList("");
         }
         break;
       }
@@ -2266,7 +2266,7 @@ void doMenuCommand(char menuItem) {
       }
     case MENU_ITEM_FUNCTION_KEY_TOGGLE: { // toggle showing Def Keys vs Function labels
         hashShowsFunctionsInsteadOfKeyDefs = !hashShowsFunctionsInsteadOfKeyDefs;
-        writeOledSpeed();
+  oledRenderer.renderSpeed();
         break;
       } 
     case MENU_ITEM_EDIT_CONSIST: { // edit consist - loco facings
@@ -2278,7 +2278,7 @@ void doMenuCommand(char menuItem) {
           && ((key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)) ) {
             selectEditConsistList(key - '0');
           }
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           writeOledEditConsist();
         }
@@ -2286,17 +2286,17 @@ void doMenuCommand(char menuItem) {
       } 
     case MENU_ITEM_HEARTBEAT_TOGGLE: { // disable/enable the heartbeat Check
         toggleHeartbeatCheck();
-        writeOledSpeed();
+  oledRenderer.renderSpeed();
         break;
       }
     case MENU_ITEM_DROP_BEFORE_ACQUIRE_TOGGLE: { // disable/enable drop before Acquire
         toggleDropBeforeAquire();
-        writeOledSpeed();
+  oledRenderer.renderSpeed();
         break;
       }
     case MENU_ITEM_SAVE_CURRENT_LOCOS: {
         writePreferences();
-        writeOledSpeed();
+  oledRenderer.renderSpeed();
         break;
       }
     case MENU_ITEM_INCREASE_MAX_THROTTLES: { //increase number of Throttles
@@ -2332,10 +2332,10 @@ void doMenuCommand(char menuItem) {
           if (function != "") { // a function is specified
             doFunction(currentThrottleIndex, functionNumber, true, true);  // always act like latching i.e. pressed
           }
-          writeOledSpeed();
+          oledRenderer.renderSpeed();
         } else {
           functionPage = 0;
-          writeOledFunctionList("");
+          oledRenderer.renderFunctionList("");
         }
         break;
       }
@@ -2527,7 +2527,7 @@ void releaseAllLocos(int multiThrottleIndex) {
     for(int index=wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar)-1;index>=0;index--) {
       loco = wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, index);
       wiThrottleProtocol.releaseLocomotive(multiThrottleIndexChar, loco);
-      writeOledSpeed();  // note the released locos may not be visible
+  oledRenderer.renderSpeed();  // note the released locos may not be visible
     } 
     resetFunctionLabels(multiThrottleIndex);
   }
@@ -2591,7 +2591,7 @@ void doDirectFunction(int multiThrottleIndex, int functionNumber, bool pressed, 
   if (wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar) > 0) {
     debug_print("direct fn: "); debug_print(functionNumber); debug_println( pressed ? " Pressed" : " Released");
     doFunctionWhichLocosInConsist(multiThrottleIndex, functionNumber, pressed, force);
-    writeOledSpeed(); 
+  oledRenderer.renderSpeed(); 
   }
   // debug_print("doDirectFunction(): end"); 
 }
@@ -2617,7 +2617,7 @@ void doFunction(int multiThrottleIndex, int functionNumber, bool pressed, bool f
       doFunctionWhichLocosInConsist(multiThrottleIndex, functionNumber, pressed, false);
       debug_print("fn: "); debug_print(functionNumber); debug_println(" NOT FORCED");
     }
-    writeOledSpeed(); 
+  oledRenderer.renderSpeed(); 
   }
   // debug_println("doFunction(): ");
 }
@@ -2641,7 +2641,7 @@ void powerOnOff(TrackPower powerState) {
   debug_println("powerOnOff()");
   wiThrottleProtocol.setTrackPower(powerState);
   trackPower = powerState;
-  writeOledSpeed();
+  oledRenderer.renderSpeed();
 }
 
 void powerToggle() {
@@ -2668,7 +2668,7 @@ void changeNumberOfThrottles(bool increase) {
 void batteryShowToggle() {
   debug_println("batteryShowToggle()");
   batteryMonitor.toggleDisplayMode();
-  writeOledSpeed();
+  oledRenderer.renderSpeed();
 }
 
 void stopThenToggleDirection() {
@@ -2687,7 +2687,7 @@ void reconnect() {
   clearOledArray(); 
   oledText[0] = appName; oledText[6] = appVersion; 
   oledText[2] = MSG_DISCONNECTED;
-  writeOledArray(false, false);
+  oledRenderer.renderArray(false, false);
   delay(5000);
   disconnectWitServer();
 }
@@ -2763,7 +2763,7 @@ void selectRoster(int selection) {
     wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco);
     wiThrottleProtocol.getSpeed(currentThrottleIndexChar);
     resetFunctionStates(currentThrottleIndex);
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
   }
 }
@@ -2775,7 +2775,7 @@ void selectTurnoutList(int selection, TurnoutAction action) {
     String turnout = turnoutListSysName[selection];
     debug_print("Turnout Selected: "); debug_println(turnout);
     wiThrottleProtocol.setTurnout(turnout,action);
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
   }
 }
@@ -2787,7 +2787,7 @@ void selectRouteList(int selection) {
     String route = routeListSysName[selection];
     debug_print("Route Selected: "); debug_println(route);
     wiThrottleProtocol.setRoute(route);
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
   }
 }
@@ -2800,7 +2800,7 @@ void selectFunctionList(int selection) {
     debug_print("Function Selected: "); debug_println(function);
     doFunction(currentThrottleIndex, selection, true,false);
     functionHasBeenSelected = true;    
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
     // keypadUseType = KEYPAD_USE_OPERATION;   // don't reset it now.  Do so on the release.
   }
 }
@@ -2811,7 +2811,7 @@ void selectEditConsistList(int selection) {
   if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 1 ) {
     String loco = wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, selection);
     toggleLocoFacing(currentThrottleIndex, loco);
-    writeOledSpeed();
+  oledRenderer.renderSpeed();
     keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
   }
@@ -2863,146 +2863,44 @@ void refreshOled() {
      debug_println(lastOledScreen);
   switch (lastOledScreen) {
     case last_oled_screen_speed:
-      writeOledSpeed();
+  oledRenderer.renderSpeed();
       break;
     case last_oled_screen_turnout_list:
-      writeOledTurnoutList(lastOledStringParameter, lastOledTurnoutParameter);
+  oledRenderer.renderTurnoutList(lastOledStringParameter, lastOledTurnoutParameter);
       break;
     case last_oled_screen_route_list:
-      writeOledRouteList(lastOledStringParameter);
+  oledRenderer.renderRouteList(lastOledStringParameter);
       break;
     case last_oled_screen_function_list:
-      writeOledFunctionList(lastOledStringParameter);
+  oledRenderer.renderFunctionList(lastOledStringParameter);
       break;
     case last_oled_screen_menu:
-      writeOledMenu(lastOledStringParameter, true);
+  oledRenderer.renderMenu(lastOledStringParameter, true);
       break;
     case last_oled_screen_extra_submenu:
-      writeOledMenu(lastOledStringParameter, false);
+  oledRenderer.renderMenu(lastOledStringParameter, false);
       break;
     case last_oled_screen_all_locos:
-      writeOledAllLocos(lastOledBoolParameter);
+  oledRenderer.renderAllLocos(lastOledBoolParameter);
       break;
     case last_oled_screen_edit_consist:
       writeOledEditConsist();
       break;
     case last_oled_screen_direct_commands:
-      writeOledDirectCommands();
+  oledRenderer.renderDirectCommands();
       break;
   }
 }
 
 
-void writeOledFoundSSids(String soFar) { oledRenderer.renderFoundSsids(soFar); }
+// Legacy free-function OLED wrappers fully removed; use oledRenderer methods directly.
 
-void writeOledRoster(String soFar) { oledRenderer.renderRoster(soFar); }
-
-void writeOledTurnoutList(String soFar, TurnoutAction action) { oledRenderer.renderTurnoutList(soFar, action); }
-
-void writeOledRouteList(String soFar) { oledRenderer.renderRouteList(soFar); }
-
-void writeOledFunctionList(String soFar) { oledRenderer.renderFunctionList(soFar); }
-
-void writeOledEnterPassword() { oledRenderer.renderEnterPassword(); }
-
-void writeOledMenu(String soFar, bool primeMenu) {
-  debug_print("writeOledMenu() : "); debug_print(primeMenu); debug_print(" : "); debug_println(soFar);
-  lastOledStringParameter = soFar;
-
-  int offset = 0;
-  lastOledScreen = last_oled_screen_menu;
-  if (!primeMenu) {  //Extra Menu
-    offset = 10;
-    lastOledScreen = last_oled_screen_extra_submenu;
-  }
-
-  menuIsShowing = true;
-  bool drawTopLine = false;
-  if ( (soFar == "")
-  || ((!primeMenu) && (soFar.length()==1))) { // nothing entered yet
-    clearOledArray();
-    int j = 0;
-    for (int i=1+offset; i<10+offset; i++) {
-      j = (i<6+offset) ? i-offset : i+1-offset;
-      oledText[j-1] = String(i-offset) + ": " + menuText[i][0];
-    }
-    oledText[10] = "0: " + menuText[0+offset][0];
-    // oledText[5] = menu_cancel;
-    setMenuTextForOled(menu_cancel);
-    writeOledArray(false, false);
-  } else {
-    int cmd = menuCommand.substring(0, 1).toInt();
-
-    clearOledArray();
-
-    oledText[0] = ">> " + menuText[cmd][0] +":"; oledText[6] =  menuCommand.substring(1, menuCommand.length());
-    oledText[5] = menuText[cmd+offset][1];
-
-    switch (soFar.charAt(0)) {
-      case MENU_ITEM_DROP_LOCO: {
-            if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) {
-              writeOledAllLocos(false);
-              drawTopLine = true;
-            }
-          } // fall through
-      case MENU_ITEM_FUNCTION:
-      case MENU_ITEM_TOGGLE_DIRECTION: {
-          if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) <= 0 ) {
-            oledText[2] = MSG_THROTTLE_NUMBER + String(currentThrottleIndex+1);
-            oledText[3] = MSG_NO_LOCO_SELECTED;
-            // oledText[5] = menu_cancel;
-            setMenuTextForOled(menu_cancel);
-          } 
-          break;
-        }
-    }
-
-    writeOledArray(false, false, true, drawTopLine);
-  }
-}
-
-void writeOledAllLocos(bool hideLeadLoco) {
-  lastOledScreen = last_oled_screen_all_locos;
-  lastOledBoolParameter = hideLeadLoco;
-
-  int startAt = (hideLeadLoco) ? 1 :0;  // for the loco heading menu, we don't want to show the loco 0 (lead) as an option.
-  debug_println("writeOledAllLocos(): ");
-  String loco;
-  int j = 0; int i = 0;
-  if (wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar) > 0) {
-    for (int index=0; ((index < wiThrottleProtocol.getNumberOfLocomotives(currentThrottleIndexChar)) && (i < 8)); index++) {  //can only show first 8
-      j = (i<4) ? i : i+2;
-      loco = wiThrottleProtocol.getLocomotiveAtPosition(currentThrottleIndexChar, index);
-      if (i>=startAt) {
-        oledText[j+1] = String(i) + ": " + loco;
-        if (wiThrottleProtocol.getDirection(currentThrottleIndexChar, loco) == Reverse) {
-          oledTextInvert[j+1] = true;
-        }
-      }
-      i++;      
-    } 
-  }
-}
-
-void writeOledEditConsist() { oledRenderer.renderEditConsist(); }
-void writeHeartbeatCheck() { oledRenderer.renderHeartbeatCheck(); }
-
-// NOTE: writeOledSpeed is now wrapped by OledRenderer::renderSpeed() (Phase 1 extraction)
-void writeOledSpeed() { oledRenderer.renderSpeed(); }
-
-void writeOledSpeedStepMultiplier() { oledRenderer.renderSpeedStepMultiplier(); }
-
-void writeOledBattery() { oledRenderer.renderBattery(); }
-
-void writeOledFunctions() { oledRenderer.renderFunctions(); }
-
-void writeOledArray(bool a, bool b) { oledRenderer.renderArray(a,b); }
-void writeOledArray(bool a, bool b, bool c) { oledRenderer.renderArray(a,b,c); }
-void writeOledArray(bool a, bool b, bool c, bool d) { oledRenderer.renderArray(a,b,c,d); }
-
-void clearOledArray() { oledRenderer.clearArray(); }
-
-void writeOledDirectCommands() { oledRenderer.renderDirectCommands(); }
+// Thin wrappers retained temporarily for in-progress migration paths
+inline void clearOledArray() { oledRenderer.clearArray(); }
+// inline void writeOledBattery() { oledRenderer.renderBattery(); } // deprecated
+// inline void writeOledDirectCommands() { oledRenderer.renderDirectCommands(); } // deprecated
+inline void writeHeartbeatCheck() { oledRenderer.renderHeartbeatCheck(); }
+inline void writeOledEditConsist() { oledRenderer.renderEditConsist(); }
 
 // *********************************************************************************
 
@@ -3022,8 +2920,8 @@ void deepSleepStart(int shutdownReason) {
     delayPeriod = 10000;
   }
   oledText[3] = MSG_START_SLEEP;
-  writeOledBattery();
-  writeOledArray(false, false, true, true);
+  oledRenderer.renderBattery();
+  oledRenderer.renderArray(false, false, true, true);
   delay(delayPeriod);
 
   u8g2.setPowerSave(1);
