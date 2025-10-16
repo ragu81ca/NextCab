@@ -174,14 +174,61 @@ void OledRenderer::clearArray() { uiState.clearLines(); }
 
 void OledRenderer::renderDirectCommands() { lastOledScreen = last_oled_screen_direct_commands; oledDirectCommandsAreBeingDisplayed = true; clearArray(); oledText[0] = DIRECT_COMMAND_LIST; for (int i=0; i<4; i++) oledText[i+1] = directCommandText[i][0]; int j=0; for (int i=6; i<10; i++) { oledText[i+1] = directCommandText[j][1]; j++; } j=0; for (int i=12; i<16; i++) { oledText[i+1] = directCommandText[j][2]; j++; } renderArray(true,false); menuCommandStarted = false; }
 
-void OledRenderer::renderBattery() { 
-	debug_printf("Battery: enabled=%d mode=%d lastCheck=%.0f pct=%d\n",
-             batteryMonitor.enabled(),
-             batteryMonitor.displayMode(),
-             batteryMonitor.lastCheckMillis(),
-             batteryMonitor.percent());
-	
-	if (batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0)) { display.setFont(FONT_GLYPHS); display.setDrawColor(1); int x = 120; int y = 11; if (batteryMonitor.displayMode()==ICON_AND_PERCENT) x = 102; display.drawStr(x,y, "Z"); int pct = batteryMonitor.percent(); if (pct>10) display.drawLine(x+1,y-6,x+1,y-3); if (pct>25) display.drawLine(x+2,y-6,x+2,y-3); if (pct>50) display.drawLine(x+3,y-6,x+3,y-3); if (pct>75) display.drawLine(x+4,y-6,x+4,y-3); if (pct>90) display.drawLine(x+5,y-6,x+5,y-3); if (batteryMonitor.displayMode()==ICON_AND_PERCENT) { x = 112; y = 10; display.setFont(FONT_FUNCTION_INDICATORS); if (pct<5) display.drawStr(x,y,"LOW"); else { String pctStr = String(pct) + "%"; display.drawStr(x,y,pctStr.c_str()); } } } }
+void OledRenderer::renderBattery() {
+	if (!(batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0))) return;
+	// We will right-align content but enforce a 1-pixel margin so glyphs never hit column 127 (avoid panel wrap quirk).
+	const uint8_t screenWidth = 128;
+	const uint8_t rightMargin = 2; // keep 2px clear at far right (avoid panel wrap on column 127)
+	int pctRaw = batteryMonitor.percent();
+	bool showPct = (batteryMonitor.displayMode()==ICON_AND_PERCENT);
+
+	// Measure components
+	display.setFont(FONT_GLYPHS);
+	const char *icon = "Z";
+	int iconWidth = display.getStrWidth(icon); // battery glyph width
+	String pctStr;
+	int pctWidth = 0;
+	if (showPct) {
+		display.setFont(FONT_FUNCTION_INDICATORS);
+		pctStr = (pctRaw < 5) ? "LOW" : (String(pctRaw) + "%");
+		pctWidth = display.getStrWidth(pctStr.c_str());
+		display.setFont(FONT_GLYPHS); // restore for icon draw
+	}
+	int spacing = showPct ? 2 : 0;
+	int totalWidth = iconWidth + spacing + pctWidth;
+	if (totalWidth > (screenWidth - rightMargin)) {
+		// Fallback: drop percent if it can't fit cleanly
+		showPct = false;
+		totalWidth = iconWidth;
+	}
+	int leftX = (int)screenWidth - (int)rightMargin - totalWidth; // start position ensuring right margin
+	if (leftX < 0) leftX = 0; // safety
+	int yIcon = 11;
+
+	// Draw icon
+	display.setDrawColor(1);
+	display.setFont(FONT_GLYPHS);
+	display.drawStr(leftX, yIcon, icon);
+	// Battery fill bars (keep within icon region)
+	if (pctRaw>10) display.drawLine(leftX+1,yIcon-6,leftX+1,yIcon-3);
+	if (pctRaw>25) display.drawLine(leftX+2,yIcon-6,leftX+2,yIcon-3);
+	if (pctRaw>50) display.drawLine(leftX+3,yIcon-6,leftX+3,yIcon-3);
+	if (pctRaw>75) display.drawLine(leftX+4,yIcon-6,leftX+4,yIcon-3);
+	if (pctRaw>90) display.drawLine(leftX+5,yIcon-6,leftX+5,yIcon-3);
+
+	// Draw percent if enabled and still fits
+	if (showPct) {
+		display.setFont(FONT_FUNCTION_INDICATORS);
+		int pctX = leftX + iconWidth + spacing;
+		int pctY = 10; // baseline alignment for small font
+		// Clamp percent start if rounding produced an out-of-range position
+	// Ensure percent text does not draw into last two columns
+	int maxRight = screenWidth - rightMargin - 1; // final drawable column for percent
+	if (pctX + pctWidth - 1 > maxRight) pctX = maxRight - pctWidth + 1;
+	if (pctX < leftX + iconWidth + spacing) pctX = leftX + iconWidth + spacing; // maintain spacing
+		display.drawStr(pctX, pctY, pctStr.c_str());
+	}
+}
 
 void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(FONT_GLYPHS); display.drawGlyph(1,38,glyph_speed_step); display.setFont(FONT_DEFAULT); display.drawStr(9,37,String(throttleManager.getSpeedStep()).c_str()); } }
 
