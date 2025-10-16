@@ -27,17 +27,18 @@ public:
 	void selectThrottle(int idx);
 	void changeNumberOfThrottles(bool increase);
 	void toggleAdditionalMultiplier();
+	// Simplified: cycle through three predefined speed steps (base, second, third)
+	void cycleSpeedStep();
 
 	// Newly encapsulated scalar throttle state
 	int getCurrentThrottleIndex() const { return currentThrottleIndex; }
 	char getCurrentThrottleChar() const { return currentThrottleIndexChar; }
 	int getMaxThrottles() const { return maxThrottles; }
-	int getSpeedStepCurrentMultiplier() const { return speedStepCurrentMultiplier; }
+	//int getSpeedStepCurrentMultiplier() const { return currentSpeedStepIndex+1; } // 1..3 logical level
 	void setMaxThrottles(int value); // clamp 1..WIT_MAX_THROTTLES
 	void setCurrentThrottleIndex(int idx); // safe select
 	void cycleNextThrottle(); // alias for nextThrottle
-	void resetSpeedStepMultiplier();
-	void applyAdditionalMultiplier(); // toggle logic already exists; for clarity wrappers
+	// Removed reset/apply; single cycling method now
 
 	// last sent speed tracking accessors
 	unsigned long getLastSpeedSentTime() const { return lastSpeedSentTime; }
@@ -47,10 +48,10 @@ public:
 	// Newly migrated arrays (with size up to 6) accessors
 	int * speeds() { return currentSpeed; }
 	Direction * directions() { return currentDirection; }
-	int * speedSteps() { return currentSpeedStep; }
+	// Global speed step (user preference) rather than per throttle
 	Direction getDirection(int throttle) const { return currentDirection[throttle]; }
-	int getSpeedStep(int throttle) const { return currentSpeedStep[throttle]; }
-	void setSpeedStep(int throttle, int step) { currentSpeedStep[throttle] = step; }
+	int getSpeedStep() const { return globalSpeedStep; }
+	void setGlobalSpeedStep(int step) { if (step<1) step=1; globalSpeedStep = step; }
 private:
 	WiThrottleProtocol *proto { nullptr };
 	class ThrottleInputManager *inputMgr { nullptr }; // optional link for synchronization
@@ -60,12 +61,14 @@ private:
 	int currentThrottleIndex { 0 }; // which multi throttle is active
 	char currentThrottleIndexChar { '0' }; // cached char
 	int maxThrottles { MAX_THROTTLES }; // configurable number of throttles (<= WIT_MAX_THROTTLES)
-	int speedStepCurrentMultiplier { 1 }; // multiplier for speed step
+	// New fixed step levels (configured from base macro and multipliers)
+	int speedStepLevels[3] { speedStep, speedStep * speedStepAdditionalMultiplier, speedStep * speedStepAdditionalMultiplier * 2 };
+	int currentSpeedStepIndex { 0 }; // 0..2
 	unsigned long lastSpeedSentTime { 0 }; // debounce speed changes
 	int lastSpeedSent { 0 }; // last speed value sent
 	int lastSpeedThrottleIndex { 0 }; // throttle index last speed belonged to
 	// Arrays migrated from sketch
 	int currentSpeed[WIT_MAX_THROTTLES];
 	Direction currentDirection[WIT_MAX_THROTTLES];
-	int currentSpeedStep[WIT_MAX_THROTTLES];
+	int globalSpeedStep { speedStep }; // base step from macro; modified by multiplier logic
 };

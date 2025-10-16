@@ -46,7 +46,7 @@ void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
             // Apply signed delta scaled by current speed step (respect additional multiplier)
             int idx = throttleManager.getCurrentThrottleIndex();
             int baseSpeed = throttleManager.getCurrentSpeed(idx);
-            int step = throttleManager.getSpeedStep(idx);
+            int step = throttleManager.getSpeedStep();
             int newSpeed = baseSpeed + (evt.value * step);
             if (newSpeed < 0) newSpeed = 0; else if (newSpeed > 127) newSpeed = 127;
             speedSet(idx, newSpeed);

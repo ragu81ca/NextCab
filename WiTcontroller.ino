@@ -1125,6 +1125,8 @@ void setup() {
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
   throttleInputManager.begin(); // init chosen throttle input implementation
+  // Provide ThrottleManager with pointer to input manager for pot caching / future interactions
+  throttleManager.setInputManager(&throttleInputManager);
   
   WiFi.setHostname(DEVICE_NAME);
   #if USE_COUNTRY_CODE
@@ -1596,23 +1598,23 @@ void doDirectAction(int buttonAction) {
         break; 
       }
       case SPEED_UP: {
-  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex()));
+  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep());
         break; 
       }
       case SPEED_DOWN: {
-  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex()));
+  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep());
         break; 
       }
       case SPEED_UP_FAST: {
-  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex())*speedStepMultiplier);
+  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep()*speedStepMultiplier);
         break; 
       }
       case SPEED_DOWN_FAST: {
-  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep(throttleManager.getCurrentThrottleIndex())*speedStepMultiplier);
+  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep()*speedStepMultiplier);
         break; 
       }
       case SPEED_MULTIPLIER: {
-        toggleAdditionalMultiplier();
+        throttleManager.cycleSpeedStep();
         break; 
       }
       case E_STOP: {
@@ -1791,7 +1793,7 @@ void doMenuCommand(char menuItem) {
         break;
       }
      case MENU_ITEM_SPEED_STEP_MULTIPLIER: { // toggle speed step additional Multiplier
-        toggleAdditionalMultiplier();
+  cycleSpeedStep();
         break;
       }
    case MENU_ITEM_THROW_POINT: {  // throw point
@@ -2134,8 +2136,8 @@ void releaseOneLocoByIndex(int multiThrottleIndex, int index) {
   debug_println("releaseOneLocoByIndex(): end");
 }
 
-// Thin wrapper retained for backward compatibility; real logic in ThrottleManager
-void toggleAdditionalMultiplier() { throttleManager.toggleAdditionalMultiplier(); }
+// Speed step cycling now handled directly by ThrottleManager
+void cycleSpeedStep() { throttleManager.cycleSpeedStep(); }
 
 void toggleHeartbeatCheck() {
   heartbeatMonitor.toggleEnabled();

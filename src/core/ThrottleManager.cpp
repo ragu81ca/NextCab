@@ -14,7 +14,6 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 	for (int i=0; i<WIT_MAX_THROTTLES; i++) {
 		currentSpeed[i] = 0;
 		currentDirection[i] = Forward;
-		currentSpeedStep[i] = speedStep; // base speed step macro
 	}
 }
 
@@ -151,13 +150,10 @@ void ThrottleManager::changeNumberOfThrottles(bool increase) {
 	oledRenderer.renderSpeed();
 }
 
-void ThrottleManager::toggleAdditionalMultiplier() {
-	switch (speedStepCurrentMultiplier) {
-		case 1: speedStepCurrentMultiplier = speedStepAdditionalMultiplier; break;
-		case speedStepAdditionalMultiplier: speedStepCurrentMultiplier = speedStepAdditionalMultiplier*2; break;
-		default: speedStepCurrentMultiplier = 1; break;
-	}
-	for (int i=0; i<maxThrottles; i++) currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier;
+void ThrottleManager::cycleSpeedStep() {
+	currentSpeedStepIndex++;
+	if (currentSpeedStepIndex >= 3) currentSpeedStepIndex = 0;
+	globalSpeedStep = speedStepLevels[currentSpeedStepIndex];
 	oledRenderer.renderSpeed();
 }
 
@@ -171,8 +167,4 @@ void ThrottleManager::setMaxThrottles(int value) {
 
 void ThrottleManager::setCurrentThrottleIndex(int idx) { selectThrottle(idx); }
 void ThrottleManager::cycleNextThrottle() { nextThrottle(); }
-void ThrottleManager::resetSpeedStepMultiplier() {
-	speedStepCurrentMultiplier = 1;
-	for (int i=0; i<maxThrottles; i++) currentSpeedStep[i] = speedStep * speedStepCurrentMultiplier;
-}
-void ThrottleManager::applyAdditionalMultiplier() { toggleAdditionalMultiplier(); }
+// obsolete methods removed (resetSpeedStepMultiplier/applyAdditionalMultiplier/toggleAdditionalMultiplier)

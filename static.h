@@ -432,7 +432,7 @@ extern const int glyph_speed_step;
 #if defined(SPEED_STEP)
 static constexpr int speedStep = SPEED_STEP;
 #else
-static constexpr int speedStep = 4;
+static constexpr int speedStep = 1;
 #endif
 
 #if defined(SPEED_STEP_MULTIPLIER)
