@@ -4,8 +4,9 @@
 #pragma once
 
 enum class ThrottleInputEventType {
-    SpeedSetAbsolute,   // value = absolute target speed 0-127 (uniform for all inputs)
-    PasswordCharCycle,  // value = +1 or -1 to move selection (only encoder capable)
+    SpeedSetAbsolute,   // value = absolute target speed 0-127 (pot or future absolute devices)
+    SpeedDelta,         // value = signed delta (+/-) to apply to current speed (rotary encoder)
+    PasswordCharCycle,  // value = +1 or -1 to move selection (only encoder capable during password entry)
     ButtonShortPress    // momentary press on rotary encoder (if available)
 };
 

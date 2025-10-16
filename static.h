@@ -1,5 +1,6 @@
-// Added include guard via pragma once and converted definitions to declarations
-// String constants are now defined in static.cpp to prevent multiple definition errors
+// Added traditional include guard plus pragma once to satisfy Arduino preprocessor quirks
+#ifndef WIT_STATIC_H_INCLUDED
+#define WIT_STATIC_H_INCLUDED
 #pragma once
 
 #include <Arduino.h>
@@ -8,7 +9,7 @@ extern const String appVersion;
 extern const String appName;
 
 #ifndef DEVICE_NAME
-  #define DEVICE_NAME "WiTcontroller"
+  #define DEVICE_NAME "WiTmomentum"
 #endif
 
 
@@ -67,41 +68,44 @@ extern const String appName;
 
 extern const String menu_text[14];
 
-enum {
+// Menu indices (legacy numeric constants). Using a single enum class to avoid unnamed-duplicate compilation issues.
+enum MenuIndex : uint8_t {
    menu_menu = 0,
-   menu_menu_hash_is_functions = 1,
-   menu_finish = 2,
-   menu_cancel = 3,
-   menu_show_direct = 4,
-   menu_roster = 5,
-   menu_turnout_list = 6,
-   menu_route_list = 7,
-   menu_function_list = 8,
-   menu_select_wit_service = 9,
-   menu_select_wit_entry = 10,
-   menu_select_ssids = 11,
-   menu_select_ssids_from_found = 12,
-   menu_enter_ssid_password = 13
+   menu_menu_hash_is_functions,
+   menu_finish,
+   menu_cancel,
+   menu_show_direct,
+   menu_roster,
+   menu_turnout_list,
+   menu_route_list,
+   menu_function_list,
+   menu_select_wit_service,
+   menu_select_wit_entry,
+   menu_select_ssids,
+   menu_select_ssids_from_found,
+   menu_enter_ssid_password
 };
 
-enum {
+// OLED screen identifiers
+enum OledScreen : uint8_t {
    last_oled_screen_speed = 0,
-   last_oled_screen_roster = 1,
-   last_oled_screen_turnout_list = 2,
-   last_oled_screen_route_list = 3,
-   last_oled_screen_function_list = 4,
-   last_oled_screen_menu = 5,
-   last_oled_screen_extra_submenu = 6,
-   last_oled_screen_all_locos = 7,
-   last_oled_screen_edit_consist = 8,
-   last_oled_screen_direct_commands = 9
+   last_oled_screen_roster,
+   last_oled_screen_turnout_list,
+   last_oled_screen_route_list,
+   last_oled_screen_function_list,
+   last_oled_screen_menu,
+   last_oled_screen_extra_submenu,
+   last_oled_screen_all_locos,
+   last_oled_screen_edit_consist,
+   last_oled_screen_direct_commands
 };
 
-typedef enum ShowBattery {
+// Battery display options
+enum ShowBattery : uint8_t {
     NONE = 0,
     ICON_ONLY = 1,
     ICON_AND_PERCENT = 2
-} ShowBattery;
+};
 
 #ifndef DIRECT_COMMAND_LIST
   #define DIRECT_COMMAND_LIST            "Direct Commands"
@@ -210,11 +214,11 @@ typedef enum ShowBattery {
    #define MSG_RECEIVING_SERVER_DETAILS  "Getting data from server"
 #endif
 
-const String label_track_power = "TRK";
+extern const String label_track_power;
 
-const int glyph_heartbeat_off = 0x00b7;
-const int glyph_track_power = 0x00eb;
-const int glyph_speed_step = 0x00d6;
+extern const int glyph_heartbeat_off;
+extern const int glyph_track_power;
+extern const int glyph_speed_step;
 // const int glyph_direction_forward = 0x0070;
 // const int glyph_direction_reverse = 0x006d;
 
@@ -405,57 +409,15 @@ const int glyph_speed_step = 0x00d6;
 
 #ifndef USER_DEFINED_MENUS
    // menu item labels, menu to appear at the bottom of the screen
-   const String menuText[20][2] = {
-      {MENU_ITEM_TEXT_TITLE_FUNCTION,              MENU_ITEM_TEXT_MENU_FUNCTION},      //0
-      {MENU_ITEM_TEXT_TITLE_ADD_LOCO,              MENU_ITEM_TEXT_MENU_ADD_LOCO},      //1
-      {MENU_ITEM_TEXT_TITLE_DROP_LOCO,             MENU_ITEM_TEXT_MENU_DROP_LOCO_REAL},//2
-      {MENU_ITEM_TEXT_TITLE_TOGGLE_DIRECTION,      MENU_ITEM_TEXT_MENU_NA},            //3
-      {MENU_ITEM_TEXT_TITLE_SPEED_STEP_MULTIPLIER, MENU_ITEM_TEXT_MENU_NA},            //4
-      {MENU_ITEM_TEXT_TITLE_THROW_POINT,           MENU_ITEM_TEXT_MENU_THROW_POINT},   //5
-      {MENU_ITEM_TEXT_TITLE_CLOSE_POINT,           MENU_ITEM_TEXT_MENU_CLOSE_POINT},   //6
-      {MENU_ITEM_TEXT_TITLE_ROUTE,                 MENU_ITEM_TEXT_MENU_ROUTE},         //7
-      {MENU_ITEM_TEXT_TITLE_TRACK_POWER,           MENU_ITEM_TEXT_MENU_NA},            //8 
-      {MENU_ITEM_TEXT_TITLE_EXTRAS,                MENU_ITEM_TEXT_MENU_EXTRAS},        //9
-      {EXTRA_MENU_TEXT_CHAR_FUNCTION_KEY_TOGGLE,   MENU_ITEM_TEXT_MENU_NA},            // 10 A
-      {EXTRA_MENU_TEXT_CHAR_EDIT_CONSIST,          MENU_ITEM_TEXT_MENU_EDIT_CONSIST},  // 11 B
-      {EXTRA_MENU_TEXT_CHAR_TBA,                   MENU_ITEM_TEXT_MENU_NA},            // 12 C
-      {EXTRA_MENU_TEXT_CHAR_HEARTBEAT_TOGGLE,      MENU_ITEM_TEXT_MENU_NA},            // 13 D
-      {EXTRA_MENU_TEXT_CHAR_INCREASE_MAX_THROTTLES,MENU_ITEM_TEXT_MENU_NA},            // 14 E
-      {EXTRA_MENU_TEXT_CHAR_DECREASE_MAX_THROTTLES,MENU_ITEM_TEXT_MENU_NA},            // 15 F
-      {EXTRA_MENU_TEXT_CHAR_DISCONNECT,            MENU_ITEM_TEXT_MENU_NA},            // 16 G
-      {EXTRA_MENU_TEXT_CHAR_OFF_SLEEP,             MENU_ITEM_TEXT_MENU_NA},            // 17 H
-      {EXTRA_MENU_TEXT_CHAR_DROP_BEFORE_ACQUIRE_TOGGLE, MENU_ITEM_TEXT_MENU_NA},       // 18 I
-      {EXTRA_MENU_TEXT_SAVE_CURRENT_LOCOS,         MENU_ITEM_TEXT_MENU_NA}             // 19 J
-   };
+   extern const String menuText[20][2]; // defined in static.cpp
 #else 
-   const String menuText[20][2] = MENU_STRUCTURE;
+   extern const String menuText[20][2]; // defined in static.cpp
 #endif
 
 #ifndef USER_DEFINED_MENUS
-   const int menuCharsRequired[20] = {  
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //0
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //1
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //2
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //3
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //4
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //5
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //6
-      MENU_ITEM_TYPE_ONE_OR_MORE_CHARS, //7
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //8
-      MENU_ITEM_TYPE_SUB_MENU,          //9
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //10 A
-      MENU_ITEM_TYPE_DIRECT_COMMAND,  //11 B
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //12 C
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //13 D
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //14 E
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //15 F
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //16 G
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //17 H
-      MENU_ITEM_TYPE_DIRECT_COMMAND,    //18 I
-      MENU_ITEM_TYPE_DIRECT_COMMAND     //19 J
-   };
+   extern const int menuCharsRequired[20]; // defined in static.cpp
 #else 
-   const int menuCharsRequired[20] = MENU_CHARS_REQUIRED;
+   extern const int menuCharsRequired[20]; // defined in static.cpp
 #endif
 
 // if defined in config_buttons.h these values will be overwritten
@@ -467,36 +429,38 @@ const int glyph_speed_step = 0x00d6;
    #define TOGGLE_DIRECTION_ON_ENCODER_BUTTON_PRESSED_WHEN_STATIONAY true
 #endif
 // speed increase for each click of the encoder 
-#ifdef SPEED_STEP
-  const int speedStep = SPEED_STEP;
+#if defined(SPEED_STEP)
+static constexpr int speedStep = SPEED_STEP;
 #else
-  const int speedStep = 4;
+static constexpr int speedStep = 4;
 #endif
-#ifdef SPEED_STEP_MULTIPLIER
-  const int speedStepMultiplier = SPEED_STEP_MULTIPLIER;  // for 'fast' speed steps
+
+#if defined(SPEED_STEP_MULTIPLIER)
+static constexpr int speedStepMultiplier = SPEED_STEP_MULTIPLIER;
 #else
-  const int speedStepMultiplier = 3;  // for 'fast' speed steps
+static constexpr int speedStepMultiplier = 3;
 #endif
-// Additional multiplier.  If the multiplier is enabled from the menu, each rotation of the encoder becomes the speedStep * the AdditionalMultiplier
-#ifdef SPEED_STEP_MULTIPLIER
-  const int speedStepAdditionalMultiplier = SPEED_STEP_MULTIPLIER;
+
+// Additional multiplier.  If enabled from the menu, each rotation becomes speedStep * AdditionalMultiplier
+#if defined(SPEED_STEP_MULTIPLIER)
+static constexpr int speedStepAdditionalMultiplier = SPEED_STEP_MULTIPLIER;
 #else
-  const int speedStepAdditionalMultiplier = 2;
+static constexpr int speedStepAdditionalMultiplier = 2;
 #endif
 #ifndef SPEED_STEP_ADDITIONAL_MULTIPLIER
    #define SPEED_STEP_ADDITIONAL_MULTIPLIER 2
 #endif
 
 #ifdef  DISPLAY_SPEED_AS_PERCENT
-  const bool speedDisplayAsPercent = DISPLAY_SPEED_AS_PERCENT;
+   extern const bool speedDisplayAsPercent; // defined in static.cpp
 #else
-  const bool speedDisplayAsPercent = false;
+   extern const bool speedDisplayAsPercent; // defined in static.cpp
 #endif
 
 #ifdef  DISPLAY_SPEED_AS_0_TO_28
-  const bool speedDisplayAs0to28 = DISPLAY_SPEED_AS_0_TO_28;
+   extern const bool speedDisplayAs0to28; // defined in static.cpp
 #else
-  const bool speedDisplayAs0to28 = false;
+   extern const bool speedDisplayAs0to28; // defined in static.cpp
 #endif
 
 extern String witServerIpAndPortEntryMask; // defined in static.cpp
@@ -509,7 +473,9 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
   #define SSID_CONNECTION_TIMEOUT 10000
 #endif
 
-const char ssidPasswordBlankChar = 164;
+extern const char ssidPasswordBlankChar; // defined in static.cpp
+
+#endif // WIT_STATIC_H_INCLUDED
 
 
 #ifndef SHORT_DCC_ADDRESS_LIMIT

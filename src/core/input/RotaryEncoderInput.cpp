@@ -44,14 +44,7 @@ void RotaryEncoderInput::begin() {
     // Assume rotaryEncoder object already constructed in sketch; just configure
     rotaryEncoder.begin();
     rotaryEncoder.setup([](){ RotaryEncoderInput::handleISR(); });
-    _lastEncoderValue = rotaryEncoder.readEncoder();
-    // Sync from current system throttle speed via ThrottleManager
-    if (throttleManager.getCurrentThrottleIndex() >= 0) {
-        _absoluteSpeed = throttleManager.getCurrentSpeed(throttleManager.getCurrentThrottleIndex());
-        if (_absoluteSpeed < 0) _absoluteSpeed = 0; else if (_absoluteSpeed > 127) _absoluteSpeed = 127;
-    } else {
-        _absoluteSpeed = 0;
-    }
+    _lastEncoderValue = rotaryEncoder.readEncoder(); // baseline for delta only
 }
 
 void RotaryEncoderInput::loop() {
@@ -61,13 +54,9 @@ void RotaryEncoderInput::loop() {
         long delta = newValue - _lastEncoderValue;
         _lastEncoderValue = newValue;
         if (delta != 0) {
-            int newAbsolute = _absoluteSpeed + (int)delta;
-            if (newAbsolute < 0) newAbsolute = 0; else if (newAbsolute > 127) newAbsolute = 127;
-            if (newAbsolute != _absoluteSpeed) {
-                _absoluteSpeed = newAbsolute;
-                ThrottleInputEvent evt{ThrottleInputEventType::SpeedSetAbsolute, _absoluteSpeed};
-                if (_handler) _handler(evt);
-            }
+            // Emit signed delta; ThrottleInputManager converts to speed change
+            ThrottleInputEvent evt{ThrottleInputEventType::SpeedDelta, (int)delta};
+            if (_handler) _handler(evt);
         }
     }
 

@@ -10,6 +10,8 @@ public:
     ThrottleInputManager();
     void begin();
     void loop();
+    // Notify input layer that speed was changed outside of its own events (e-stop, menu actions)
+    void notifySpeedExternallySet(int newSpeed);
 
 private:
     static void handleEvent(const ThrottleInputEvent &evt);

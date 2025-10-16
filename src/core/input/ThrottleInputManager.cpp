@@ -42,6 +42,17 @@ void ThrottleInputManager::loop() {
 void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
     if (!s_mgr) return;
     switch (evt.type) {
+        case ThrottleInputEventType::SpeedDelta: {
+            // Apply signed delta scaled by current speed step (respect additional multiplier)
+            int idx = throttleManager.getCurrentThrottleIndex();
+            int baseSpeed = throttleManager.getCurrentSpeed(idx);
+            int step = throttleManager.getSpeedStep(idx);
+            int newSpeed = baseSpeed + (evt.value * step);
+            if (newSpeed < 0) newSpeed = 0; else if (newSpeed > 127) newSpeed = 127;
+            speedSet(idx, newSpeed);
+            cachedSpeed = newSpeed;
+            break;
+        }
             case ThrottleInputEventType::SpeedSetAbsolute: {
                 int newSpeed = evt.value;
                 if (newSpeed < 0) newSpeed = 0; else if (newSpeed > 127) newSpeed = 127;
@@ -91,4 +102,10 @@ void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
             break;
         }
     }
+}
+
+void ThrottleInputManager::notifySpeedExternallySet(int newSpeed) {
+    if (newSpeed < 0) newSpeed = 0; else if (newSpeed > 127) newSpeed = 127;
+    cachedSpeed = newSpeed;
+    // No rotary baseline needed now; encoder emits deltas only.
 }
