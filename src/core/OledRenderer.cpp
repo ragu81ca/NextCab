@@ -8,8 +8,9 @@
 #include "heartbeat/HeartbeatMonitor.h"
 #include "ThrottleManager.h" // full definition for throttleManager usage
 #include "../../WiTcontroller.h"
+#include "protocol/WiThrottleDelegate.h"
 
-extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2; 
+// u8g2 display instance declared in static.cpp with type depending on OLED configuration (see static.h)
 extern BatteryMonitor batteryMonitor; 
 extern HeartbeatMonitor heartbeatMonitor;
 OledRenderer oledRenderer(u8g2);
@@ -173,7 +174,14 @@ void OledRenderer::clearArray() { uiState.clearLines(); }
 
 void OledRenderer::renderDirectCommands() { lastOledScreen = last_oled_screen_direct_commands; oledDirectCommandsAreBeingDisplayed = true; clearArray(); oledText[0] = DIRECT_COMMAND_LIST; for (int i=0; i<4; i++) oledText[i+1] = directCommandText[i][0]; int j=0; for (int i=6; i<10; i++) { oledText[i+1] = directCommandText[j][1]; j++; } j=0; for (int i=12; i<16; i++) { oledText[i+1] = directCommandText[j][2]; j++; } renderArray(true,false); menuCommandStarted = false; }
 
-void OledRenderer::renderBattery() { if (batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0)) { display.setFont(FONT_GLYPHS); display.setDrawColor(1); int x = 120; int y = 11; if (batteryMonitor.displayMode()==ICON_AND_PERCENT) x = 102; display.drawStr(x,y, "Z"); int pct = batteryMonitor.percent(); if (pct>10) display.drawLine(x+1,y-6,x+1,y-3); if (pct>25) display.drawLine(x+2,y-6,x+2,y-3); if (pct>50) display.drawLine(x+3,y-6,x+3,y-3); if (pct>75) display.drawLine(x+4,y-6,x+4,y-3); if (pct>90) display.drawLine(x+5,y-6,x+5,y-3); if (batteryMonitor.displayMode()==ICON_AND_PERCENT) { x = 112; y = 10; display.setFont(FONT_FUNCTION_INDICATORS); if (pct<5) display.drawStr(x,y,"LOW"); else { String pctStr = String(pct) + "%"; display.drawStr(x,y,pctStr.c_str()); } } } }
+void OledRenderer::renderBattery() { 
+	debug_printf("Battery: enabled=%d mode=%d lastCheck=%.0f pct=%d\n",
+             batteryMonitor.enabled(),
+             batteryMonitor.displayMode(),
+             batteryMonitor.lastCheckMillis(),
+             batteryMonitor.percent());
+	
+	if (batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0)) { display.setFont(FONT_GLYPHS); display.setDrawColor(1); int x = 120; int y = 11; if (batteryMonitor.displayMode()==ICON_AND_PERCENT) x = 102; display.drawStr(x,y, "Z"); int pct = batteryMonitor.percent(); if (pct>10) display.drawLine(x+1,y-6,x+1,y-3); if (pct>25) display.drawLine(x+2,y-6,x+2,y-3); if (pct>50) display.drawLine(x+3,y-6,x+3,y-3); if (pct>75) display.drawLine(x+4,y-6,x+4,y-3); if (pct>90) display.drawLine(x+5,y-6,x+5,y-3); if (batteryMonitor.displayMode()==ICON_AND_PERCENT) { x = 112; y = 10; display.setFont(FONT_FUNCTION_INDICATORS); if (pct<5) display.drawStr(x,y,"LOW"); else { String pctStr = String(pct) + "%"; display.drawStr(x,y,pctStr.c_str()); } } } }
 
 void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(FONT_GLYPHS); display.drawGlyph(1,38,glyph_speed_step); display.setFont(FONT_DEFAULT); display.drawStr(9,37,String(throttleManager.getSpeedStep()).c_str()); } }
 

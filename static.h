@@ -107,6 +107,15 @@ enum ShowBattery : uint8_t {
     ICON_AND_PERCENT = 2
 };
 
+// Optional battery percentage smoothing (reduces visible jitter).
+// Enable and set alpha (0.0..1.0). Higher alpha reacts faster; lower alpha is smoother.
+#ifndef BATTERY_SMOOTHING_ENABLED
+   #define BATTERY_SMOOTHING_ENABLED true
+#endif
+#ifndef BATTERY_SMOOTHING_ALPHA
+   #define BATTERY_SMOOTHING_ALPHA 0.2f
+#endif
+
 #ifndef DIRECT_COMMAND_LIST
   #define DIRECT_COMMAND_LIST            "Direct Commands"
 #endif 
