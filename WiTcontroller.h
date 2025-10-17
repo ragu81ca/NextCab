@@ -140,8 +140,7 @@ void disconnectWitServer(void);
 void witEntryAddChar(char);
 void witEntryDeleteChar(char);
 
-void ssidPasswordAddChar(char);
-void ssidPasswordDeleteChar(char);
+// Legacy password helper functions removed (now handled by InputManager + PasswordEntryModeHandler)
 void buildWitEntry(void);
 
 void keypadEvent(KeypadEvent);

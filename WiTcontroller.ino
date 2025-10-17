@@ -37,6 +37,9 @@
 // Refactored modules (relocated under src/core)
 #include "src/core/ThrottleManager.h"
 #include "src/core/OledRenderer.h"
+#include "src/core/input/InputManager.h"
+#include "src/core/input/OperationModeHandler.h"
+#include "src/core/input/PasswordEntryModeHandler.h"
 
 #if WITCONTROLLER_DEBUG == 0
  #define debug_print(params...) Serial.print(params)
@@ -105,6 +108,11 @@ int lastThrottlePotReadTime = -1;
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
+InputManager inputManager; // generic input dispatcher
+// Instantiate mode handlers (password buffer reused existing ssidPasswordEntered)
+OperationModeHandler operationModeHandler(throttleManager);
+static void onPasswordCommit();
+PasswordEntryModeHandler passwordModeHandler(ssidPasswordEntered, 32, onPasswordCommit); // arbitrary max len
 
 // server variables
 // bool ssidConnected = false;
@@ -491,6 +499,12 @@ void enterSsidPassword() {
     debug_println("enterSsidPassword()");
   oledRenderer.renderEnterPassword();
     ssidPasswordChanged = false;
+  }
+}
+// Switch to generic password entry mode when connection state requires password
+static void ensureInputModeForPassword() {
+  if (ssidConnectionState == CONNECTION_STATE_PASSWORD_ENTRY && inputManager.getMode() != InputMode::PasswordEntry) {
+    inputManager.setMode(InputMode::PasswordEntry);
   }
 }
 void showListOfSsids() {  // show the list from the specified values in config_network.h
@@ -905,23 +919,7 @@ void witEntryDeleteChar(char key) {
   }
 }
 
-void ssidPasswordAddChar(char key) {
-  ssidPasswordEntered = ssidPasswordEntered + key;
-  debug_print("password entered: ");
-  debug_println(ssidPasswordEntered);
-  ssidPasswordChanged = true;
-  ssidPasswordCurrentChar = ssidPasswordBlankChar;
-}
-
-void ssidPasswordDeleteChar(char key) {
-  if (ssidPasswordEntered.length() > 0) {
-    ssidPasswordEntered = ssidPasswordEntered.substring(0, ssidPasswordEntered.length()-1);
-    debug_print("password char deleted: ");
-    debug_println(ssidPasswordEntered);
-    ssidPasswordChanged = true;
-    ssidPasswordCurrentChar = ssidPasswordBlankChar;
-  }
-}
+// Legacy ssidPasswordAddChar / ssidPasswordDeleteChar removed; handled via PasswordEntryModeHandler events.
 
 void buildWitEntry() {
   debug_println("buildWitEntry()");
@@ -1112,6 +1110,10 @@ void setup() {
 
   // Initialize new ThrottleManager (modular refactor)
   throttleManager.begin(&wiThrottleProtocol);
+  // Wire up generic input manager mode handlers
+  inputManager.setOperationHandler(&operationModeHandler);
+  inputManager.setPasswordHandler(&passwordModeHandler);
+  inputManager.setMode(InputMode::Operation);
   // Initialize HeartbeatMonitor with defaults
   heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED);
   // Reconnect automatically if heartbeat times out
@@ -1139,6 +1141,7 @@ void loop() {
   if (ssidConnectionState != CONNECTION_STATE_CONNECTED) {
     // connectNetwork();
     ssidsLoop();
+    ensureInputModeForPassword();
     checkForShutdownOnNoResponse();
   } else {  
     if (witConnectionState != CONNECTION_STATE_CONNECTED) {
@@ -1290,27 +1293,22 @@ void doKeyPress(char key, bool pressed) {
 
         break;
 
-      case KEYPAD_USE_ENTER_SSID_PASSWORD:
+      case KEYPAD_USE_ENTER_SSID_PASSWORD: {
         debug_print("doKeyPress(): key: Enter password... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            ssidPasswordAddChar(key);
-            break;
-          case '*': // backspace
-            ssidPasswordDeleteChar(key);
-            break;
-          case '#': // end of command
-              selectedSsidPassword = ssidPasswordEntered;
-              encoderUseType = ENCODER_USE_OPERATION;
-              keypadUseType = KEYPAD_USE_OPERATION;
-              ssidConnectionState = CONNECTION_STATE_SELECTED;
-            break;
-          default:  // do nothing 
-            break;
+        if (pressed) {
+          InputEvent ev; ev.timestamp = millis();
+          if (key == '#') {
+            ev.type = InputEventType::PasswordCommit; ev.ivalue = 0; ev.cvalue = '#';
+          } else if (key == '*') {
+            ev.type = InputEventType::KeypadSpecial; ev.ivalue = 0; ev.cvalue = '*';
+          } else if (key >= '0' && key <= '9') {
+            ev.type = InputEventType::KeypadChar; ev.ivalue = key - '0'; ev.cvalue = key;
+          } else {
+            ev.type = InputEventType::KeypadSpecial; ev.ivalue = 0; ev.cvalue = key;
+          }
+          inputManager.dispatch(ev);
         }
-
-        break;
+        break; }
 
       case KEYPAD_USE_SELECT_WITHROTTLE_SERVER:
         debug_print("doKeyPress(): key: Select wit... "); debug_println(key);
@@ -1918,6 +1916,16 @@ void doMenuCommand(char menuItem) {
         break;
       }
   }
+}
+
+static void onPasswordCommit() {
+  // Accept the entered password and return to normal mode
+  selectedSsidPassword = ssidPasswordEntered;
+  ssidConnectionState = CONNECTION_STATE_SELECTED;
+  keypadUseType = KEYPAD_USE_OPERATION;
+  encoderUseType = ENCODER_USE_OPERATION;
+  inputManager.setMode(InputMode::Operation);
+  oledRenderer.renderSpeed();
 }
 
 // *********************************************************************************

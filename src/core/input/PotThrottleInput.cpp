@@ -1,6 +1,7 @@
 // PotThrottleInput.cpp
 
 #include "PotThrottleInput.h"
+#include "InputEvents.h"
 #include <Arduino.h>
 #include "WiTcontroller.h"
 
@@ -17,8 +18,8 @@ extern int lastThrottlePotHighValue;    // highest recent raw value
 extern int lastThrottlePotValues[];     // smoothing buffer
 extern int currentThrottleIndex;
 
-PotThrottleInput::PotThrottleInput(ThrottleInputEventHandler handler)
-    : _handler(handler) {}
+PotThrottleInput::PotThrottleInput(ThrottleInputEventHandler legacyHandler)
+    : _handler(legacyHandler) {}
 
 void PotThrottleInput::begin() {
     // Nothing special yet.
@@ -84,8 +85,13 @@ void PotThrottleInput::loop() {
 
         if (newSpeedToSet >= 0 && newSpeedToSet != _lastSpeed) {
             _lastSpeed = newSpeedToSet;
-            ThrottleInputEvent evt{ThrottleInputEventType::SpeedSetAbsolute, newSpeedToSet};
-            if (_handler) _handler(evt);
+            if (_genericHandler) {
+                InputEvent gev; gev.type = InputEventType::SpeedAbsolute; gev.ivalue = newSpeedToSet; gev.cvalue = 0; gev.timestamp = millis();
+                _genericHandler(gev);
+            } else if (_handler) {
+                ThrottleInputEvent evt{ThrottleInputEventType::SpeedSetAbsolute, newSpeedToSet};
+                _handler(evt);
+            }
         }
     }
 }

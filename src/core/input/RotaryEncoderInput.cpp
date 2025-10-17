@@ -1,6 +1,7 @@
 // RotaryEncoderInput.cpp
 
 #include "RotaryEncoderInput.h"
+#include "InputEvents.h"
 #include <Arduino.h>
 #include <AiEsp32RotaryEncoder.h>
 
@@ -54,9 +55,13 @@ void RotaryEncoderInput::loop() {
         long delta = newValue - _lastEncoderValue;
         _lastEncoderValue = newValue;
         if (delta != 0) {
-            // Emit signed delta; ThrottleInputManager converts to speed change
-            ThrottleInputEvent evt{ThrottleInputEventType::SpeedDelta, (int)delta};
-            if (_handler) _handler(evt);
+            if (_genericHandler) {
+                InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = millis();
+                _genericHandler(gev);
+            } else if (_handler) {
+                ThrottleInputEvent evt{ThrottleInputEventType::SpeedDelta, (int)delta};
+                _handler(evt);
+            }
         }
     }
 
@@ -66,8 +71,13 @@ void RotaryEncoderInput::loop() {
         const unsigned long debounceMs = 200; // matches legacy ROTARY_ENCODER_DEBOUNCE_TIME
         if (now - _lastClickMs >= debounceMs) {
             _lastClickMs = now;
-            ThrottleInputEvent evt{ThrottleInputEventType::ButtonShortPress, 1};
-            if (_handler) _handler(evt);
+            if (_genericHandler) {
+                InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
+                _genericHandler(gev);
+            } else if (_handler) {
+                ThrottleInputEvent evt{ThrottleInputEventType::ButtonShortPress, 1};
+                _handler(evt);
+            }
         }
     }
 }
