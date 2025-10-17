@@ -44,7 +44,8 @@ void ThrottleManager::speedDown(int throttle, int amt) {
 void ThrottleManager::speedSet(int throttle, int value) {
 	if (!proto) return;
 	char tChar = getMultiThrottleChar(throttle);
-	if (proto->getNumberOfLocomotives(tChar) == 0) return;
+	// If no locomotive yet, ignore request entirely (prevent overwriting future acquired speed)
+	if (proto->getNumberOfLocomotives(tChar) == 0) { return; }
 	int newSpeed = value;
 	if (newSpeed > 126) newSpeed = 126;
 	if (newSpeed < 0) newSpeed = 0;
@@ -155,6 +156,13 @@ void ThrottleManager::cycleSpeedStep() {
 	if (currentSpeedStepIndex >= 3) currentSpeedStepIndex = 0;
 	globalSpeedStep = speedStepLevels[currentSpeedStepIndex];
 	oledRenderer.renderSpeed();
+}
+
+
+bool ThrottleManager::hasLocomotive(int throttle) const {
+	if (!proto) return false;
+	char tChar = getMultiThrottleChar(throttle);
+	return proto->getNumberOfLocomotives(tChar) > 0;
 }
 
 // wrappers

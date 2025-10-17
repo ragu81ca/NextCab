@@ -29,6 +29,8 @@ public:
 	void toggleAdditionalMultiplier();
 	// Simplified: cycle through three predefined speed steps (base, second, third)
 	void cycleSpeedStep();
+	// Query whether a locomotive (or consist) is present on the given throttle
+	bool hasLocomotive(int throttle) const;
 
 	// Newly encapsulated scalar throttle state
 	int getCurrentThrottleIndex() const { return currentThrottleIndex; }

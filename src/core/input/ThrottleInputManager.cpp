@@ -48,6 +48,9 @@ void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
         case ThrottleInputEventType::SpeedDelta: {
             InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = evt.value; gev.cvalue = 0; gev.timestamp = millis();
             inputManager.dispatch(gev);
+            #if INPUT_DEBUG
+            Serial.print("[ThrottleInputManager] SpeedDelta dispatched: "); Serial.println(evt.value);
+            #endif
             break;
         }
             case ThrottleInputEventType::SpeedSetAbsolute: {
@@ -61,6 +64,9 @@ void ThrottleInputManager::handleEvent(const ThrottleInputEvent &evt) {
         case ThrottleInputEventType::ButtonShortPress: {
             InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = millis();
             inputManager.dispatch(gev);
+            #if INPUT_DEBUG
+            Serial.println("[ThrottleInputManager] EncoderClick dispatched");
+            #endif
             break;
         }
     }

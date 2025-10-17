@@ -12,7 +12,8 @@ enum class InputEventType : uint8_t {
     AdditionalButton,  // ivalue = button index
     PasswordCommit,    // signal to finish password entry
     DirectionToggle,   // request to change direction
-    SleepRequest       // request deep sleep (e.g. long inactivity)
+    SleepRequest,      // request deep sleep (e.g. long inactivity)
+    Action             // generic programmable action (ivalue = action code from actions.h)
 };
 
 struct InputEvent {

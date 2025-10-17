@@ -3,11 +3,16 @@
 #include "static.h" // root-level include (platformio include_dir=.)
 
 extern OledRenderer oledRenderer;
-extern int keypadUseType;
-extern int encoderUseType;
+extern int keypadUseType; // transitional (will be removed)
+extern int encoderUseType; // transitional
 
 void PasswordEntryModeHandler::render() {
-    // Reuse existing OLED password rendering
+    // Temporary bridge: update legacy globals consumed by renderer until renderer is refactored.
+    // Remove when OledRenderer pulls from handler directly.
+    extern String ssidPasswordEntered; // legacy global
+    extern char ssidPasswordCurrentChar; // legacy global preview
+    ssidPasswordEntered = buffer_; // keep global in sync for now
+    ssidPasswordCurrentChar = previewChar_;
     oledRenderer.renderEnterPassword();
 }
 
@@ -28,7 +33,7 @@ bool PasswordEntryModeHandler::handle(const InputEvent &ev) {
             while (next < 0) next += kCharSetLen;
             while ((size_t)next >= kCharSetLen) next -= kCharSetLen;
             currentIndex_ = (size_t)next;
-            ssidPasswordCurrentChar = kCharSet[currentIndex_];
+            previewChar_ = kCharSet[currentIndex_];
             render();
             return true;
         }

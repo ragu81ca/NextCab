@@ -40,6 +40,7 @@
 #include "src/core/input/InputManager.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
+#include "src/core/input/SystemActionHandler.h"
 
 #if WITCONTROLLER_DEBUG == 0
  #define debug_print(params...) Serial.print(params)
@@ -109,10 +110,11 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 InputManager inputManager; // generic input dispatcher
-// Instantiate mode handlers (password buffer reused existing ssidPasswordEntered)
+// Instantiate mode handlers
 OperationModeHandler operationModeHandler(throttleManager);
 static void onPasswordCommit();
-PasswordEntryModeHandler passwordModeHandler(ssidPasswordEntered, 32, onPasswordCommit); // arbitrary max len
+PasswordEntryModeHandler passwordModeHandler(32, onPasswordCommit); // arbitrary max len
+SystemActionHandler systemActionHandler(throttleManager);
 
 // server variables
 // bool ssidConnected = false;
@@ -1110,10 +1112,11 @@ void setup() {
 
   // Initialize new ThrottleManager (modular refactor)
   throttleManager.begin(&wiThrottleProtocol);
-  // Wire up generic input manager mode handlers
+  // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
   inputManager.setPasswordHandler(&passwordModeHandler);
-  inputManager.setMode(InputMode::Operation);
+  inputManager.setActionFallbackHandler(&systemActionHandler);
+  inputManager.forceMode(InputMode::Operation); // ensure active_ bound even if mode already Operation
   // Initialize HeartbeatMonitor with defaults
   heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED);
   // Reconnect automatically if heartbeat times out
@@ -1536,8 +1539,9 @@ void doDirectCommand(char key, bool pressed) {
     if ( (buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31) ) {
   doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed);
   } else {
-      if (pressed) { // only process these on the key press, not the release
-        doDirectAction(buttonAction);
+      if (pressed) { // only process these on key press
+        InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
+        inputManager.dispatch(ev);
       }
     }
   }
@@ -1569,7 +1573,8 @@ void doDirectAdditionalButtonCommand (int buttonIndex, bool pressed) {
       }
     } else { // not a function
       if (pressed) { // only process these on the key press, not the release
-        doDirectAction(buttonAction);
+        InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
+        inputManager.dispatch(ev);
       }
     }
   }
@@ -1577,142 +1582,9 @@ void doDirectAdditionalButtonCommand (int buttonIndex, bool pressed) {
 }
 
 void doDirectAction(int buttonAction) {
-  debug_println("doDirectAction(): ");
-  switch (buttonAction) {
-      case DIRECTION_FORWARD: {
-        changeDirection(throttleManager.getCurrentThrottleIndex(), Forward);
-        break; 
-      }
-      case DIRECTION_REVERSE: {
-        changeDirection(throttleManager.getCurrentThrottleIndex(), Reverse);
-        break; 
-      }
-      case DIRECTION_TOGGLE: {
-        toggleDirection(throttleManager.getCurrentThrottleIndex());
-        break; 
-      }
-      case SPEED_STOP: {
-        speedSet(throttleManager.getCurrentThrottleIndex(), 0);
-        break; 
-      }
-      case SPEED_UP: {
-  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep());
-        break; 
-      }
-      case SPEED_DOWN: {
-  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep());
-        break; 
-      }
-      case SPEED_UP_FAST: {
-  speedUp(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep()*speedStepMultiplier);
-        break; 
-      }
-      case SPEED_DOWN_FAST: {
-  speedDown(throttleManager.getCurrentThrottleIndex(), throttleManager.getSpeedStep()*speedStepMultiplier);
-        break; 
-      }
-      case SPEED_MULTIPLIER: {
-        throttleManager.cycleSpeedStep();
-        break; 
-      }
-      case E_STOP: {
-        speedEstop();
-        break; 
-      }
-      case E_STOP_CURRENT_LOCO: {
-        speedEstopCurrentLoco();
-        break; 
-      }
-      case POWER_ON: {
-        powerOnOff(PowerOn);
-        break; 
-      }
-      case POWER_OFF: {
-        powerOnOff(PowerOff);
-        break; 
-      }
-      case POWER_TOGGLE: {
-        powerToggle();
-        break; 
-      }
-      case SHOW_HIDE_BATTERY: {
-        batteryShowToggle();
-        break; 
-      }
-      case SLEEP: {
-        deepSleepStart();
-        break; 
-      }
-      case NEXT_THROTTLE: {
-        nextThrottle();
-        break; 
-      }
-      case THROTTLE_1: {
-        throttle(0);
-        break; 
-      }
-      case THROTTLE_2: {
-        throttle(1);
-        break; 
-      }
-      case THROTTLE_3: {
-        throttle(2);
-        break; 
-      }
-      case THROTTLE_4: {
-        throttle(3);
-        break; 
-      }
-      case THROTTLE_5: {
-        throttle(4);
-        break; 
-      }
-      case THROTTLE_6: {
-        throttle(5);
-        break; 
-      }
-      case SPEED_STOP_THEN_TOGGLE_DIRECTION: {
-        stopThenToggleDirection();
-        break; 
-      }
-      case MAX_THROTTLE_INCREASE: {
-        changeNumberOfThrottles(true);
-        break; 
-      }
-      case MAX_THROTTLE_DECREASE: {
-        changeNumberOfThrottles(false);
-        break; 
-      }
-      case CUSTOM_1: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_1);
-        break; 
-      }
-      case CUSTOM_2: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_2);
-        break; 
-      }
-      case CUSTOM_3: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_3);
-        break; 
-      }
-      case CUSTOM_4: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_4);
-        break; 
-      }
-      case CUSTOM_5: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_5);
-        break; 
-      }
-      case CUSTOM_6: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_6);
-        break; 
-      }
-      case CUSTOM_7: {
-        wiThrottleProtocol.sendCommand(CUSTOM_COMMAND_7);
-        break; 
-      }
-  }
-  // debug_println("doDirectAction(): end");
+  // Unified path: dispatch as InputEvent Action so mode handlers / fallback handle it.
+  InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
+  inputManager.dispatch(ev);
 }
 
 void doMenu() {

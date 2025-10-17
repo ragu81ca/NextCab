@@ -4,6 +4,10 @@
 #include "InputEvents.h"
 #include <Arduino.h>
 #include <AiEsp32RotaryEncoder.h>
+// Optional debug gating (no acceleration logic needed now; using library call)
+#ifndef INPUT_DEBUG
+#define INPUT_DEBUG 0
+#endif
 
 // Reuse existing pins/macros from project root header.
 #include "../ThrottleManager.h"
@@ -44,6 +48,8 @@ void RotaryEncoderInput::begin() {
     s_instance = this;
     // Assume rotaryEncoder object already constructed in sketch; just configure
     rotaryEncoder.begin();
+    // Disable acceleration by setting acceleration factor to 0 (library API)
+    rotaryEncoder.setAcceleration(100); //Same as original WiTcontroller implementation
     rotaryEncoder.setup([](){ RotaryEncoderInput::handleISR(); });
     _lastEncoderValue = rotaryEncoder.readEncoder(); // baseline for delta only
 }
@@ -55,6 +61,17 @@ void RotaryEncoderInput::loop() {
         long delta = newValue - _lastEncoderValue;
         _lastEncoderValue = newValue;
         if (delta != 0) {
+            // Apply user-configured rotation direction: clockwise may be increase or decrease.
+            // Legacy macro ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED is defined globally.
+            // Positive hardware delta corresponds to one physical direction; invert if necessary.
+            #ifdef ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
+            if (!encoderRotationClockwiseIsIncreaseSpeed) {
+                delta = -delta;
+            }
+            #endif
+            #if WITCONTROLLER_DEBUG == 0
+            Serial.print("[Rotary] raw delta:"); Serial.print(newValue - (_lastEncoderValue - delta)); Serial.print(" applied:"); Serial.println(delta);
+            #endif
             if (_genericHandler) {
                 InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = millis();
                 _genericHandler(gev);
@@ -78,6 +95,9 @@ void RotaryEncoderInput::loop() {
                 ThrottleInputEvent evt{ThrottleInputEventType::ButtonShortPress, 1};
                 _handler(evt);
             }
+            #if INPUT_DEBUG
+            Serial.println("[Rotary] button click dispatched");
+            #endif
         }
     }
 }
