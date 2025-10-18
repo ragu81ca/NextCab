@@ -57,7 +57,6 @@ void stealLoco(int multiThrottleIndex, String address);
 void stealLoco(char multiThrottle, String address);
 int compareStrings(const void * a, const void * b);
 void displayUpdateFromWit(int multiThrottleIndex);
-void setLastServerResponseTime(bool reset);
 
 #ifndef ROSTER_SORT_SEQUENCE
 #define ROSTER_SORT_SEQUENCE 0

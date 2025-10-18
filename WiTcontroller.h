@@ -183,7 +183,6 @@ void powerOnOff(TrackPower);
 void powerToggle(void);
 void nextThrottle(void);
 void reconnect(void);
-void setLastServerResponseTime(bool);
 
 void selectRoster(int);
 void selectTurnoutList(int, TurnoutAction);

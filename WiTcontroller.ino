@@ -853,7 +853,8 @@ void connectWitServer() {
     }
 
     witConnectionState = CONNECTION_STATE_CONNECTED;
-  heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), true);
+    // Heartbeat: we rely on WiThrottleProtocol internal checkHeartbeat() to send '*' periodically.
+    // Client does NOT enforce a timeout; the command station will disconnect us if it stops hearing heartbeats.
 
     oledText[3] = MSG_CONNECTED;
     if (!hashShowsFunctionsInsteadOfKeyDefs) {
@@ -1118,14 +1119,7 @@ void setup() {
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::Operation); // ensure active_ bound even if mode already Operation
   // Initialize HeartbeatMonitor with defaults
-  heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED);
-  // Reconnect automatically if heartbeat times out
-  heartbeatMonitor.setOnTimeout([](){
-    debug_println("Heartbeat timeout - initiating reconnect");
-    witConnectionState = CONNECTION_STATE_DISCONNECTED;
-    ssidConnectionState = CONNECTION_STATE_CONNECTED; // keep WiFi, force protocol reconnect
-  });
-  // Log any protocol-driven heartbeat period changes
+  heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED); // Slim wrapper: enabled + period only
   heartbeatMonitor.setOnPeriodChange([](unsigned long p){
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
@@ -1152,9 +1146,7 @@ void loop() {
       checkForShutdownOnNoResponse();
     } else {
       wiThrottleProtocol.check();    // parse incoming messages
-
-      heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), false);
-      heartbeatMonitor.loop();
+  // Slim heartbeat monitor: no activity tracking or timeout logic; library handles periodic sends.
     }
   }
   // char key = keypad.getKey();
@@ -2150,7 +2142,6 @@ void reconnect() {
   disconnectWitServer();
 }
 
-void setLastServerResponseTime(bool force) { heartbeatMonitor.noteActivity(wiThrottleProtocol.getLastServerResponseTime(), force); }
 
 void checkForShutdownOnNoResponse() {
   if (millis()-startWaitForSelection > MAX_HEARTBEAT_PERIOD) {  // default is 4 minutes
