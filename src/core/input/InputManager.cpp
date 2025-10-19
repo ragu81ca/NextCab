@@ -4,7 +4,7 @@
 #include "OperationModeHandler.h"
 #include "../../../actions.h"
 extern OperationModeHandler operationModeHandler; // defined in sketch
-extern void doDirectAdditionalButtonCommand(int, bool); // legacy function handler in sketch
+extern void doDirectFunction(int multiThrottleIndex, int functionNumber, bool pressed); // ensure direct function control
 
 
 void InputManager::setMode(InputMode mode) {
@@ -36,11 +36,28 @@ void InputManager::dispatch(const InputEvent &ev) {
         bool handled = operationModeHandler.handle(ev);
         if (handled) return;
     }
-    // AdditionalButton events (function buttons) use legacy handler for latching semantics.
+    // AdditionalButton events now represent canonical function button state changes:
+    // cvalue 'P' => press (turn function on for toggle or start for momentary)
+    // cvalue 'R' => release (only for momentary functions)
     if (ev.type == InputEventType::AdditionalButton) {
         bool pressed = (ev.cvalue == 'P');
-        doDirectAdditionalButtonCommand(ev.ivalue, pressed);
-        return;
+        int buttonIndex = ev.ivalue;
+        extern int additionalButtonActions[]; // from sketch
+        int actionCode = additionalButtonActions[buttonIndex];
+        if (actionCode == FUNCTION_NULL) return;
+        if (actionCode >= FUNCTION_0 && actionCode <= FUNCTION_31) {
+            // Directly invoke function control for current throttle index.
+            extern class ThrottleManager throttleManager;
+            int mtIndex = throttleManager.getCurrentThrottleIndex();
+            doDirectFunction(mtIndex, actionCode, pressed);
+            return;
+        } else {
+            if (!pressed) return; // non-function actions fire on press only
+            InputEvent actEv; actEv.timestamp = ev.timestamp; actEv.type = InputEventType::Action; actEv.ivalue = actionCode; actEv.cvalue = 0;
+            if (active_) { bool consumed = active_->handle(actEv); if (consumed) return; }
+            if (actionHandler_) actionHandler_->handle(actEv);
+            return;
+        }
     }
     // Generic action fallback: route Action events to actionHandler_ when not consumed.
     if (ev.type == InputEventType::Action && actionHandler_) {

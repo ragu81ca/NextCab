@@ -1513,32 +1513,7 @@ void doDirectCommand(char key, bool pressed) {
   // debug_println("doDirectCommand(): end"); 
 }
 
-// Additional button function handler (reintroduced after refactor)
-void doDirectAdditionalButtonCommand (int buttonIndex, bool pressed) {
-  debug_print("doDirectAdditionalButtonCommand(): index: "); debug_println(buttonIndex);
-  int buttonAction = additionalButtonActions[buttonIndex];
-  if (buttonAction!=FUNCTION_NULL) {
-    if ((buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31)) {
-      if (additionalButtonOverrideDefaultLatching) {
-        bool latch = additionalButtonLatching[buttonIndex];
-        bool currentlyOn = functionStates[throttleManager.getCurrentThrottleIndex()][buttonAction];
-        if (!latch) {
-          doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, true);
-        } else {
-          if ((!currentlyOn) && pressed) {
-            doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, true, true);
-          } else if (currentlyOn && pressed) {
-            doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, false, true);
-          }
-        }
-      } else {
-        doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, false);
-      }
-    } else {
-      // Non-function actions already dispatched directly on press via AdditionalButtonsInput
-    }
-  }
-}
+// Legacy doDirectAdditionalButtonCommand removed: state machine now emits canonical AdditionalButton events
 
 
 void doDirectAction(int buttonAction) {

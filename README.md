@@ -946,6 +946,30 @@ Previously duplicated root `*.cpp` files (e.g. `ThrottleManager.cpp` at the proj
 
 If you contribute new modules following this pattern, prefer placing them in `src/core` (or a subfolder) and include them from the sketch using a relative path (`#include "src/core/YourClass.h"`).
 
+### Additional Buttons State Machine (October 2025)
+
+Optional hardware buttons (defined via `NEW_ADDITIONAL_BUTTON_*` arrays in `config_buttons.h`) now use a per-button state machine that produces clean, canonical events. This replaces the older debounce + `pulseEmitted` + implicit latching logic.
+
+Highlights:
+* Deterministic states (Idle → PressNoise → Active → ReleaseNoise → Idle) ensure one logical press per physical press.
+* 40ms debounce window filters chatter while still permitting quick taps.
+* Ultra-short taps (≥5ms) are accepted as valid fast toggles (useful for horn / bell bursts) even if shorter than the full debounce window.
+* Emergency actions (`E_STOP`, `E_STOP_CURRENT_LOCO`) bypass the debounce and emit immediately on the raw edge for maximum responsiveness.
+* Non-function actions (speed, power, direction, etc.) emit only a single press `Action` event; releases are suppressed to simplify downstream handling.
+* Function buttons (`FUNCTION_0`–`FUNCTION_31`) emit press and, for momentary functions, release events (`AdditionalButton` type with `cvalue = 'P'|'R'`). Toggle/latching functions emit press only.
+
+Benefits:
+* Eliminates duplicate or missed events seen with the prior mixed approach.
+* Creates a "pure" event stream so consumers (InputManager, renderers, protocol layer) need no corrective heuristics.
+* Guarantees immediate emergency stop regardless of other button activity.
+
+Configuration:
+* No new defines required; state machine is always active.
+* Existing arrays (`NEW_ADDITIONAL_BUTTON_ACTIONS`, pins, types, latching flags) remain unchanged.
+* Fast toggle minimum (5ms) is internal; adjust only if you fork the class.
+
+Invariant for contributors: Do not introduce release events for non-function actions—downstream code assumes press-only semantics.
+
 
 If you plan to modify the code to make you own version, it is recommended that you create your own GitHub fork of my repository and post your mods there.
 
