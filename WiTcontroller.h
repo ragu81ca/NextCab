@@ -152,7 +152,6 @@ void loop(void);
 
 void doKeyPress(char, bool);
 void doDirectCommand (char, bool);
-void doDirectAdditionalButtonCommand (int, bool);
 void doDirectAction(int);
 void doMenu(void);
 void resetMenu(void);

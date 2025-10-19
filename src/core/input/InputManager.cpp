@@ -1,5 +1,11 @@
 #include "InputManager.h"
 #include "InputEvents.h"
+// For loco-centric emergency actions when not in Operation mode
+#include "OperationModeHandler.h"
+#include "../../../actions.h"
+extern OperationModeHandler operationModeHandler; // defined in sketch
+extern void doDirectAdditionalButtonCommand(int, bool); // legacy function handler in sketch
+
 
 void InputManager::setMode(InputMode mode) {
     if (mode_ == mode) {
@@ -24,6 +30,17 @@ void InputManager::dispatch(const InputEvent &ev) {
     if (active_) {
         bool consumed = active_->handle(ev);
         if (consumed) return;
+    }
+    // Ensure critical loco-centric safety actions (E_STOP / current loco) are always processed even outside Operation mode.
+    if (ev.type == InputEventType::Action && (ev.ivalue == E_STOP || ev.ivalue == E_STOP_CURRENT_LOCO)) {
+        bool handled = operationModeHandler.handle(ev);
+        if (handled) return;
+    }
+    // AdditionalButton events (function buttons) use legacy handler for latching semantics.
+    if (ev.type == InputEventType::AdditionalButton) {
+        bool pressed = (ev.cvalue == 'P');
+        doDirectAdditionalButtonCommand(ev.ivalue, pressed);
+        return;
     }
     // Generic action fallback: route Action events to actionHandler_ when not consumed.
     if (ev.type == InputEventType::Action && actionHandler_) {

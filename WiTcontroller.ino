@@ -38,6 +38,7 @@
 #include "src/core/ThrottleManager.h"
 #include "src/core/OledRenderer.h"
 #include "src/core/input/InputManager.h"
+#include "src/core/input/AdditionalButtonsInput.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
 #include "src/core/input/SystemActionHandler.h"
@@ -110,6 +111,12 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 InputManager inputManager; // generic input dispatcher
+// Additional buttons unified input producer
+static AdditionalButtonsInput *additionalButtonsInput = nullptr;
+
+// Configuration mapping old arrays -> new definitions (minimal bridge). We reuse existing arrays if defined.
+// Expect: additionalButtonPin[], additionalButtonType[], additionalButtonActions[], maxAdditionalButtons.
+struct AdditionalButtonDef buttonDefsStatic[MAX_ADDITIONAL_BUTTONS];
 // Instantiate mode handlers
 OperationModeHandler operationModeHandler(throttleManager);
 static void onPasswordCommit();
@@ -597,7 +604,7 @@ void connectSsid() {
     clearOledArray(); 
     setAppnameForOled(); 
     for (int i = 0; i < 3; ++i) {  // Try three times
-      oledText[1] = selectedSsid; oledText[2] =  String(MSG_TRYING_TO_CONNECT) + " (" + String(i) + ")";
+      oledText[1] = selectedSsid; oledText[2] =  String(MSG_TRYING_TO_CONNECT) + " (" + String(i + 1) + " of 3)";
   oledRenderer.renderBattery();
   oledRenderer.renderArray(false, false, true, true);
 
@@ -1008,63 +1015,29 @@ void keypadEvent(KeypadEvent key) {
 // *********************************************************************************
 
 void initialiseAdditionalButtons() {
-
-  for (int i = 0; i < maxAdditionalButtons; i++) { 
-    if (additionalButtonActions[i] != FUNCTION_NULL) { 
-      debug_print("Additional Button: "); debug_print(i); debug_print(" pin:"); debug_println(additionalButtonPin[i]);
-
-      if (additionalButtonPin[i]>=0) {
-        pinMode(additionalButtonPin[i], additionalButtonType[i]);
-        additionalButtonLastRead[i] = LOW;
-      }
-      lastAdditionalButtonDebounceTime[i] = 0;
+  // Build definitions for unified producer
+  int count = maxAdditionalButtons;
+  for (int i = 0; i < count; i++) {
+    AdditionalButtonDef def; 
+    def.pin = additionalButtonPin[i];
+    def.mode = additionalButtonType[i];
+    def.actionCode = additionalButtonActions[i];
+    // Derive toggle / oneShot from action code ranges (legacy heuristic):
+    // Example: direct commands < 100, functions 100-199, toggles 500+, adjust as needed.
+    def.toggle = (additionalButtonActions[i] >= 500 && additionalButtonActions[i] < 600);
+    def.oneShot = (additionalButtonActions[i] >= 600); // arbitrary mapping; refine later
+    buttonDefsStatic[i] = def;
+    if (additionalButtonActions[i] != FUNCTION_NULL) {
+      debug_print("[AdditionalButtonsInput] Config index "); debug_print(i); debug_print(" pin:"); debug_print(def.pin); debug_print(" action:"); debug_println(def.actionCode);
     }
   }
+  additionalButtonsInput = new AdditionalButtonsInput([](const InputEvent &ev){ inputManager.dispatch(ev); });
+  additionalButtonsInput->begin(buttonDefsStatic, maxAdditionalButtons);
 }
 
 void additionalButtonLoop() {
-  if (witConnectionState != CONNECTION_STATE_CONNECTED) return;
-
-  int buttonRead;
-  for (int i = 0; i < maxAdditionalButtons; i++) {   
-    if ( (additionalButtonActions[i] != FUNCTION_NULL) && (additionalButtonPin[i]>=0) ) {
-
-      buttonRead = digitalRead(additionalButtonPin[i]);
-
-      if (additionalButtonLastRead[i] != buttonRead) { // on process on a change
-        if ((millis() - lastAdditionalButtonDebounceTime[i]) > additionalButtonDebounceDelay) {   // only process if there is sufficent delay since the last read
-          lastAdditionalButtonDebounceTime[i] = millis();
-          additionalButtonRead[i] = buttonRead;
-
-          if ( ((additionalButtonType[i] == INPUT_PULLUP) && (additionalButtonRead[i] == LOW)) 
-              || ((additionalButtonType[i] == INPUT) && (additionalButtonRead[i] == HIGH)) ) {
-            debug_print("Additional Button Pressed: "); debug_print(i); debug_print(" pin:"); debug_print(additionalButtonPin[i]); debug_print(" action:"); debug_println(additionalButtonActions[i]); 
-            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) { // only process if there are locos acquired
-              doDirectAdditionalButtonCommand(i,true);
-            } else { // check for actions not releted to a loco
-              int buttonAction = additionalButtonActions[i];
-              if (buttonAction >= 500) {
-                  doDirectAdditionalButtonCommand(i,true);
-              }
-            }
-          } else {
-            debug_print("Additional Button Released: "); debug_print(i); debug_print(" pin:"); debug_print(additionalButtonPin[i]); debug_print(" action:"); debug_println(additionalButtonActions[i]); 
-            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) { // only process if there are locos acquired
-              doDirectAdditionalButtonCommand(i,false);
-            } else { // check for actions not releted to a loco
-              int buttonAction = additionalButtonActions[i];
-              if (buttonAction >= 500) {
-                  doDirectAdditionalButtonCommand(i,false);
-              }
-            }
-          }
-        } else {
-          debug_println("Ignoring Additional Button Press");
-        }
-      }
-      additionalButtonLastRead[i] = additionalButtonRead[i];
-    }
-  }
+  // Legacy loop retained for compatibility during transition; now delegated to unified producer.
+  if (additionalButtonsInput) { additionalButtonsInput->loop(); }
 }
 
 // *********************************************************************************
@@ -1540,38 +1513,33 @@ void doDirectCommand(char key, bool pressed) {
   // debug_println("doDirectCommand(): end"); 
 }
 
+// Additional button function handler (reintroduced after refactor)
 void doDirectAdditionalButtonCommand (int buttonIndex, bool pressed) {
   debug_print("doDirectAdditionalButtonCommand(): index: "); debug_println(buttonIndex);
   int buttonAction = additionalButtonActions[buttonIndex];
-
   if (buttonAction!=FUNCTION_NULL) {
-    if ( (buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31) ) {
-
+    if ((buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31)) {
       if (additionalButtonOverrideDefaultLatching) {
         bool latch = additionalButtonLatching[buttonIndex];
-  bool currentlyOn = functionStates[throttleManager.getCurrentThrottleIndex()][buttonAction];
-
+        bool currentlyOn = functionStates[throttleManager.getCurrentThrottleIndex()][buttonAction];
         if (!latch) {
           doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, true);
         } else {
-          if ( (!currentlyOn) && (pressed) ) {
+          if ((!currentlyOn) && pressed) {
             doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, true, true);
-          } else if ( (currentlyOn) && (pressed) ) {
+          } else if (currentlyOn && pressed) {
             doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, false, true);
           }
         }
       } else {
-  doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, false);
+        doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed, false);
       }
-    } else { // not a function
-      if (pressed) { // only process these on the key press, not the release
-        InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
-        inputManager.dispatch(ev);
-      }
+    } else {
+      // Non-function actions already dispatched directly on press via AdditionalButtonsInput
     }
   }
-  // debug_println("doDirectAdditionalButtonCommand(): end ");
 }
+
 
 void doDirectAction(int buttonAction) {
   // Unified path: dispatch as InputEvent Action so mode handlers / fallback handle it.

@@ -84,8 +84,19 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
                     throttle_.changeDirection(idx, Forward); return true; }
                 case DIRECTION_REVERSE: {
                     throttle_.changeDirection(idx, Reverse); return true; }
-                case E_STOP_CURRENT_LOCO: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedSet(idx, 0); return true; }
-                case E_STOP: { bool any = false; for (int t=0; t<throttle_.getMaxThrottles(); ++t) { if (throttle_.hasLocomotive(t)) { any = true; break; } } if (any) { throttle_.speedEstopAll(); } return true; }
+                case E_STOP_CURRENT_LOCO: 
+                { 
+                    if (!throttle_.hasLocomotive(idx)) {
+                       return true;                     
+                    }
+                    throttle_.speedSet(idx, 0); 
+                    return true; 
+                }
+                case E_STOP: 
+                {
+                    throttle_.speedEstopAll();
+                    return true; 
+                }
                 default:
                     return false; // not a loco-centric action we handle here
             }
