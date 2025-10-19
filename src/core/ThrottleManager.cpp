@@ -2,7 +2,6 @@
 //#include removed WiTcontroller.h direct dependency to shrink globals usage
 #include "ThrottleManager.h"
 #include "OledRenderer.h"
-#include "input/ThrottleInputManager.h" // need full type for method call
 #include "../../WiTcontroller.h" // still needed for some macros/functions
 
 ThrottleManager::ThrottleManager() {}
@@ -17,9 +16,6 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 	}
 }
 
-void ThrottleManager::setInputManager(ThrottleInputManager *mgr) {
-	inputMgr = mgr;
-}
 
 void ThrottleManager::writeSpeedIfVisible(int throttle) {
 	if ((keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) && (throttle==currentThrottleIndex)) {
@@ -54,8 +50,7 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	lastSpeedSentTime = millis();
 	lastSpeedSent = newSpeed;
 	lastSpeedThrottleIndex = throttle;
-	// Input layer no longer requires synchronization for rotary; pot absolute still cached.
-	if (inputMgr) inputMgr->notifySpeedExternallySet(newSpeed); // retains pot cache (no rotary baseline)
+	// Input layer devices now handle their own internal state; no synchronization callback needed.
 	oledRenderer.renderSpeed();
 }
 

@@ -5,24 +5,28 @@ This document captures the evolving internal structure after recent refactors (h
 ---
 ## High-Level Flow
 
-Hardware Inputs  ->  Producers  ->  InputManager  ->  Mode Handler (Operation / Password)  ->  Fallback (SystemActionHandler)  ->  Domain (ThrottleManager, WiThrottleProtocol)
+Hardware Inputs  ->  IInputDevice Producers  ->  InputManager  ->  Mode Handler (Operation / Password)  ->  Fallback (SystemActionHandler)  ->  Domain (ThrottleManager, WiThrottleProtocol)
 
-### Producers
-- Keypad: Translates key scan states into press/release events, mapped to either Function actions (F0..F31) or generic Action codes.
-- Rotary Encoder & Throttle Pot: Abstracted by `ThrottleInputManager` into SpeedDelta / SpeedAbsolute events.
-- Additional Buttons: Unified in `AdditionalButtonsInput` with debouncing and immediate edge handling for critical/emergency or responsive function actions.
+### Producers (IInputDevice implementations)
+- Keypad (`KeypadInput`): Scans state transitions (press & release) -> keypad press/release events. Press events feed function/action or password entry. Release events allow momentary function handling.
+- Rotary Encoder (`RotaryEncoderInput`): Emits `SpeedDelta` on detents and `EncoderClick` on push button.
+- Throttle Pot (`PotThrottleInput`): Emits `SpeedAbsolute` changes (with optional notch mapping) when analog value shifts beyond threshold.
+- Additional Buttons (`AdditionalButtonsInput`): Debounced per-button state machine emitting canonical press ('P') / release ('R') sequences as `AdditionalButton` events; handles toggles & momentary semantics.
 
 ### Input Events (`InputEvents.h`)
 - `SpeedDelta`, `SpeedAbsolute`, `EncoderClick`, `EncoderLongPress`
-- `DirectionToggle`
+- `KeypadChar`, `KeypadSpecial`, `KeypadCharRelease`, `KeypadSpecialRelease`
+- `AdditionalButton` (ivalue=button index, cvalue='P'/'R')
 - `Action` (non-function discrete actions: speed up/down, direction, emergency stops, track power toggle, etc.)
-- `AdditionalButton` (function button press/release originating from optional hardware buttons; preserves legacy latching semantics)
+- `PasswordCommit`
+- `DirectionToggle`, `SleepRequest`
 
 ### InputManager
 1. For the current mode, calls the active handler's `handle()`; if consumed, stops.
 2. Always ensures emergency actions (E_STOP, E_STOP_CURRENT_LOCO) are executed even outside Operation mode.
-3. Processes `AdditionalButton` events directly: function codes invoke `doDirectFunction`, non-function actions converted to `Action` press-only events. Legacy latch handler removed.
-4. Unhandled `Action` events flow to `SystemActionHandler`.
+3. Bridges keypad events (press/release) to legacy `doKeyPress` logic unless in Password mode (temporary compatibility layer).
+4. Processes `AdditionalButton` events directly: function codes invoke `doDirectFunction`, non-function actions converted to `Action` press-only events.
+5. Unhandled `Action` events flow to `SystemActionHandler`.
 
 ### Mode Handlers
 - `OperationModeHandler`: Loco-centric speed/direction/emergency and speed-step multiplier changes.
@@ -104,4 +108,4 @@ When modifying input behavior:
 - Update this document when altering flow guarantees.
 
 ---
-*Last updated: 2025-10-18*
+*Last updated: 2025-10-19*

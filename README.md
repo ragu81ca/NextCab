@@ -43,6 +43,7 @@ While the basic from is simple, the design is flexible and you can add several a
 * [Contact Me](#contact-me) <br/> <br/>
 * [Modifying the code](#modifying-the-code)
 * [Change Log](#change-log)
+* [Architecture Summary](#architecture-summary)
 
 <br/>
 <hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
@@ -395,6 +396,47 @@ The instructions below are for using the **Arduino IDE** and **GitHub Desktop**.
 ## Using WiTController
 
 ### Be aware of...
+
+### Architecture Summary
+
+The input layer was recently refactored to unify all physical controls behind a small interface (`IInputDevice`). Each device implements:
+
+```
+class IInputDevice {
+  public:
+    using DispatchFn = std::function<void(const InputEvent&)>;
+    virtual void begin();   // hardware setup
+    virtual void poll();    // called each loop to emit events
+    virtual const char* name() const;
+};
+```
+
+Registered devices (keypad, rotary encoder, throttle potentiometer, additional buttons) push `InputEvent` objects to a central `InputManager` which routes them to the current mode handler:
+
+Flow: Hardware -> Device (poll) -> InputEvent -> InputManager -> Mode Handler (Operation / Password) -> System / Throttle logic.
+
+Key additions:
+* `AdditionalButtonsInput` now generates canonical press ('P') / release ('R') events with internal debouncing & toggle logic.
+* Keypad events provide both press and release (enabling momentary function semantics) and integrate password entry mode.
+* Rotary encoder produces incremental speed (`SpeedDelta`) and an optional click (`EncoderClick`).
+* Potentiometer (optional) produces absolute speed (`SpeedAbsolute`).
+
+Relevant event types (excerpt; see `src/core/input/InputEvents.h`):
+* `SpeedDelta`, `SpeedAbsolute`
+* `EncoderClick`, `EncoderLongPress`
+* `KeypadChar`, `KeypadSpecial`, `KeypadCharRelease`, `KeypadSpecialRelease`
+* `AdditionalButton` (function or action; press/release encoded via `cvalue` = 'P'/'R')
+* `Action` (generic higher level actions / system controls)
+* `PasswordCommit`
+
+Removed component: `ThrottleInputManager` (legacy intermediary) – rotary & pot now implement `IInputDevice` directly.
+
+Benefits:
+* Consistent polling & dispatch path (single loop call: `inputManager.pollAllDevices()`).
+* Clear separation of hardware concerns vs. application logic.
+* Easier to add new input hardware (implement interface, register device).
+
+For deeper contributor details see `ARCHITECTURE.md` (section: Producers & Input Events).
 
 ### WiFi limitations
  

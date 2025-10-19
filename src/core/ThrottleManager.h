@@ -13,7 +13,6 @@ class ThrottleManager {
 public:
 	ThrottleManager();
 	void begin(WiThrottleProtocol *proto);
-	void setInputManager(class ThrottleInputManager *mgr); // inject input abstraction
 	void speedUp(int throttle, int amt);
 	void speedDown(int throttle, int amt);
 	void speedSet(int throttle, int value);
@@ -56,7 +55,6 @@ public:
 	void setGlobalSpeedStep(int step) { if (step<1) step=1; globalSpeedStep = step; }
 private:
 	WiThrottleProtocol *proto { nullptr };
-	class ThrottleInputManager *inputMgr { nullptr }; // optional link for synchronization
 	void writeSpeedIfVisible(int throttle);
 
 	// Moved former globals (defined in WiTcontroller.ino) into this manager

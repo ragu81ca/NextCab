@@ -73,6 +73,11 @@ bool PasswordEntryModeHandler::handle(const InputEvent &ev) {
                 return false;
             }
         }
+        case InputEventType::KeypadCharRelease:
+        case InputEventType::KeypadSpecialRelease: {
+            // Releases are ignored in password entry (press already consumed)
+            return true;
+        }
         case InputEventType::PasswordCommit: {
             if (commitCb_) commitCb_();
             return true;

@@ -20,7 +20,7 @@ void AdditionalButtonsInput::begin(const AdditionalButtonDef* defs, size_t count
     }
 }
 
-void AdditionalButtonsInput::loop() {
+void AdditionalButtonsInput::poll() {
     unsigned long now = millis();
     for (size_t i=0;i<defCount;i++) {
         const auto &def = definitions[i];

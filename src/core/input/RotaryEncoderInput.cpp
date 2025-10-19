@@ -41,9 +41,6 @@ static AiEsp32RotaryEncoder rotaryEncoder(
 
 RotaryEncoderInput *RotaryEncoderInput::s_instance = nullptr;
 
-RotaryEncoderInput::RotaryEncoderInput(ThrottleInputEventHandler handler)
-    : _handler(handler) {}
-
 void RotaryEncoderInput::begin() {
     s_instance = this;
     // Assume rotaryEncoder object already constructed in sketch; just configure
@@ -54,7 +51,7 @@ void RotaryEncoderInput::begin() {
     _lastEncoderValue = rotaryEncoder.readEncoder(); // baseline for delta only
 }
 
-void RotaryEncoderInput::loop() {
+void RotaryEncoderInput::poll() {
     // Poll for rotation
     if (rotaryEncoder.encoderChanged()) {
         long newValue = rotaryEncoder.readEncoder();
@@ -72,12 +69,9 @@ void RotaryEncoderInput::loop() {
             #if WITCONTROLLER_DEBUG == 0
             Serial.print("[Rotary] raw delta:"); Serial.print(newValue - (_lastEncoderValue - delta)); Serial.print(" applied:"); Serial.println(delta);
             #endif
-            if (_genericHandler) {
+            if (_dispatch) {
                 InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = millis();
-                _genericHandler(gev);
-            } else if (_handler) {
-                ThrottleInputEvent evt{ThrottleInputEventType::SpeedDelta, (int)delta};
-                _handler(evt);
+                _dispatch(gev);
             }
         }
     }
@@ -88,12 +82,9 @@ void RotaryEncoderInput::loop() {
         const unsigned long debounceMs = 200; // matches legacy ROTARY_ENCODER_DEBOUNCE_TIME
         if (now - _lastClickMs >= debounceMs) {
             _lastClickMs = now;
-            if (_genericHandler) {
+            if (_dispatch) {
                 InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
-                _genericHandler(gev);
-            } else if (_handler) {
-                ThrottleInputEvent evt{ThrottleInputEventType::ButtonShortPress, 1};
-                _handler(evt);
+                _dispatch(gev);
             }
             #if INPUT_DEBUG
             Serial.println("[Rotary] button click dispatched");

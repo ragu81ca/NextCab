@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <functional>
 #include "InputEvents.h"
+#include "IInputDevice.h"
 #include "../../../actions.h" // for FUNCTION_0..FUNCTION_31 range constants
 
 #ifndef ADDITIONAL_BUTTONS_DEBUG
@@ -28,7 +29,7 @@ struct AdditionalButtonDef {
     bool oneShot;             // fire only on first press until released
 };
 
-class AdditionalButtonsInput {
+class AdditionalButtonsInput : public IInputDevice {
 public:
     using DispatchFn = std::function<void(const InputEvent&)>;
     explicit AdditionalButtonsInput(DispatchFn fn);
@@ -37,7 +38,9 @@ public:
     AdditionalButtonsInput& operator=(const AdditionalButtonsInput&) = delete;
 
     void begin(const AdditionalButtonDef* defs, size_t count, unsigned long debounceMs=40);
-    void loop();
+    void poll() override; // renamed from loop
+    void begin() override { /* requires external defs begin call; keep empty */ }
+    const char* name() const override { return "AdditionalButtons"; }
 
 private:
     DispatchFn dispatch;

@@ -18,14 +18,11 @@ extern int lastThrottlePotHighValue;    // highest recent raw value
 extern int lastThrottlePotValues[];     // smoothing buffer
 extern int currentThrottleIndex;
 
-PotThrottleInput::PotThrottleInput(ThrottleInputEventHandler legacyHandler)
-    : _handler(legacyHandler) {}
-
 void PotThrottleInput::begin() {
     // Nothing special yet.
 }
 
-void PotThrottleInput::loop() {
+void PotThrottleInput::poll() {
     // Emulate original throttlePot_loop(false) logic.
     const bool forceRead = false; // abstraction call doesn't currently force
     if ((millis() < lastThrottlePotReadTime + 100) && (!forceRead)) {
@@ -85,12 +82,9 @@ void PotThrottleInput::loop() {
 
         if (newSpeedToSet >= 0 && newSpeedToSet != _lastSpeed) {
             _lastSpeed = newSpeedToSet;
-            if (_genericHandler) {
+            if (_dispatch) {
                 InputEvent gev; gev.type = InputEventType::SpeedAbsolute; gev.ivalue = newSpeedToSet; gev.cvalue = 0; gev.timestamp = millis();
-                _genericHandler(gev);
-            } else if (_handler) {
-                ThrottleInputEvent evt{ThrottleInputEventType::SpeedSetAbsolute, newSpeedToSet};
-                _handler(evt);
+                _dispatch(gev);
             }
         }
     }

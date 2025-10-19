@@ -39,6 +39,9 @@
 #include "src/core/OledRenderer.h"
 #include "src/core/input/InputManager.h"
 #include "src/core/input/AdditionalButtonsInput.h"
+#include "src/core/input/RotaryEncoderInput.h"
+#include "src/core/input/PotThrottleInput.h"
+#include "src/core/input/KeypadInput.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
 #include "src/core/input/SystemActionHandler.h"
@@ -91,9 +94,7 @@ bool circleValues = true;
 // throttle pot values
 bool useRotaryEncoderForThrottle = USE_ROTARY_ENCODER_FOR_THROTTLE;
 
-// New unified throttle input manager (experimental abstraction)
-#include "src/core/input/ThrottleInputManager.h"
-static ThrottleInputManager throttleInputManager;
+// Legacy throttle input manager removed after migration to IInputDevice
 int throttlePotPin = THROTTLE_POT_PIN;
 bool throttlePotUseNotches = THROTTLE_POT_USE_NOTCHES;
 int throttlePotNotchValues[] = THROTTLE_POT_NOTCH_VALUES; 
@@ -112,7 +113,9 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 ThrottleManager throttleManager; // new manager for speed/direction/throttle index
 InputManager inputManager; // generic input dispatcher
 // Additional buttons unified input producer
-static AdditionalButtonsInput *additionalButtonsInput = nullptr;
+// Additional buttons device (static storage to avoid heap fragmentation)
+static AdditionalButtonsInput additionalButtonsInputInstance([](const InputEvent &ev){ inputManager.dispatch(ev); });
+static bool additionalButtonsConfigured = false;
 
 // Configuration mapping old arrays -> new definitions (minimal bridge). We reuse existing arrays if defined.
 // Expect: additionalButtonPin[], additionalButtonType[], additionalButtonActions[], maxAdditionalButtons.
@@ -973,7 +976,7 @@ void clearPreferences() { preferencesManager.clear(); }
 //   Rotary Encoder (moved into RotaryEncoderInput abstraction)
 // *********************************************************************************
 
-// rotary_onButtonClick removed; logic inlined in ThrottleInputManager ButtonShortPress handling
+// rotary_onButtonClick removed; handled directly by RotaryEncoderInput abstraction
 // encoderSpeedChange removed (handled by unified throttle input manager now)
 
 // *********************************************************************************
@@ -984,30 +987,8 @@ void clearPreferences() { preferencesManager.clear(); }
 // Battery monitoring now called directly at setup and in main loop (wrapper removed)
 
 // *********************************************************************************
-//   keypad
+//   keypad (legacy listener removed; events bridged via InputManager dispatch)
 // *********************************************************************************
-
-void keypadEvent(KeypadEvent key) {
-  debug_print("keypadEvent((): "); debug_println(key); 
-  switch (keypad.getState()){
-  case PRESSED:
-    debug_print("Button "); debug_print(String(key - '0')); debug_println(" pushed.");
-    doKeyPress(key, true);
-    break;
-  case RELEASED:
-    doKeyPress(key, false);
-    debug_print("Button "); debug_print(String(key - '0')); debug_println(" released.");
-    break;
-  case HOLD:
-    debug_print("Button "); debug_print(String(key - '0')); debug_println(" hold.");
-    break;
-  case IDLE:
-    debug_print("Button "); debug_print(String(key - '0')); debug_println(" idle.");
-    break;
-  default:
-    debug_print("Button "); debug_print(String(key - '0')); debug_println(" unknown.");
-  }
-}
 
 
 // *********************************************************************************
@@ -1031,13 +1012,14 @@ void initialiseAdditionalButtons() {
       debug_print("[AdditionalButtonsInput] Config index "); debug_print(i); debug_print(" pin:"); debug_print(def.pin); debug_print(" action:"); debug_println(def.actionCode);
     }
   }
-  additionalButtonsInput = new AdditionalButtonsInput([](const InputEvent &ev){ inputManager.dispatch(ev); });
-  additionalButtonsInput->begin(buttonDefsStatic, maxAdditionalButtons);
+  additionalButtonsInputInstance.begin(buttonDefsStatic, maxAdditionalButtons);
+  inputManager.registerDevice(&additionalButtonsInputInstance);
+  additionalButtonsConfigured = true;
 }
 
 void additionalButtonLoop() {
   // Legacy loop retained for compatibility during transition; now delegated to unified producer.
-  if (additionalButtonsInput) { additionalButtonsInput->loop(); }
+  if (additionalButtonsConfigured) { /* now polled via inputManager.pollAllDevices() */ }
 }
 
 // *********************************************************************************
@@ -1064,9 +1046,9 @@ void setup() {
   oledRenderer.renderBattery();
   oledRenderer.renderArray(false, false, true, true);
 
-  // Rotary initialization now handled in throttleInputManager.begin() if rotary selected.
+  // Rotary initialization now handled by RotaryEncoderInput begin() if rotary selected.
 
-  keypad.addEventListener(keypadEvent); // Add an event listener for this keypad
+  // Keypad event listener removed; KeypadInput now polls press/release states
   keypad.setDebounceTime(KEYPAD_DEBOUNCE_TIME);
   keypad.setHoldTime(KEYPAD_HOLD_TIME);
 
@@ -1096,9 +1078,20 @@ void setup() {
   heartbeatMonitor.setOnPeriodChange([](unsigned long p){
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
-  throttleInputManager.begin(); // init chosen throttle input implementation
-  // Provide ThrottleManager with pointer to input manager for pot caching / future interactions
-  throttleManager.setInputManager(&throttleInputManager);
+  // Register rotary or pot device depending on configuration
+  if (useRotaryEncoderForThrottle) {
+    static RotaryEncoderInput rotaryDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+    inputManager.registerDevice(&rotaryDev);
+    rotaryDev.begin();
+  } else {
+    static PotThrottleInput potDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+    inputManager.registerDevice(&potDev);
+    potDev.begin();
+  }
+  // Register keypad device wrapper
+  static KeypadInput keypadDev(keypad, [&](const InputEvent &ev){ inputManager.dispatch(ev); });
+  inputManager.registerDevice(&keypadDev);
+  keypadDev.begin();
   
   WiFi.setHostname(DEVICE_NAME);
   #if USE_COUNTRY_CODE
@@ -1122,11 +1115,8 @@ void loop() {
   // Slim heartbeat monitor: no activity tracking or timeout logic; library handles periodic sends.
     }
   }
-  // char key = keypad.getKey();
-  keypad.getKey(); 
-  // New unified input manager replaces direct rotary/pot loops (legacy functions retained temporarily)
-  throttleInputManager.loop();
-  additionalButtonLoop(); 
+  // Unified device polling (rotary/pot, keypad, additional buttons)
+  inputManager.pollAllDevices();
 
   if (batteryMonitor.enabled()) {
     batteryMonitor.loop();

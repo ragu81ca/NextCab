@@ -5,6 +5,7 @@
 #include "../../../actions.h"
 extern OperationModeHandler operationModeHandler; // defined in sketch
 extern void doDirectFunction(int multiThrottleIndex, int functionNumber, bool pressed); // ensure direct function control
+extern void doKeyPress(char key, bool pressed); // legacy keypad logic bridge (to be refactored later)
 
 
 void InputManager::setMode(InputMode mode) {
@@ -30,6 +31,16 @@ void InputManager::dispatch(const InputEvent &ev) {
     if (active_) {
         bool consumed = active_->handle(ev);
         if (consumed) return;
+    }
+    // Bridge keypad events to legacy doKeyPress logic when not in PasswordEntry mode
+    if (ev.type == InputEventType::KeypadChar || ev.type == InputEventType::KeypadSpecial ||
+        ev.type == InputEventType::KeypadCharRelease || ev.type == InputEventType::KeypadSpecialRelease) {
+        if (mode_ != InputMode::PasswordEntry) {
+            bool pressed = (ev.type == InputEventType::KeypadChar || ev.type == InputEventType::KeypadSpecial);
+            doKeyPress(ev.cvalue, pressed);
+            return; // keypad processed
+        }
+        // In PasswordEntry mode, handler had the chance to consume press events above; releases are ignored.
     }
     // Ensure critical loco-centric safety actions (E_STOP / current loco) are always processed even outside Operation mode.
     if (ev.type == InputEventType::Action && (ev.ivalue == E_STOP || ev.ivalue == E_STOP_CURRENT_LOCO)) {
