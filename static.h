@@ -8,11 +8,6 @@
 extern const String appVersion;
 extern const String appName;
 
-#ifndef DEVICE_NAME
-  #define DEVICE_NAME "WiTmomentum"
-#endif
-
-
 #ifndef USE_WIFI_COUNTRY_CODE
    #define USE_COUNTRY_CODE false
 #endif

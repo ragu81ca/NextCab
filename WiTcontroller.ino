@@ -13,7 +13,6 @@
 // DO NOT DOWNLOAD THEM DIRECTLY!!!
 #include <WiFi.h>                 // https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFi     GPL 2.1
 #include <ESPmDNS.h>              // https://github.com/espressif/arduino-esp32/blob/master/libraries/ESPmDNS  GPL 2.1
-#include <esp_wifi.h>             // https://git.liberatedsystems.co.uk/jacob.eva/arduino-esp32/src/branch/master/tools/sdk/esp32s2/include/esp_wif  GPL 2.0
 
 // ----------------------
 
@@ -229,7 +228,6 @@ bool dropBeforeAcquire = DROP_BEFORE_ACQUIRE;
 // don't alter the assignments here
 // alter them in config_buttons.h
 
-const char* deviceName = DEVICE_NAME;
 
 // rotary encoder debounce variables removed (handled inside RotaryEncoderInput)
 
@@ -364,7 +362,28 @@ void stealCurrentLoco(String address) {
 
 WiFiClient client;
 WiThrottleProtocol wiThrottleProtocol;
-int deviceId = random(1000,9999);
+// Identity components based on MAC (last 4 hex chars)
+static String macLast4;        // e.g. "EEFF"
+static String wifiHostname;    // appName + "-" + macLast4
+static String witDeviceId;     // macLast4 used as WiThrottle device ID
+
+static void computeIdentityFromMac() {
+  String macStr = WiFi.macAddress(); // Expected format "AA:BB:CC:DD:EE:FF"
+  if (macStr.length() == 17) {
+    // Last two bytes -> positions 15-16 (excluding colons) but easier to parse tokens
+    int lastSep = macStr.lastIndexOf(':');
+    String byte5 = macStr.substring(lastSep-2, lastSep);      // EE
+    String byte6 = macStr.substring(lastSep+1);               // FF
+    macLast4 = byte5 + byte6;
+    macLast4.toUpperCase();
+    debug_print("computeIdentityFromMac(): MAC via WiFi.macAddress() -> "); debug_println(macLast4);
+  } else {
+    macLast4 = "0000";
+    debug_print("computeIdentityFromMac(): macAddress invalid ('"); debug_print(macStr); debug_println("'), using 0000");
+  }
+  wifiHostname = appName + "-" + macLast4;
+  witDeviceId = macLast4;
+}
 
 // *********************************************************************************
 // wifi / SSID 
@@ -650,8 +669,8 @@ void connectSsid() {
       ssidConnectionState = CONNECTION_STATE_CONNECTED;
       keypadUseType = KEYPAD_USE_SELECT_WITHROTTLE_SERVER;
 
-      // setup the bonjour listener
-      if (!MDNS.begin("WiTcontroller")) {
+      // setup the bonjour listener using pseudo-unique hostname (appName-MACLast4)
+      if (!MDNS.begin(wifiHostname.c_str())) {
         debug_println("Error setting up MDNS responder!");
         oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
   oledRenderer.renderBattery();
@@ -659,7 +678,7 @@ void connectSsid() {
         delay(2000);
         ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
       } else {
-        debug_println("MDNS responder started");
+        debug_print("MDNS responder started: "); debug_println(wifiHostname);
       }
 
     } else {
@@ -694,6 +713,8 @@ void witServiceLoop() {
     connectWitServer();
   }
 }
+
+// (Removed misplaced global-level identity initialization; now performed inside setup())
 
 void browseWitService() {
   debug_println("browseWitService()");
@@ -855,8 +876,10 @@ void connectWitServer() {
     wiThrottleProtocol.connect(&client, outboundCmdsMininumDelay);
     debug_println("WiThrottle connected");
 
-    wiThrottleProtocol.setDeviceName(deviceName);  
-    wiThrottleProtocol.setDeviceID(String(deviceId));  
+  wiThrottleProtocol.setDeviceName(appName);  // Device name = Application Name
+  wiThrottleProtocol.setDeviceID(witDeviceId); // Device ID = last 4 hex chars of MAC
+  debug_print("WiThrottle Device Name: "); debug_println(appName);
+  debug_print("WiThrottle Device ID: "); debug_println(witDeviceId);
     wiThrottleProtocol.setCommandsNeedLeadingCrLf(commandsNeedLeadingCrLf);
     if (HEARTBEAT_ENABLED) {
       wiThrottleProtocol.requireHeartbeat(true);
@@ -1093,10 +1116,13 @@ void setup() {
   inputManager.registerDevice(&keypadDev);
   keypadDev.begin();
   
-  WiFi.setHostname(DEVICE_NAME);
-  #if USE_COUNTRY_CODE
-    esp_wifi_set_country_code("01", false);
-  #endif
+  // Ensure station mode so MAC retrieval succeeds before connect.
+  WiFi.mode(WIFI_STA); // still set STA mode for consistency
+  // Derive identity (MAC-based) and set WiFi hostname BEFORE WiFi connect attempts.
+  computeIdentityFromMac(); // derive macLast4 / wifiHostname / witDeviceId
+  WiFi.setHostname(wifiHostname.c_str());
+  debug_print("Hostname set to: "); debug_println(wifiHostname);
+  // Country code feature removed with esp_wifi include elimination; reintroduce if regulatory needs arise.
 }
 
 void loop() {
