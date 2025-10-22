@@ -5,18 +5,11 @@
 #include <Arduino.h>
 #include "WiTcontroller.h"
 
-// Reuse existing globals defined in sketch (we intentionally do not duplicate state here):
-extern unsigned long lastThrottlePotReadTime;
+// Config globals (TODO: move to Config.h in future refactor)
 extern int throttlePotPin;
-extern int throttlePotNotch;            // current notch
 extern bool throttlePotUseNotches;
 extern int throttlePotNotchValues[];    // threshold raw values (size >=8)
 extern int throttlePotNotchSpeeds[];    // corresponding speeds
-extern int throttlePotTargetSpeed;
-extern int lastThrottlePotValue;        // averaged value last applied
-extern int lastThrottlePotHighValue;    // highest recent raw value
-extern int lastThrottlePotValues[];     // smoothing buffer
-extern int currentThrottleIndex;
 
 void PotThrottleInput::begin() {
     // Nothing special yet.
@@ -25,50 +18,49 @@ void PotThrottleInput::begin() {
 void PotThrottleInput::poll() {
     // Emulate original throttlePot_loop(false) logic.
     const bool forceRead = false; // abstraction call doesn't currently force
-    if ((millis() < lastThrottlePotReadTime + 100) && (!forceRead)) {
+    if ((millis() < _lastReadTime + 100) && (!forceRead)) {
         return; // rate limit
     }
-    lastThrottlePotReadTime = millis();
+    _lastReadTime = millis();
 
-    int currentThrottlePotNotch = throttlePotNotch;
+    int previousNotch = _currentNotch;
     int potValue = analogRead(throttlePotPin);
     // debug_print("Pot Value: "); debug_println(potValue);
 
     // Average with simple shift buffer
-    // Original code used an inline array of 5 ints: {0,0,0,0,0}
     const int noElements = 5;
     int avgPotValue = 0;
     for (int i = 1; i < noElements; i++) {
-        lastThrottlePotValues[i - 1] = lastThrottlePotValues[i];
-        avgPotValue += lastThrottlePotValues[i - 1];
+        _smoothingBuffer[i - 1] = _smoothingBuffer[i];
+        avgPotValue += _smoothingBuffer[i - 1];
     }
-    lastThrottlePotValues[noElements - 1] = potValue;
+    _smoothingBuffer[noElements - 1] = potValue;
     avgPotValue = (avgPotValue + potValue) / noElements;
 
     // Highest recent value (retained for possible calibration logic)
-    lastThrottlePotHighValue = -1;
+    _lastHighValue = -1;
     for (int i = 0; i < noElements; i++) {
-        if (lastThrottlePotValues[i] > lastThrottlePotHighValue)
-            lastThrottlePotHighValue = lastThrottlePotValues[i];
+        if (_smoothingBuffer[i] > _lastHighValue)
+            _lastHighValue = _smoothingBuffer[i];
     }
 
     // Threshold: only react if significant change
-    if ((avgPotValue < lastThrottlePotValue - 5) || (avgPotValue > lastThrottlePotValue + 5) || (forceRead)) {
-        lastThrottlePotValue = avgPotValue;
+    if ((avgPotValue < _lastValue - 5) || (avgPotValue > _lastValue + 5) || (forceRead)) {
+        _lastValue = avgPotValue;
         // debug_print("Avg Pot Value: "); debug_println(avgPotValue);
 
         int newSpeedToSet = -1;
         if (throttlePotUseNotches) {
-            throttlePotNotch = 0;
+            _currentNotch = 0;
             for (int i = 0; i < 8; i++) {
                 if (avgPotValue < throttlePotNotchValues[i]) {
-                    throttlePotTargetSpeed = throttlePotNotchSpeeds[i];
-                    throttlePotNotch = i;
+                    _targetSpeed = throttlePotNotchSpeeds[i];
+                    _currentNotch = i;
                     break;
                 }
             }
-            if (throttlePotNotch != currentThrottlePotNotch) {
-                newSpeedToSet = throttlePotTargetSpeed;
+            if (_currentNotch != previousNotch) {
+                newSpeedToSet = _targetSpeed;
             }
         } else {
             double newSpeed = potValue - throttlePotNotchValues[0];

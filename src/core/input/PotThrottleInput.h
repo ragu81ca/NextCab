@@ -14,5 +14,12 @@ public:
 private:
     IInputDevice::DispatchFn _dispatch { nullptr };
     int _lastSpeed = -1;
-    unsigned long _lastReadMs = 0;
+    
+    // State variables (moved from global scope)
+    unsigned long _lastReadTime = 0;
+    int _currentNotch = 0;
+    int _targetSpeed = 0;
+    int _lastValue = 0;
+    int _lastHighValue = 0;
+    int _smoothingBuffer[5] = {0, 0, 0, 0, 0};
 };

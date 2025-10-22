@@ -30,10 +30,6 @@
 #include "config_buttons.h"      // keypad buttons assignments
 #include "WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
 
-int lastThrottlePotHighValue = 0;  // highest of the most recent
-int lastThrottlePotValues[] = {0, 0, 0, 0, 0};
-int lastThrottlePotReadTime = -1;
-
 // Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
 #include "src/core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
@@ -69,13 +65,11 @@ String routePrefix = "";  // updated when selecting SSID or server
 // debug_print / debug_println macros now supplied by WiThrottleDelegate.h
 
 // Throttle pot globals required by PotThrottleInput.cpp (retain legacy semantics)
+// TODO: Move these config values to a dedicated Config.h or pass via constructor
 int throttlePotPin = 36; // default analog pin (can be overridden later)
-int throttlePotNotch = 0;
 bool throttlePotUseNotches = false;
 int throttlePotNotchValues[8] = {0,200,400,600,800,1000,2000,4000};
 int throttlePotNotchSpeeds[8] = {0,20,40,60,80,100,120,127};
-int throttlePotTargetSpeed = 0;
-int lastThrottlePotValue = 0;
 
 // ----------------- Keypad defaults (if not overridden in config_buttons.h) -----------------
 #ifndef ROW_NUM
