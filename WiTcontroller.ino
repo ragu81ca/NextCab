@@ -28,79 +28,8 @@
 // create these files by copying the example files and editing them as needed
 #include "config_network.h"      // LAN networks (SSIDs and passwords)
 #include "config_buttons.h"      // keypad buttons assignments
+#include "WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
 
-// DO NOT ALTER these files
-#include "config_keypad_etc.h"
-#include "actions.h" // static.h now pulled indirectly via ThrottleManager -> WiTcontroller.h
-#include "WiTcontroller.h"
-// Refactored modules (relocated under src/core)
-#include "src/core/ThrottleManager.h"
-#include "src/core/OledRenderer.h"
-#include "src/core/input/InputManager.h"
-#include "src/core/input/AdditionalButtonsInput.h"
-#include "src/core/input/RotaryEncoderInput.h"
-#include "src/core/input/PotThrottleInput.h"
-#include "src/core/input/KeypadInput.h"
-#include "src/core/input/OperationModeHandler.h"
-#include "src/core/input/PasswordEntryModeHandler.h"
-#include "src/core/input/SystemActionHandler.h"
-
-#if WITCONTROLLER_DEBUG == 0
- #define debug_print(params...) Serial.print(params)
- #define debug_println(params...) Serial.print(params); Serial.print(" ("); Serial.print(millis()); Serial.println(")")
- #define debug_printf(params...) Serial.printf(params)
-#else
- #define debug_print(...)
- #define debug_println(...)
- #define debug_printf(...)
-#endif
-int debugLevel = DEBUG_LEVEL;
-
-
-// *********************************************************************************
-// non-volatile storage
-
-Preferences nvsPrefs;
-bool nvsInit = false;
-bool nvsPrefsSaved = false;
-bool preferencesRead = false;
-
-// *********************************************************************************
-
-int keypadUseType = KEYPAD_USE_OPERATION;
-int encoderUseType = ENCODER_USE_OPERATION;
-int encoderButtonAction = ENCODER_BUTTON_ACTION;
-
-bool menuCommandStarted = false;
-String menuCommand = "";
-// migrated: menuIsShowing now in uiState (see ui_state_bridge.cpp)
-
-String startupCommands[4] = {STARTUP_COMMAND_1, STARTUP_COMMAND_2, STARTUP_COMMAND_3, STARTUP_COMMAND_4};
-
-// migrated: oledText / oledTextInvert now in uiState.lines / uiState.invert
-
-// migrated to ThrottleManager: int currentSpeed[6];
-// migrated to ThrottleManager: Direction currentDirection[6];
-// migrated to ThrottleManager: int speedStepCurrentMultiplier
-
-TrackPower trackPower = PowerUnknown;
-String turnoutPrefix = "";
-String routePrefix = "";
-
-// encoder variables
-bool circleValues = true;
-
-// throttle pot values
-bool useRotaryEncoderForThrottle = USE_ROTARY_ENCODER_FOR_THROTTLE;
-
-// Legacy throttle input manager removed after migration to IInputDevice
-int throttlePotPin = THROTTLE_POT_PIN;
-bool throttlePotUseNotches = THROTTLE_POT_USE_NOTCHES;
-int throttlePotNotchValues[] = THROTTLE_POT_NOTCH_VALUES; 
-int throttlePotNotchSpeeds[] = THROTTLE_POT_NOTCH_SPEEDS;
-int throttlePotNotch = 0;
-int throttlePotTargetSpeed = 0;
-int lastThrottlePotValue = 0;
 int lastThrottlePotHighValue = 0;  // highest of the most recent
 int lastThrottlePotValues[] = {0, 0, 0, 0, 0};
 int lastThrottlePotReadTime = -1;
@@ -108,10 +37,87 @@ int lastThrottlePotReadTime = -1;
 // Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
 #include "src/core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
-// Throttle management moved incrementally to ThrottleManager (core/ThrottleManager.*)
-ThrottleManager throttleManager; // new manager for speed/direction/throttle index
-InputManager inputManager; // generic input dispatcher
-// Additional buttons unified input producer
+// Core managers & devices
+#include "src/core/input/InputManager.h"
+#include "src/core/input/KeypadInput.h"
+#include "src/core/input/RotaryEncoderInput.h"
+#include "src/core/input/PotThrottleInput.h"
+#include "src/core/input/AdditionalButtonsInput.h"
+#include "src/core/input/InputEvents.h"
+#include "src/core/ThrottleManager.h"
+#include "src/core/network/WifiSsidManager.h"
+#include "src/core/OledRenderer.h"
+#include "src/core/input/OperationModeHandler.h"
+#include "src/core/input/PasswordEntryModeHandler.h"
+#include "src/core/input/SystemActionHandler.h"
+#include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
+
+ThrottleManager throttleManager; // speed/direction/throttle index
+InputManager inputManager;       // generic input dispatcher
+WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
+OledRenderer oledRenderer(u8g2); // OLED renderer instance (requires U8G2 reference)
+
+// ----------------- Legacy global variables (bridging for refactor) -----------------
+int keypadUseType = 0;
+int encoderUseType = 0;
+bool menuCommandStarted = false;
+String menuCommand = "";
+TrackPower trackPower = PowerOff; // initial power state
+String turnoutPrefix = ""; // updated when selecting SSID or server
+String routePrefix = "";  // updated when selecting SSID or server
+
+// debug_print / debug_println macros now supplied by WiThrottleDelegate.h
+
+// Throttle pot globals required by PotThrottleInput.cpp (retain legacy semantics)
+int throttlePotPin = 36; // default analog pin (can be overridden later)
+int throttlePotNotch = 0;
+bool throttlePotUseNotches = false;
+int throttlePotNotchValues[8] = {0,200,400,600,800,1000,2000,4000};
+int throttlePotNotchSpeeds[8] = {0,20,40,60,80,100,120,127};
+int throttlePotTargetSpeed = 0;
+int lastThrottlePotValue = 0;
+
+// ----------------- Keypad defaults (if not overridden in config_buttons.h) -----------------
+#ifndef ROW_NUM
+  #define ROW_NUM 4
+#endif
+#ifndef COLUMN_NUM
+  #define COLUMN_NUM 3
+#endif
+#ifndef KEYPAD_KEYS
+  static char KEYPAD_KEYS[ROW_NUM][COLUMN_NUM] = {
+    {'1','2','3'},
+    {'4','5','6'},
+    {'7','8','9'},
+    {'*','0','#'}
+  };
+#endif
+#ifndef KEYPAD_ROW_PINS
+  static byte KEYPAD_ROW_PINS[ROW_NUM] = {19,18,17,16};
+#endif
+#ifndef KEYPAD_COLUMN_PINS
+  static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {4,0,2};
+#endif
+#ifndef KEYPAD_DEBOUNCE_TIME
+  #define KEYPAD_DEBOUNCE_TIME 10
+#endif
+#ifndef KEYPAD_HOLD_TIME
+  #define KEYPAD_HOLD_TIME 200
+#endif
+static Keypad keypad(makeKeymap((char*)KEYPAD_KEYS), KEYPAD_ROW_PINS, KEYPAD_COLUMN_PINS, ROW_NUM, COLUMN_NUM);
+
+// ----------------- Rotary / Pot selection flag -----------------
+#ifndef USE_ROTARY_ENCODER_FOR_THROTTLE
+  #define USE_ROTARY_ENCODER_FOR_THROTTLE true
+#endif
+bool useRotaryEncoderForThrottle = USE_ROTARY_ENCODER_FOR_THROTTLE;
+
+// ----------------- Startup commands stub -----------------
+String startupCommands[4] = {"","","",""};
+
+// Preferences flag forward declaration (needed by menu logic earlier in file)
+bool preferencesRead = false;
+
 // Additional buttons device (static storage to avoid heap fragmentation)
 static AdditionalButtonsInput additionalButtonsInputInstance([](const InputEvent &ev){ inputManager.dispatch(ev); });
 static bool additionalButtonsConfigured = false;
@@ -364,16 +370,15 @@ WiFiClient client;
 WiThrottleProtocol wiThrottleProtocol;
 // Identity components based on MAC (last 4 hex chars)
 static String macLast4;        // e.g. "EEFF"
-static String wifiHostname;    // appName + "-" + macLast4
+String wifiHostname;    // appName + "-" + macLast4 (exposed)
 static String witDeviceId;     // macLast4 used as WiThrottle device ID
 
 static void computeIdentityFromMac() {
   String macStr = WiFi.macAddress(); // Expected format "AA:BB:CC:DD:EE:FF"
   if (macStr.length() == 17) {
-    // Last two bytes -> positions 15-16 (excluding colons) but easier to parse tokens
     int lastSep = macStr.lastIndexOf(':');
-    String byte5 = macStr.substring(lastSep-2, lastSep);      // EE
-    String byte6 = macStr.substring(lastSep+1);               // FF
+    String byte5 = macStr.substring(lastSep-2, lastSep);
+    String byte6 = macStr.substring(lastSep+1);
     macLast4 = byte5 + byte6;
     macLast4.toUpperCase();
     debug_print("computeIdentityFromMac(): MAC via WiFi.macAddress() -> "); debug_println(macLast4);
@@ -384,316 +389,7 @@ static void computeIdentityFromMac() {
   wifiHostname = appName + "-" + macLast4;
   witDeviceId = macLast4;
 }
-
-// *********************************************************************************
-// wifi / SSID 
-// *********************************************************************************
-
-void ssidsLoop() {
-  if (ssidConnectionState == CONNECTION_STATE_DISCONNECTED) {
-    if (ssidSelectionSource == SSID_CONNECTION_SOURCE_LIST) {
-      showListOfSsids(); 
-    } else {
-      browseSsids();
-    }
-  }
-  
-  if (ssidConnectionState == CONNECTION_STATE_PASSWORD_ENTRY) {
-    enterSsidPassword();
-  }
-
-  if (ssidConnectionState == CONNECTION_STATE_SELECTED) {
-    connectSsid();
-  }
-}
-
-void browseSsids() { // show the found SSIDs
-  debug_println("browseSsids()");
-
-  double startTime = millis();
-  double nowTime = startTime;
-
-  debug_println("Browsing for ssids");
-  clearOledArray(); 
-  setAppnameForOled();
-  oledText[2] = MSG_BROWSING_FOR_SSIDS;
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-
-  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-  
-  int numSsids = WiFi.scanNetworks();
-  while ( (numSsids == -1)
-    && ((nowTime-startTime) <= 10000) ) { // try for 10 seconds
-    delay(250);
-    debug_print(".");
-    nowTime = millis();
-  }
-
-  startWaitForSelection = millis();
-
-  foundSsidsCount = 0;
-  if (numSsids == -1) {
-    debug_println("Couldn't get a wifi connection");
-
-  } else {
-    for (int thisSsid = 0; thisSsid < numSsids; thisSsid++) {
-      /// remove duplicates (repeaters and mesh networks)
-      bool found = false;
-      for (int i=0; i<foundSsidsCount && i<maxFoundSsids; i++) {
-        if (WiFi.SSID(thisSsid) == foundSsids[i]) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        foundSsids[foundSsidsCount] = WiFi.SSID(thisSsid);
-        foundSsidRssis[foundSsidsCount] = WiFi.RSSI(thisSsid);
-        foundSsidsOpen[foundSsidsCount] = (WiFi.encryptionType(thisSsid) == 7) ? true : false;
-        foundSsidsCount++;
-      }
-    }
-    for (int i=0; i<foundSsidsCount; i++) {
-      debug_println(foundSsids[i]);      
-    }
-
-    clearOledArray(); oledText[10] = MSG_SSIDS_FOUND;
-
-  oledRenderer.renderFoundSsids("");
-
-    // oledText[5] = menu_select_ssids_from_found;
-    setMenuTextForOled(menu_select_ssids_from_found);
-  oledRenderer.renderArray(false, false);
-
-    keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
-    ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
-
-    if ((foundSsidsCount>0) && (autoConnectToFirstDefinedServer)) {
-      for (int i=0; i<foundSsidsCount; i++) { 
-        if (foundSsids[i] == ssids[0]) {
-          ssidConnectionState = CONNECTION_STATE_SELECTED;
-          selectedSsid = foundSsids[i];
-          getSsidPasswordAndWitIpForFound();
-        }
-      }
-    }
-  }
-}
-
-void selectSsidFromFound(int selection) {
-  debug_print("selectSsid() "); debug_println(selection);
-
-  if ((selection>=0) && (selection < maxFoundSsids)) {
-    ssidConnectionState = CONNECTION_STATE_SELECTED;
-    selectedSsid = foundSsids[selection];
-    getSsidPasswordAndWitIpForFound();
-  }
-  if (selectedSsidPassword=="") {
-    ssidConnectionState = CONNECTION_STATE_PASSWORD_ENTRY;
-  }
-}
-
-void getSsidPasswordAndWitIpForFound() {
-  bool found = false;
-
-  selectedSsidPassword = "";
-  turnoutPrefix = "";
-  routePrefix = "";
-
-  for (int i = 0; i < maxSsids; ++i) {
-    if (selectedSsid == ssids[i]) {
-      selectedSsidPassword = passwords[i];
-      turnoutPrefix = turnoutPrefixes[i];
-      routePrefix = routePrefixes[i];
-      found = true;
-      debug_println("getSsidPasswordAndWitIpForFound() Using configured password");
-      break;
-    }
-  }
-
-  if (!found) {
-    if ( (selectedSsid.substring(0,6) == "DCCEX_") && (selectedSsid.length()==12) ) {
-      selectedSsidPassword = "PASS_" + selectedSsid.substring(6);
-      witServerIpAndPortEntered = "19216800400102560";
-      turnoutPrefix = DCC_EX_TURNOUT_PREFIX;
-      routePrefix = DCC_EX_ROUTE_PREFIX;
-      debug_println("getSsidPasswordAndWitIpForFound() Using guessed DCC-EX password");
-    } 
-  }
-}
-
-void enterSsidPassword() {
-  keypadUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
-  encoderUseType = ENCODER_USE_SSID_PASSWORD;
-  if (ssidPasswordChanged) { // don't refresh the screen if nothing nothing has changed
-    debug_println("enterSsidPassword()");
-  oledRenderer.renderEnterPassword();
-    ssidPasswordChanged = false;
-  }
-}
-// Switch to generic password entry mode when connection state requires password
-static void ensureInputModeForPassword() {
-  if (ssidConnectionState == CONNECTION_STATE_PASSWORD_ENTRY && inputManager.getMode() != InputMode::PasswordEntry) {
-    inputManager.setMode(InputMode::PasswordEntry);
-  }
-}
-void showListOfSsids() {  // show the list from the specified values in config_network.h
-  debug_println("showListOfSsids()");
-  startWaitForSelection = millis();
-
-  clearOledArray(); 
-  setAppnameForOled(); 
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false);
-
-  if (maxSsids == 0) {
-    oledText[1] = MSG_NO_SSIDS_FOUND;
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-    debug_println(oledText[1]);
-  
-  } else {
-    debug_print(maxSsids);  debug_println(MSG_SSIDS_LISTED);
-    clearOledArray(); oledText[10] = MSG_SSIDS_LISTED;
-
-    for (int i = 0; i < maxSsids; ++i) {
-      debug_print(i+1); debug_print(": "); debug_println(ssids[i]);
-      int j = i;
-      if (i>=5) { 
-        j=i+1;
-      } 
-      if (i<=10) {  // only have room for 10
-        oledText[j] = String(i) + ": ";
-        if (ssids[i].length()<9) {
-          oledText[j] = oledText[j] + ssids[i];
-        } else {
-          oledText[j] = oledText[j] + ssids[i].substring(0,9) + "..";
-        }
-      }
-    }
-
-    if (maxSsids > 0) {
-      // oledText[5] = menu_select_ssids;
-      setMenuTextForOled(menu_select_ssids);
-    }
-  oledRenderer.renderArray(false, false);
-
-    if (maxSsids == 1) {
-      selectedSsid = ssids[0];
-      selectedSsidPassword = passwords[0];
-      ssidConnectionState = CONNECTION_STATE_SELECTED;
-
-      turnoutPrefix = turnoutPrefixes[0];
-      routePrefix = routePrefixes[0];
-      
-    } else {
-      ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
-      keypadUseType = KEYPAD_USE_SELECT_SSID;
-    }
-  }
-}
-
-void selectSsid(int selection) {
-  debug_print("selectSsid() "); debug_println(selection);
-
-  if ((selection>=0) && (selection < maxSsids)) {
-    ssidConnectionState = CONNECTION_STATE_SELECTED;
-    selectedSsid = ssids[selection];
-    selectedSsidPassword = passwords[selection];
-    
-    turnoutPrefix = turnoutPrefixes[selection];
-    routePrefix = routePrefixes[selection];
-  }
-}
-
-void connectSsid() {
-  debug_println("Connecting to ssid...");
-  clearOledArray(); 
-  setAppnameForOled();
-  oledText[1] = selectedSsid; oledText[2] + "connecting...";
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-
-  double startTime = millis();
-  double nowTime = startTime;
-
-  const char *cSsid = selectedSsid.c_str();
-  const char *cPassword = selectedSsidPassword.c_str();
-
-  if (selectedSsid.length()>0) {
-    debug_print("Trying Network "); debug_println(cSsid);
-    clearOledArray(); 
-    setAppnameForOled(); 
-    for (int i = 0; i < 3; ++i) {  // Try three times
-      oledText[1] = selectedSsid; oledText[2] =  String(MSG_TRYING_TO_CONNECT) + " (" + String(i + 1) + " of 3)";
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-
-      nowTime = startTime;
-      debug_print("hostname ");debug_println(WiFi.getHostname());
-      WiFi.begin(cSsid, cPassword); 
-
-      int j = 0;
-      int tempTimer = millis();
-      debug_print("Trying Network ... Checking status "); debug_print(cSsid); debug_print(" :"); debug_print(cPassword); debug_println(":");
-      while ( (WiFi.status() != WL_CONNECTED) 
-            && ((nowTime-startTime) <= SSID_CONNECTION_TIMEOUT) ) { // wait for X seconds to see if the connection worked
-        if (millis() > tempTimer + 250) {
-          oledText[3] = getDots(j);
-          oledRenderer.renderBattery();
-          oledRenderer.renderArray(false, false, true, true);
-          j++;
-          debug_print(".");
-          tempTimer = millis();
-        }
-        nowTime = millis();
-      }
-
-      if (WiFi.status() == WL_CONNECTED) {
-        if (!commandsNeedLeadingCrLf) { debug_println("Leading CRLF will not be sent for commands"); }
-        break; 
-      } else { // if not loop back and try again
-        debug_println("");
-      }
-    }
-
-    debug_println("");
-    if (WiFi.status() == WL_CONNECTED) {
-      debug_print("Connected. IP address: "); debug_println(WiFi.localIP());
-      oledText[2] = MSG_CONNECTED; 
-      oledText[3] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-      // ssidConnected = true;
-      ssidConnectionState = CONNECTION_STATE_CONNECTED;
-      keypadUseType = KEYPAD_USE_SELECT_WITHROTTLE_SERVER;
-
-      // setup the bonjour listener using pseudo-unique hostname (appName-MACLast4)
-      if (!MDNS.begin(wifiHostname.c_str())) {
-        debug_println("Error setting up MDNS responder!");
-        oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-        delay(2000);
-        ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
-      } else {
-        debug_print("MDNS responder started: "); debug_println(wifiHostname);
-      }
-
-    } else {
-      debug_println(MSG_CONNECTION_FAILED);
-      oledText[2] = MSG_CONNECTION_FAILED;
-  oledRenderer.renderBattery();
-  oledRenderer.renderArray(false, false, true, true);
-      delay(2000);
-      
-      WiFi.disconnect();      
-      ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
-      ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
-    }
-  }
-}
+// (No stray brace here)
 
 // *********************************************************************************
 // WiThrottle 
@@ -1115,6 +811,9 @@ void setup() {
   static KeypadInput keypadDev(keypad, [&](const InputEvent &ev){ inputManager.dispatch(ev); });
   inputManager.registerDevice(&keypadDev);
   keypadDev.begin();
+
+  // Initialize WifiSsidManager (Phase 1): turnout/route prefixes remain global for now.
+  wifiSsidManager.begin(ssids, passwords, maxSsids);
   
   // Ensure station mode so MAC retrieval succeeds before connect.
   WiFi.mode(WIFI_STA); // still set STA mode for consistency
@@ -1128,9 +827,8 @@ void setup() {
 void loop() {
   
   if (ssidConnectionState != CONNECTION_STATE_CONNECTED) {
-    // connectNetwork();
-    ssidsLoop();
-    ensureInputModeForPassword();
+    wifiSsidManager.loop();
+    // Password entry input mode now internalized; ensureInputModeForPassword removed.
     checkForShutdownOnNoResponse();
   } else {  
     if (witConnectionState != CONNECTION_STATE_CONNECTED) {
@@ -1315,7 +1013,7 @@ void doKeyPress(char key, bool pressed) {
         switch (key){
           case '0': case '1': case '2': case '3': case '4': 
           case '5': case '6': case '7': case '8': case '9':
-            selectSsid(key - '0');
+            wifiSsidManager.selectConfigured(key - '0');
             break;
           case '#': // show found SSIds
             ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
@@ -1332,7 +1030,7 @@ void doKeyPress(char key, bool pressed) {
         debug_print("doKeyPress(): key ssid from found... "); debug_println(key);
         switch (key){
           case '0': case '1': case '2': case '3': case '4': 
-            selectSsidFromFound(key - '0'+(page*5));
+            wifiSsidManager.selectFound(key - '0'+(page*5));
             break;
           case '#': // next page
             if (foundSsidsCount>5) {
@@ -1344,10 +1042,9 @@ void doKeyPress(char key, bool pressed) {
               oledRenderer.renderFoundSsids(""); 
             }
             break;
-          case '9': // show in code list of SSIDs
-            ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
-            keypadUseType = KEYPAD_USE_SELECT_SSID;
-            ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
+          case '9': // rescan for SSIDs
+            page = 0; // reset to first page
+            wifiSsidManager.browseSsids();
             break;
           default:  // do nothing 
             break;
@@ -1754,6 +1451,15 @@ static void onPasswordCommit() {
 // *********************************************************************************
 //  Actions
 // *********************************************************************************
+
+// Preferences read flag (referenced during disconnect/reconnect)
+// (definition moved earlier near top of file)
+
+// Legacy password entry function referenced by WifiSsidManager (UI now handled via PasswordEntryModeHandler)
+void enterSsidPassword() {
+  // When WifiSsidManager sets state to PASSWORD_ENTRY, InputManager already drives password UI.
+  // This stub avoids unresolved symbol errors during phased refactor.
+}
 
 void resetMenu() {
   debug_println("resetMenu()");

@@ -13,12 +13,103 @@
 // u8g2 display instance declared in static.cpp with type depending on OLED configuration (see static.h)
 extern BatteryMonitor batteryMonitor; 
 extern HeartbeatMonitor heartbeatMonitor;
-OledRenderer oledRenderer(u8g2);
+// Global instance now defined in WiTcontroller.ino to avoid multiple definition.
 
 OledRenderer::OledRenderer(U8G2 &d) : display(d) {}
 
 void OledRenderer::renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
 	renderArrayInternal(isThreeColumns, isPassword, sendBuffer, drawTopLine);
+}
+
+// New wrapper for menu rendering (replaces previous inline logic from sketch)
+void OledRenderer::renderMenu(const String &soFar, bool primeMenu) {
+	lastOledScreen = last_oled_screen_menu;
+	lastOledStringParameter = soFar;
+	menuIsShowing = true;
+	// Fallback to operation keypad mode (no dedicated menu constant defined)
+	keypadUseType = KEYPAD_USE_OPERATION;
+	clearArray();
+	
+	// Populate menu items (1-9 and 0) from menuText array
+	if (soFar == "" || soFar.length() == 0) {
+		// Display main menu items
+		int offset = primeMenu ? 0 : 10; // Submenu uses offset 10
+		for (int i = 1 + offset; i < 10 + offset; i++) {
+			int displayLine = (i < 6 + offset) ? i - offset : i + 1 - offset;
+			oledText[displayLine - 1] = String(i - offset) + ": " + menuText[i][0];
+		}
+		oledText[10] = "0: " + menuText[0 + offset][0];
+	} else {
+		// Submenu - show title and command being entered
+		int cmd = soFar.substring(0,1).toInt();
+		int offset = primeMenu ? 0 : 10;
+		
+		// Special case: Function menu (item 0) should show function list, not generic menu
+		if (soFar.charAt(0) == MENU_ITEM_FUNCTION && soFar.length() == 1) {
+			// Just "0" pressed - show the function list instead of generic menu
+			renderFunctionList("");
+			return;
+		}
+		
+		// Special case: Extras menu (item 9) should show submenu list like main menu
+		if (soFar.charAt(0) == MENU_ITEM_EXTRAS && soFar.length() == 1) {
+			// Just "9" pressed - show extras submenu items without header
+			// Display items 1-9 in lines 0-4 and 6-9, item 0 in line 10
+			for (int i = 1; i < 10; i++) {
+				int displayLine = (i < 6) ? i - 1 : i; // 1-5 -> lines 0-4, 6-9 -> lines 6-9
+				oledText[displayLine] = String(i) + ": " + menuText[i + 10][0];
+			}
+			oledText[10] = "0: " + menuText[10][0];
+			// Set the bottom bar text for extras menu
+			oledText[5] = menuText[9][1]; // Item 9 is Extras
+		} else {
+			// Regular submenu - show header and command being entered
+			oledText[0] = ">> " + menuText[cmd + offset][0] + ":";
+			oledText[6] = soFar.substring(1, soFar.length());
+			
+			// Set the appropriate menu text (instructions) for this submenu
+			oledText[5] = menuText[cmd + offset][1];
+			
+			// For certain menu items, show relevant content (like current locos for drop loco)
+			char currentChar = throttleManager.getCurrentThrottleChar();
+			switch (soFar.charAt(0)) {
+				case MENU_ITEM_DROP_LOCO: {
+					// Show current locos for drop selection
+					if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
+						renderAllLocos(false);
+					}
+					break;
+				}
+				case MENU_ITEM_TOGGLE_DIRECTION: {
+					// Show current loco status
+					if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) <= 0) {
+						oledText[2] = MSG_THROTTLE_NUMBER + String(throttleManager.getCurrentThrottleIndex()+1);
+						oledText[3] = MSG_NO_LOCO_SELECTED;
+					}
+					break;
+				}
+			}
+		}
+	}
+	
+	// Don't override menu text if it was already set above
+	if (soFar == "" || soFar.length() == 0) {
+		// Populate key definition / function hints depending on hashShowsFunctionsInsteadOfKeyDefs
+		if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu); else setMenuTextForOled(menu_menu_hash_is_functions);
+	}
+	// Don't draw top line when called from operating mode - menu should be clean
+	renderArrayInternal(false,false,true,false);
+}
+
+// Public wrapper that records state then calls private renderAllLocos
+void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
+	clearArray();
+	renderAllLocos(hideLeadLoco);
+	// Provide a header/menu line for consist editing or loco overview
+	// Use existing add-loco labels as generic placeholders (ALL_LOCOS constants not defined)
+	oledText[0] = MENU_ITEM_TEXT_TITLE_ADD_LOCO;
+	oledText[5] = MENU_ITEM_TEXT_MENU_ADD_LOCO;
+	renderArrayInternal(false,false,true,false);
 }
 
 void OledRenderer::renderFoundSsids(const String &soFar) {
@@ -27,12 +118,31 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 	if (soFar == "") {
 	clearArray();
 		for (int i=0; i<5 && i<foundSsidsCount; i++) {
-			if (foundSsids[(page*5)+i].length()>0) {
-				oledText[i] = String(i) + ": " + foundSsids[(page*5)+i] + "   (" + foundSsidRssis[(page*5)+i] + ")";
+			int globalIndex = (page*5)+i;
+			if (globalIndex < foundSsidsCount && foundSsids[globalIndex].length()>0) {
+				String ssid = foundSsids[globalIndex];
+				// int rssi = foundSsidRssis[globalIndex]; // not needed here; glyph resolved during draw
+				// Truncate SSID to keep line width stable
+				if (ssid.length()>13) ssid = ssid.substring(0,13);
+				// Store SSID line; glyph will be drawn inline later (we reserve last char position)
+				oledText[i] = String(i) + ": " + ssid + " ";
+				// Append placeholder marker we can detect when rendering to draw glyph instead of text character
+				// Using '\x01' sentinel (non-printable) to signal glyph draw.
+				oledText[i] += '\x01';
+				// Overwrite sentinel mapping in uiState invert array if needed (not required now)
+				// Store glyph code in a lightweight side channel: reuse foundSsidsOpen boolean array unused during display for that entry.
+				// But simpler: keep a parallel array of glyphs; we will just re-derive on draw to avoid extra state.
 			}
 		}
-		oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_select_ssids_from_found];
-	renderArrayInternal(false,false,true,false);
+		int totalPages = (foundSsidsCount + 4) / 5; // ceil
+		String baseMenu = menu_text[menu_select_ssids_from_found];
+		String pageIndicator = " p" + String(page+1) + "/" + String(totalPages);
+		int maxChars = 24; // conservative width for 128px with small font
+		if (baseMenu.length() > (maxChars - pageIndicator.length())) {
+			baseMenu = baseMenu.substring(0, maxChars - pageIndicator.length());
+		}
+		oledText[5] = baseMenu + pageIndicator;
+		renderArrayInternal(false,false,true,false);
 	}
 }
 
@@ -152,23 +262,74 @@ void OledRenderer::renderHeartbeatCheck() {
 	menuIsShowing = false; RenderModel model; buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled()); for (int i=0;i<18;i++){ oledText[i] = model.lines[i]; oledTextInvert[i] = model.invert[i]; } renderArrayInternal(false,false,model.sendBuffer,model.drawTopLine);
 }
 
-void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
-	// Fill buffer then draw using existing array renderer (no immediate sendBuffer to allow caller composition)
-	clearArray();
-	renderAllLocos(hideLeadLoco);
-	renderArrayInternal(false,false,true,true); // drawTopLine true so battery bar etc. appears consistently
-}
-
 void OledRenderer::renderAllLocos(bool hideLeadLoco) {
 	lastOledScreen = last_oled_screen_all_locos; lastOledBoolParameter = hideLeadLoco; int startAt = (hideLeadLoco) ? 1 : 0; String loco; int j=0; int i=0; char currentChar = throttleManager.getCurrentThrottleChar(); if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) { for (int index=0; ((index < wiThrottleProtocol.getNumberOfLocomotives(currentChar)) && (i < 8)); index++) { j = (i<4) ? i : i+2; loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index); if (i>=startAt) { oledText[j+1] = String(i) + ": " + loco; if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) oledTextInvert[j+1] = true; } i++; } }
 }
-
-void OledRenderer::renderMenu(const String &soFar, bool primeMenu) {
-	lastOledStringParameter = soFar; int offset = 0; lastOledScreen = last_oled_screen_menu; if (!primeMenu) { offset = 10; lastOledScreen = last_oled_screen_extra_submenu; } menuIsShowing = true; bool drawTopLine = false; if ( (soFar == "") || ((!primeMenu) && (soFar.length()==1)) ) { clearArray(); int j=0; for (int i=1+offset; i<10+offset; i++) { j = (i<6+offset) ? i-offset : i+1-offset; oledText[j-1] = String(i-offset) + ": " + menuText[i][0]; } oledText[10] = "0: " + menuText[0+offset][0]; setMenuTextForOled(menu_cancel); renderArrayInternal(false,false,true,false); } else { int cmd = menuCommand.substring(0,1).toInt(); clearArray(); oledText[0] = ">> " + menuText[cmd][0] + ":"; oledText[6] = menuCommand.substring(1, menuCommand.length()); oledText[5] = menuText[cmd+offset][1]; char currentChar = throttleManager.getCurrentThrottleChar(); int currentIdx = throttleManager.getCurrentThrottleIndex(); switch (soFar.charAt(0)) { case MENU_ITEM_DROP_LOCO: { if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) { renderAllLocos(false); drawTopLine = true; } } case MENU_ITEM_FUNCTION: case MENU_ITEM_TOGGLE_DIRECTION: { if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) <= 0) { oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx+1); oledText[3] = MSG_NO_LOCO_SELECTED; setMenuTextForOled(menu_cancel); } break; } } renderArrayInternal(false,false,true,drawTopLine); }
-}
-
+// Internal unified array renderer
 void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
-	display.clearBuffer(); display.setFont(FONT_DEFAULT); int x = 0; int y = 10; int xInc = 64; int max = 12; if (isThreeColumns) { xInc = 42; max = 18; } for (int i=0; i < max; i++) { const char *cLine = oledText[i].c_str(); if (isPassword && i==2) display.setFont(FONT_PASSWORD); if (oledTextInvert[i]) { display.drawBox(x,y-8,62,10); display.setDrawColor(0); } display.drawUTF8(x,y,cLine); display.setDrawColor(1); if (isPassword && i==2) display.setFont(FONT_DEFAULT); y += 10; if ((i==5) || (i==11)) { x += xInc; y = 10; } } if (drawTopLine) { display.drawHLine(0,11,128); renderBattery(); } display.drawHLine(0,51,128); if (sendBuffer) display.sendBuffer(); }
+	display.clearBuffer();
+	display.setDrawColor(1);
+	display.setFont(FONT_DEFAULT);
+	int x = 0;
+	int y = 10;
+	int xInc = 64;
+	int max = 12;
+	if (isThreeColumns) { xInc = 42; max = 18; }
+	for (int i=0; i < max; i++) {
+		String lineStr = oledText[i];
+		int sentinelPos = lineStr.indexOf('\x01');
+		bool hasWifiGlyph = (sentinelPos >= 0);
+		String textPart = hasWifiGlyph ? lineStr.substring(0, sentinelPos) : lineStr;
+		const char *cLine = textPart.c_str();
+		if (isPassword && i==2) display.setFont(FONT_PASSWORD);
+		if (oledTextInvert[i]) {
+			display.setDrawColor(1);
+			display.drawBox(x, y-8, 62, 10);
+			display.setDrawColor(0);
+		}
+		// Draw base text
+		display.drawUTF8(x, y, cLine);
+		// Draw signal bars if sentinel present
+		if (hasWifiGlyph) {
+			// Determine signal strength from page-adjusted RSSI global index
+			int globalIndex = (page * 5) + i;
+			int rssi = (globalIndex < foundSsidsCount) ? foundSsidRssis[globalIndex] : -100;
+			int strength; // 0=weak, 1=low, 2=medium, 3=strong
+			if (rssi >= -50) strength = 3;
+			else if (rssi >= -65) strength = 2;
+			else if (rssi >= -80) strength = 1;
+			else strength = 0;
+			
+			int16_t textWidth = display.getUTF8Width(cLine);
+			int barsX = x + textWidth + 2; // gap after text
+			
+			// Ensure proper draw color (1=black on white, or white on inverted background)
+			display.setDrawColor(1);
+			
+			// Draw Wi-Fi signal bars (4 bars, each 2px wide with 1px gap)
+			for (int bar = 0; bar < 4; bar++) {
+				int barX = barsX + (bar * 3); // 2px bar + 1px gap
+				int barHeight = (bar + 1) * 2; // heights: 2, 4, 6, 8 pixels
+				int barY = y - barHeight + 1; // align bottom to baseline
+				if (bar <= strength) {
+					// Filled bar for active strength
+					display.drawBox(barX, barY, 2, barHeight);
+				}
+				// Don't draw inactive bars - leave them blank for clarity on small monochrome displays
+			}
+		}
+		display.setDrawColor(1);
+		if (isPassword && i==2) display.setFont(FONT_DEFAULT);
+		y += 10;
+		if ((i==5) || (i==11)) { x += xInc; y = 10; }
+	}
+	// Draw separator/top line if requested
+	if (drawTopLine) { display.drawHLine(0,11,128); renderBattery(); }
+	// Bottom menu/status bar: fixed y baseline at 51
+	display.setDrawColor(1);
+	display.drawHLine(0,51,128);
+	if (sendBuffer) display.sendBuffer();
+}
 
 void OledRenderer::clearArray() { uiState.clearLines(); }
 

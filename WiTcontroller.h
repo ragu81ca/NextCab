@@ -121,15 +121,8 @@ int getDisplaySpeed(int multiThrottleIndex);
 
 // function prototypes
 
-void displayUpdateFromWit(void);
-void ssidsLoop(void);
-void browseSsids(void);
-void selectSsidFromFound(int);
-void getSsidPasswordAndWitIpForFound(void);
-void enterSsidPassword(void);
-void showListOfSsids(void);
-void selectSsid(int);
-void connectSsid(void);
+void displayUpdateFromWit(int);
+// Legacy SSID functions removed; handled by WifiSsidManager
 
 void witServiceLoop(void);
 void browseWitService(void);

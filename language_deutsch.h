@@ -36,7 +36,7 @@
   #define MENU_TEXT_SELECT_SSIDS                        "0-9         # Suche         @ AUS"             // "0-9 # Search E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS_FROM_FOUND
-  #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND             "0-4  9 Liste  # Seite  @ AUS"                  // "0-4 9 List # Pg E.btn OFF"
+  #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND             "0-4  9 Erneu  # Seite  @ AUS"                  // "0-4 9 Rescan # Pg E.btn OFF"
 #endif
 #ifndef MENU_TEXT_ENTER_SSID_PASSWORD
   #define MENU_TEXT_ENTER_SSID_PASSWORD                 "E Bchst @ Ausw # Verb * Zur."                  // "E Chrs E.btn Slct # Go * Bck"

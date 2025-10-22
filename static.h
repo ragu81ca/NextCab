@@ -55,7 +55,7 @@ extern const String appName;
    #define MENU_TEXT_SELECT_SSIDS              "0-9     # Search      E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS_FROM_FOUND
-   #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND   "0-4    9 List  # Pg   E.btn OFF"
+   #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND   "0-4  9 Rescan  # Pg   E.btn OFF"
 #endif
 #ifndef MENU_TEXT_ENTER_SSID_PASSWORD
    #define MENU_TEXT_ENTER_SSID_PASSWORD       "E Chrs  E.btn Slct  # Go  * Bck"
