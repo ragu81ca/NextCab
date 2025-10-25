@@ -17,7 +17,9 @@ public:
     void renderEnterPassword();
     void renderEditConsist();
     void renderHeartbeatCheck();
+    void renderDropLocoList();  // Show current locos for dropping (1-based display)
     void renderMenu(const String &soFar, bool primeMenu); // primeMenu=true for main menu
+    void renderNewMenu(class MenuSystem& menuSystem);  // New table-driven menu system rendering
     void renderSpeed();
     void renderDirectCommands();
     void renderBattery();

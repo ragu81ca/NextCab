@@ -47,13 +47,17 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 #include "src/core/input/PasswordEntryModeHandler.h"
 #include "src/core/input/SystemActionHandler.h"
 #include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
+#include "src/core/menu/MenuSystem.h"
+#include "src/core/menu/MenuDefinitions.h"
 
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
 WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
 OledRenderer oledRenderer(u8g2); // OLED renderer instance (requires U8G2 reference)
+MenuSystem menuSystem;           // New table-driven menu system
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
+bool useNewMenuSystem = true;   // Flag to enable new menu system (set true to test)
 int keypadUseType = 0;
 int encoderUseType = 0;
 bool menuCommandStarted = false;
@@ -809,6 +813,10 @@ void setup() {
   // Initialize WifiSsidManager (Phase 1): turnout/route prefixes remain global for now.
   wifiSsidManager.begin(ssids, passwords, maxSsids);
   
+  // Initialize new menu system
+  menuSystem.begin(MenuDefinitions::mainMenuItems, MenuDefinitions::mainMenuSize);
+  debug_println("MenuSystem initialized");
+  
   // Ensure station mode so MAC retrieval succeeds before connect.
   WiFi.mode(WIFI_STA); // still set STA mode for consistency
   // Derive identity (MAC-based) and set WiFi hostname BEFORE WiFi connect attempts.
@@ -853,6 +861,20 @@ void doKeyPress(char key, bool pressed) {
 
   if (pressed)  { //pressed
     debug_println("doKeyPress(): pressed"); 
+    
+    // Route to new menu system if enabled and in operation mode
+    if (useNewMenuSystem && keypadUseType == KEYPAD_USE_OPERATION) {
+      if (menuSystem.isActive()) {
+        // Menu is already active, route key to menu system
+        menuSystem.handleKey(key);
+        return;
+      } else if (key == '*') {
+        // Menu not active, "*" should activate it
+        menuSystem.showMainMenu();
+        return;
+      }
+    }
+    
     switch (keypadUseType) {
       case KEYPAD_USE_OPERATION:
         debug_print("doKeyPress(): key operation... "); debug_println(key);
@@ -1168,12 +1190,46 @@ void doKeyPress(char key, bool pressed) {
         }
         break;
 
+      case KEYPAD_USE_SELECT_DROP_LOCO:
+        debug_print("key Drop Loco... "); debug_println(key);
+        switch (key){
+          case '1': case '2': case '3': case '4': 
+          case '5': case '6': case '7': case '8': case '9':
+            // Convert 1-based display to 0-based index
+            if ( (key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
+              releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), key - '0' - 1);
+              resetMenu();
+              oledRenderer.renderSpeed();
+            }
+            break;
+          case '0':  // Drop all locos
+            releaseAllLocos(throttleManager.getCurrentThrottleIndex());
+            resetMenu();
+            oledRenderer.renderSpeed();
+            break;
+          case '*':  // cancel
+            resetMenu();
+            oledRenderer.renderSpeed();
+            break;
+          default:  // do nothing 
+            break;
+        }
+        break;
+
       default:  // do nothing 
         break;
     }
 
   } else {  // released
     debug_println("doKeyPress(): released"); 
+    
+    // Route to new menu system if enabled, in operation mode, and menu is active
+    if (useNewMenuSystem && keypadUseType == KEYPAD_USE_OPERATION && menuSystem.isActive()) {
+      // Menu is active, don't process key releases through old system
+      debug_println("doKeyPress(): Menu active, ignoring key release");
+      return;
+    }
+    
     switch (keypadUseType) {
       case KEYPAD_USE_OPERATION:
         if ( (!menuCommandStarted) && (key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D and only if a menu command has not be started

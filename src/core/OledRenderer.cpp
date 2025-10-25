@@ -9,6 +9,8 @@
 #include "ThrottleManager.h" // full definition for throttleManager usage
 #include "../../WiTcontroller.h"
 #include "protocol/WiThrottleDelegate.h"
+#include "menu/MenuSystem.h"
+#include "menu/MenuItem.h"
 
 // u8g2 display instance declared in static.cpp with type depending on OLED configuration (see static.h)
 extern BatteryMonitor batteryMonitor; 
@@ -98,6 +100,60 @@ void OledRenderer::renderMenu(const String &soFar, bool primeMenu) {
 		if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu); else setMenuTextForOled(menu_menu_hash_is_functions);
 	}
 	// Don't draw top line when called from operating mode - menu should be clean
+	renderArrayInternal(false,false,true,false);
+}
+
+void OledRenderer::renderNewMenu(MenuSystem& menuSys) {
+	menuIsShowing = true;
+	clearArray();
+	
+	if (!menuSys.isActive()) {
+		// Menu not active, shouldn't be called
+		return;
+	}
+	
+	const MenuItem* currentMenu = menuSys.getCurrentMenu();
+	uint8_t menuSize = menuSys.getCurrentMenuSize();
+	const MenuItem* currentItem = menuSys.getCurrentItem();
+	String input = menuSys.getAccumulatedInput();
+	
+	// Check if we're in TEXT_INPUT mode (single item pushed onto stack, depth > 0)
+	bool isInputMode = (menuSys.getStackDepth() > 0 && currentItem && currentItem->type == MenuItemType::TEXT_INPUT);
+	
+	if (isInputMode) {
+		// Showing input prompt for TEXT_INPUT item
+		oledText[0] = currentItem->title;
+		oledText[2] = input + "_";  // Show cursor
+		oledText[5] = currentItem->instructions;
+	} else {
+		// Display menu items (main menu or submenu)
+		// Layout: Items 1-5 in lines 0-4, items 6-9 in lines 6-9, item 0 (10th) in line 10
+		// Line 5 is for instructions
+		for (uint8_t i = 0; i < menuSize && i < 10; i++) {
+			int displayLine;
+			String itemNum;
+			
+			if (i < 5) {
+				// Items 0-4 → display as "1:" through "5:" in lines 0-4
+				displayLine = i;
+				itemNum = String(i + 1);
+			} else if (i < 9) {
+				// Items 5-8 → display as "6:" through "9:" in lines 6-9
+				displayLine = i + 1;  // Skip line 5 (instructions)
+				itemNum = String(i + 1);
+			} else {
+				// Item 9 → display as "0:" in line 10
+				displayLine = 10;
+				itemNum = "0";
+			}
+			
+			String line = itemNum + ": " + currentMenu[i].title;
+			oledText[displayLine] = line;
+		}
+		// Bottom instruction at line 5
+		oledText[5] = "* Cancel  # Select";
+	}
+	
 	renderArrayInternal(false,false,true,false);
 }
 
@@ -257,6 +313,34 @@ void OledRenderer::renderFunctions() {
 void OledRenderer::renderEditConsist() {
 	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); keypadUseType = KEYPAD_USE_EDIT_CONSIST; renderAllLocos(true); oledText[0] = MENU_ITEM_TEXT_TITLE_EDIT_CONSIST; oledText[5] = MENU_ITEM_TEXT_MENU_EDIT_CONSIST; renderArrayInternal(false,false,true,false);
 }
+
+void OledRenderer::renderDropLocoList() {
+	menuIsShowing = true;
+	clearArray();
+	keypadUseType = KEYPAD_USE_SELECT_DROP_LOCO;
+	
+	char currentChar = throttleManager.getCurrentThrottleChar();
+	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
+	
+	if (numLocos > 0) {
+		// Display locos with 1-based numbering for user-friendliness
+		for (int index = 0; index < numLocos && index < 9; index++) {
+			String loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index);
+			int displayNum = index + 1;  // Convert to 1-based
+			int linePos = (index < 4) ? index : index + 2;  // Skip line 4 (instructions)
+			
+			oledText[linePos + 1] = String(displayNum) + ": " + loco;
+			if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) {
+				oledTextInvert[linePos + 1] = true;
+			}
+		}
+	}
+	
+	oledText[0] = "Drop Loco";
+	oledText[5] = "1-9 Select 0 All * Cancel";
+	renderArrayInternal(false, false, true, false);
+}
+
 
 void OledRenderer::renderHeartbeatCheck() {
 	menuIsShowing = false; RenderModel model; buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled()); for (int i=0;i<18;i++){ oledText[i] = model.lines[i]; oledTextInvert[i] = model.invert[i]; } renderArrayInternal(false,false,model.sendBuffer,model.drawTopLine);
