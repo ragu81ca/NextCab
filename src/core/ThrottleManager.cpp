@@ -17,6 +17,7 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 		currentSpeed[i] = 0;
 		currentDirection[i] = Forward;
 	}
+	momentum_.begin();
 }
 
 
@@ -48,13 +49,52 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	int newSpeed = value;
 	if (newSpeed > 126) newSpeed = 126;
 	if (newSpeed < 0) newSpeed = 0;
-	proto->setSpeed(tChar, newSpeed);
+	
+	// Store as target speed (what user wants)
 	currentSpeed[throttle] = newSpeed;
+	momentum_.setTargetSpeed(throttle, newSpeed);
+	
+	// Send actual speed (potentially different if momentum active)
+	int actualSpeed = momentum_.getActualSpeed(throttle);
+	proto->setSpeed(tChar, actualSpeed);
+	
+	lastSpeedSentPerThrottle[throttle] = actualSpeed;
 	lastSpeedSentTime = millis();
-	lastSpeedSent = newSpeed;
+	lastSpeedSent = actualSpeed;
 	lastSpeedThrottleIndex = throttle;
 	// Input layer devices now handle their own internal state; no synchronization callback needed.
 	oledRenderer.renderSpeed();
+}
+
+void ThrottleManager::updateMomentum() {
+	if (!momentum_.isActive() || !proto) return;
+	
+	// Update momentum calculations
+	momentum_.update();
+	
+	// Send updated actual speeds to locos if they've changed
+	for (int throttle = 0; throttle < maxThrottles; throttle++) {
+		if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) == 0) continue;
+		
+		int actualSpeed = momentum_.getActualSpeed(throttle);
+		
+		// Send if this throttle's speed changed since last update
+		if (actualSpeed == lastSpeedSentPerThrottle[throttle]) {
+			continue; // No change for this throttle
+		}
+		
+		// Speed changed - send update
+		proto->setSpeed(getMultiThrottleChar(throttle), actualSpeed);
+		lastSpeedSentPerThrottle[throttle] = actualSpeed;
+		lastSpeedSentTime = millis();
+		lastSpeedSent = actualSpeed; // For backward compatibility
+		lastSpeedThrottleIndex = throttle;
+		
+		// Update display if this is the visible throttle
+		if (throttle == currentThrottleIndex) {
+			writeSpeedIfVisible(throttle);
+		}
+	}
 }
 
 int ThrottleManager::getDisplaySpeed(int throttle) const {
@@ -79,6 +119,8 @@ int ThrottleManager::getCurrentSpeed(int throttle) const { return currentSpeed[t
 void ThrottleManager::speedEstopAll() {
 	if (!proto) return;
 	proto->emergencyStop();
+	// Bypass momentum for emergency stop
+	momentum_.emergencyStopAll();
 	for (int i=0; i<maxThrottles; i++) {
 		speedSet(i,0);
 		currentSpeed[i] = 0;
@@ -89,6 +131,8 @@ void ThrottleManager::speedEstopAll() {
 void ThrottleManager::speedEstopCurrent() {
 	if (!proto) return;
 	proto->emergencyStop(currentThrottleIndexChar);
+	// Bypass momentum for emergency stop
+	momentum_.emergencyStop(currentThrottleIndex);
 	speedSet(currentThrottleIndex,0);
 	oledRenderer.renderSpeed();
 }

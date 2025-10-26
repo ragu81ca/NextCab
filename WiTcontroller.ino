@@ -865,6 +865,9 @@ void loop() {
   }
   // Unified device polling (rotary/pot, keypad, additional buttons)
   inputManager.pollAllDevices();
+  
+  // Update momentum (handles smooth speed ramping)
+  throttleManager.updateMomentum();
 
   if (batteryMonitor.enabled()) {
     batteryMonitor.loop();

@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiThrottleProtocol.h>
 #include "../../static.h"
+#include "MomentumController.h"
 
 // Define maximum number of throttles (can be overridden at compile time)
 #ifndef WIT_MAX_THROTTLES
@@ -30,6 +31,10 @@ public:
 	void cycleSpeedStep();
 	// Query whether a locomotive (or consist) is present on the given throttle
 	bool hasLocomotive(int throttle) const;
+	
+	// Momentum control
+	MomentumController& momentum() { return momentum_; }
+	void updateMomentum(); // Called from main loop
 
 	// Newly encapsulated scalar throttle state
 	int getCurrentThrottleIndex() const { return currentThrottleIndex; }
@@ -56,6 +61,9 @@ public:
 private:
 	WiThrottleProtocol *proto { nullptr };
 	void writeSpeedIfVisible(int throttle);
+	
+	// Momentum controller
+	MomentumController momentum_;
 
 	// Moved former globals (defined in WiTcontroller.ino) into this manager
 	int currentThrottleIndex { 0 }; // which multi throttle is active
@@ -65,8 +73,10 @@ private:
 	int speedStepLevels[3] { speedStep, speedStep * speedStepAdditionalMultiplier, speedStep * speedStepAdditionalMultiplier * 2 };
 	int currentSpeedStepIndex { 0 }; // 0..2
 	unsigned long lastSpeedSentTime { 0 }; // debounce speed changes
-	int lastSpeedSent { 0 }; // last speed value sent
+	int lastSpeedSent { 0 }; // last speed value sent (for backward compatibility)
 	int lastSpeedThrottleIndex { 0 }; // throttle index last speed belonged to
+	// Per-throttle tracking for momentum system
+	int lastSpeedSentPerThrottle[WIT_MAX_THROTTLES] { 0 }; // Track last sent speed per throttle
 	// Arrays migrated from sketch
 	int currentSpeed[WIT_MAX_THROTTLES];
 	Direction currentDirection[WIT_MAX_THROTTLES];

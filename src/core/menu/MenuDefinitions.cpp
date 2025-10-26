@@ -147,6 +147,11 @@ namespace MenuHandlers {
         oledRenderer.renderHeartbeatCheck();
     }
     
+    void handleMomentumToggle(MenuContext& ctx) {
+        throttleManager.momentum().cycleMomentumLevel();
+        // Visual feedback will come from adding display indicator later (Stage 2)
+    }
+    
     void handleIncreaseThrottles(MenuContext& ctx) {
         changeNumberOfThrottles(true);
     }
@@ -219,8 +224,8 @@ namespace MenuDefinitions {
         MenuItem::action(2, "Edt Consist", "N/A",
                        MenuHandlers::handleEditConsist),
         
-        MenuItem::action(3, "TBA", "N/A",
-                        [](MenuContext& ctx){}), // Placeholder
+        MenuItem::action(3, "Momentum", "N/A",
+                        MenuHandlers::handleMomentumToggle),
         
         MenuItem::action(4, "Heartbt Tgl", "N/A",
                         MenuHandlers::handleHeartbeatToggle),
