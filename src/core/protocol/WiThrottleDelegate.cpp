@@ -42,7 +42,9 @@ void WiThrottleDelegate::receivedFunctionStateMultiThrottle(char multiThrottle, 
 }
 void WiThrottleDelegate::receivedRosterFunctionListMultiThrottle(char multiThrottle, String functions[MAX_FUNCTIONS]) {
     int idx = getMultiThrottleIndex(multiThrottle);
-    for (int i = 0; i < MAX_FUNCTIONS; i++) { functionLabels[idx][i] = functions[i]; }
+    for (int i = 0; i < MAX_FUNCTIONS; i++) { 
+        functionLabels[idx][i] = functions[i]; 
+    }
 }
 void WiThrottleDelegate::receivedTrackPower(TrackPower state) {
     if (trackPower != state) { trackPower = state; displayUpdateFromWit(-1); refreshOled(); }
