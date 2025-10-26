@@ -6,11 +6,15 @@
 #include "../OledRenderer.h"
 #include "../ThrottleManager.h"
 #include "../heartbeat/HeartbeatMonitor.h"
+#include "../input/InputManager.h"
+#include "../input/TurnoutSelectionHandler.h"
 
 // External dependencies
 extern WiThrottleProtocol wiThrottleProtocol;
 extern ThrottleManager throttleManager;
 extern OledRenderer oledRenderer;
+extern InputManager inputManager;
+extern TurnoutSelectionHandler turnoutSelectionHandler;
 extern String turnoutPrefix;
 extern String routePrefix;
 extern bool dropBeforeAcquire;
@@ -49,9 +53,8 @@ namespace MenuHandlers {
             wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
             wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
         } else {
-            // No input - show roster list
-            page = 0;
-            oledRenderer.renderRoster("");
+            // No input - show roster list via InputManager
+            inputManager.setMode(InputMode::RosterSelection);
         }
     }
     
@@ -68,8 +71,8 @@ namespace MenuHandlers {
                 releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), ctx.input.toInt());
             }
         } else {
-            // No input - show list of current locos to select from
-            oledRenderer.renderDropLocoList();
+            // No input - show list of current locos to select from via InputManager
+            inputManager.setMode(InputMode::DropLocoSelection);
         }
     }
     
@@ -86,8 +89,9 @@ namespace MenuHandlers {
             String turnout = turnoutPrefix + ctx.input;
             wiThrottleProtocol.setTurnout(turnout, TurnoutThrow);
         } else {
-            page = 0;
-            oledRenderer.renderTurnoutList("", TurnoutThrow);
+            // No input - show turnout list via InputManager
+            turnoutSelectionHandler.setAction(TurnoutThrow);
+            inputManager.setMode(InputMode::TurnoutSelection);
         }
     }
     
@@ -96,8 +100,9 @@ namespace MenuHandlers {
             String turnout = turnoutPrefix + ctx.input;
             wiThrottleProtocol.setTurnout(turnout, TurnoutClose);
         } else {
-            page = 0;
-            oledRenderer.renderTurnoutList("", TurnoutClose);
+            // No input - show turnout list via InputManager
+            turnoutSelectionHandler.setAction(TurnoutClose);
+            inputManager.setMode(InputMode::TurnoutSelection);
         }
     }
     
@@ -106,8 +111,8 @@ namespace MenuHandlers {
             String route = routePrefix + ctx.input;
             wiThrottleProtocol.setRoute(route);
         } else {
-            page = 0;
-            oledRenderer.renderRouteList("");
+            // No input - show route list via InputManager
+            inputManager.setMode(InputMode::RouteSelection);
         }
     }
     
@@ -121,9 +126,8 @@ namespace MenuHandlers {
             int functionNumber = ctx.input.toInt();
             doFunction(throttleManager.getCurrentThrottleIndex(), functionNumber, true, true);
         } else {
-            // Show function list
-            functionPage = 0;
-            oledRenderer.renderFunctionList("");
+            // Show function list via InputManager
+            inputManager.setMode(InputMode::FunctionSelection);
         }
     }
     
@@ -139,7 +143,8 @@ namespace MenuHandlers {
                 selectEditConsistList(key - '0');
             }
         } else {
-            oledRenderer.renderEditConsist();
+            // Show list via InputManager
+            inputManager.setMode(InputMode::EditConsist);
         }
     }
     
@@ -179,32 +184,33 @@ namespace MenuHandlers {
     
     // List renderers (thin wrappers around existing functions)
     void renderRosterList() {
-        page = 0;
-        oledRenderer.renderRoster("");
+        // Switch to RosterSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::RosterSelection);
     }
     
     void renderFunctionList() {
-        functionPage = 0;
-        oledRenderer.renderFunctionList("");
+        // Switch to FunctionSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::FunctionSelection);
     }
     
     void renderTurnoutListThrow() {
-        page = 0;
-        oledRenderer.renderTurnoutList("", TurnoutThrow);
+        // Switch to TurnoutSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::TurnoutSelection);
     }
     
     void renderTurnoutListClose() {
-        page = 0;
-        oledRenderer.renderTurnoutList("", TurnoutClose);
+        // Switch to TurnoutSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::TurnoutSelection);
     }
     
     void renderRouteList() {
-        page = 0;
-        oledRenderer.renderRouteList("");
+        // Switch to RouteSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::RouteSelection);
     }
     
     void renderDropLocoList() {
-        oledRenderer.renderDropLocoList();
+        // Switch to DropLocoSelection mode which will render the list via onEnter
+        inputManager.setMode(InputMode::DropLocoSelection);
     }
 }
 

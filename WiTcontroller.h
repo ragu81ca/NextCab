@@ -75,8 +75,6 @@ extern int rosterAddress[];
 extern char rosterLength[];
 extern int rosterSortedIndex[]; // sorted index order
 
-#define page uiState.page
-
 extern int turnoutListSize;
 extern int turnoutListIndex[]; 
 extern String turnoutListSysName[]; 
@@ -91,8 +89,6 @@ extern int routeListState[];
 extern bool functionStates[][MAX_FUNCTIONS];
 extern String functionLabels[][MAX_FUNCTIONS];
 extern int functionFollow[][MAX_FUNCTIONS];
-#define functionPage uiState.functionPage
-#define functionHasBeenSelected uiState.functionHasBeenSelected
 // Heartbeat state migrated to HeartbeatMonitor (no longer exposed as globals)
 // extern int heartbeatPeriod;
 // extern long lastServerResponseTime;
@@ -158,9 +154,11 @@ void speedDown(int, int);
 void speedUp(int, int);
 void speedSet(int, int);
 void releaseAllLocos(int);
+void releaseOneLocoByIndex(int, int);
 void toggleAdditionalMultiplier(void);
 void toggleHeartbeatCheck(void);
 void toggleDirection(int);
+void toggleLocoFacing(int, String);
 void changeDirection(int, Direction);
 
 void doDirectFunction(int, bool);

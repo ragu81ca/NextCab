@@ -4,6 +4,7 @@
 #include "../../../static.h" // macro constants
 #include "../../../WiTcontroller.h" // size-related macros (maxFoundSsids etc.)
 #include "../OledRenderer.h"
+#include "../UIState.h"
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros
 
 // External state still hosted in sketch
@@ -14,6 +15,7 @@ extern String turnoutPrefix;
 extern String routePrefix;
 extern String foundSsids[];
 extern long foundSsidRssis[];
+extern UIState uiState;
 extern bool foundSsidsOpen[];
 extern int foundSsidsCount;
 // Timeout & sources
@@ -143,7 +145,7 @@ void WifiSsidManager::browseSsids() {
         }
         for (int i=0;i<foundSsidsCount;i++) { debug_println(foundSsids[i]); }
         // Use unified rendering path: delegate to OledRenderer::renderFoundSsids
-        page = 0; // reset to first page
+        uiState.page = 0; // reset to first page
         oledRenderer.renderFoundSsids("");
         ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
         if ((foundSsidsCount>0) && (autoConnectToFirstDefinedServer)) {

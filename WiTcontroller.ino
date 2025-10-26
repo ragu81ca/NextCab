@@ -45,6 +45,12 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 #include "src/core/OledRenderer.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
+#include "src/core/input/RosterSelectionHandler.h"
+#include "src/core/input/TurnoutSelectionHandler.h"
+#include "src/core/input/RouteSelectionHandler.h"
+#include "src/core/input/FunctionSelectionHandler.h"
+#include "src/core/input/DropLocoSelectionHandler.h"
+#include "src/core/input/EditConsistSelectionHandler.h"
 #include "src/core/input/SystemActionHandler.h"
 #include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
 #include "src/core/menu/MenuSystem.h"
@@ -57,7 +63,6 @@ OledRenderer oledRenderer(u8g2); // OLED renderer instance (requires U8G2 refere
 MenuSystem menuSystem;           // New table-driven menu system
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
-bool useNewMenuSystem = true;   // Flag to enable new menu system (set true to test)
 int keypadUseType = 0;
 int encoderUseType = 0;
 bool menuCommandStarted = false;
@@ -127,6 +132,12 @@ struct AdditionalButtonDef buttonDefsStatic[MAX_ADDITIONAL_BUTTONS];
 OperationModeHandler operationModeHandler(throttleManager);
 static void onPasswordCommit();
 PasswordEntryModeHandler passwordModeHandler(32, onPasswordCommit); // arbitrary max len
+RosterSelectionHandler rosterSelectionHandler(oledRenderer);
+TurnoutSelectionHandler turnoutSelectionHandler(oledRenderer);
+RouteSelectionHandler routeSelectionHandler(oledRenderer);
+FunctionSelectionHandler functionSelectionHandler(oledRenderer);
+DropLocoSelectionHandler dropLocoSelectionHandler(oledRenderer);
+EditConsistSelectionHandler editConsistSelectionHandler(oledRenderer);
 SystemActionHandler systemActionHandler(throttleManager);
 
 // server variables
@@ -788,6 +799,12 @@ void setup() {
   // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
   inputManager.setPasswordHandler(&passwordModeHandler);
+  inputManager.setRosterSelectionHandler(&rosterSelectionHandler);
+  inputManager.setTurnoutSelectionHandler(&turnoutSelectionHandler);
+  inputManager.setRouteSelectionHandler(&routeSelectionHandler);
+  inputManager.setFunctionSelectionHandler(&functionSelectionHandler);
+  inputManager.setDropLocoSelectionHandler(&dropLocoSelectionHandler);
+  inputManager.setEditConsistHandler(&editConsistSelectionHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::Operation); // ensure active_ bound even if mode already Operation
   // Initialize HeartbeatMonitor with defaults
@@ -857,22 +874,53 @@ void loop() {
 // *********************************************************************************
 
 void doKeyPress(char key, bool pressed) {
+    // Prevent re-entrancy (e.g., from display operations during mode transitions)
+    static bool processing = false;
+    if (processing) return;
+    processing = true;
+    
     debug_print("doKeyPress(): key: "); debug_print(key); debug_print(" keypadUseType: ");debug_println(keypadUseType);
 
   if (pressed)  { //pressed
     debug_println("doKeyPress(): pressed"); 
     
-    // Route to new menu system if enabled and in operation mode
-    if (useNewMenuSystem && keypadUseType == KEYPAD_USE_OPERATION) {
+    // Route to menu system if in operation mode
+    if (keypadUseType == KEYPAD_USE_OPERATION) {
       if (menuSystem.isActive()) {
         // Menu is already active, route key to menu system
         menuSystem.handleKey(key);
+        processing = false;
         return;
       } else if (key == '*') {
         // Menu not active, "*" should activate it
         menuSystem.showMainMenu();
+        processing = false;
         return;
       }
+    }
+    
+    // Route list selection modes through InputManager
+    if (keypadUseType == KEYPAD_USE_SELECT_ROSTER ||
+        keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW ||
+        keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_CLOSE ||
+        keypadUseType == KEYPAD_USE_SELECT_ROUTES ||
+        keypadUseType == KEYPAD_USE_SELECT_FUNCTION ||
+        keypadUseType == KEYPAD_USE_SELECT_DROP_LOCO ||
+        keypadUseType == KEYPAD_USE_EDIT_CONSIST) {
+      InputEvent ev;
+      ev.timestamp = millis();
+      if (key >= '0' && key <= '9') {
+        ev.type = InputEventType::KeypadChar;
+        ev.ivalue = key - '0';
+        ev.cvalue = key;
+      } else {
+        ev.type = InputEventType::KeypadSpecial;
+        ev.ivalue = 0;
+        ev.cvalue = key;
+      }
+      inputManager.dispatch(ev);
+      processing = false;
+      return;
     }
     
     switch (keypadUseType) {
@@ -880,90 +928,24 @@ void doKeyPress(char key, bool pressed) {
         debug_print("doKeyPress(): key operation... "); debug_println(key);
 
         switch (key) {
-          case '*':  // menu command
-            menuCommand = "";
-            if (menuCommandStarted) { // then cancel the menu
-              resetMenu();
-              oledRenderer.renderSpeed();
-            } else {
-              menuCommandStarted = true;
-              debug_println("doKeyPress(): Command started");
-              oledRenderer.renderMenu("", true);
-            }
-            break;
-
-          case '#': // end of command
-            debug_print("doKeyPress(): end of command... "); debug_print(key); debug_print ("  :  "); debug_println(menuCommand);
-            if ((menuCommandStarted) && (menuCommand.length()>=1)) {
-              doMenu();
-            } else {
-              if (!hashShowsFunctionsInsteadOfKeyDefs) {
-                if (!oledDirectCommandsAreBeingDisplayed) {
-                  oledRenderer.renderDirectCommands();
-                } else {
-                  oledDirectCommandsAreBeingDisplayed = false;
-                  oledRenderer.renderSpeed();
-                }
+          case '#': // show functions or direct commands
+            if (!hashShowsFunctionsInsteadOfKeyDefs) {
+              if (!oledDirectCommandsAreBeingDisplayed) {
+                oledRenderer.renderDirectCommands();
               } else {
-                oledRenderer.renderFunctionList(""); 
+                oledDirectCommandsAreBeingDisplayed = false;
+                oledRenderer.renderSpeed();
               }
+            } else {
+              inputManager.setMode(InputMode::FunctionSelection);
             }
             break;
 
           case '0': case '1': case '2': case '3': case '4': 
           case '5': case '6': case '7': case '8': case '9': 
-          {
-            debug_print("doKeyPress(): number... "); debug_print(key); 
-            debug_print ("  cmd: '"); debug_println(menuCommand); 
-            debug_print("' : "); debug_println(menuCharsRequired[menuCommand.substring(0,1).toInt()]);
-
-            int index0 = key-48;
-            int index1 = 0;
-            if (menuCommand.length() >= 0) index1 = menuCommand.charAt(0)-48;
-            int index2 = 0;
-            if (menuCommand.length() >= 1) index2 = menuCommand.charAt(1)-48;
-
-            if (menuCommandStarted) { // append to the string
-
-              // if ( ((menuCommand.length() == 0) && (menuCharsRequired[key-48] == MENU_ITEM_TYPE_DIRECT_COMMAND))
-              // || ((menuCommand.length() == 1) && (menuCharsRequired[menuCommand.charAt(0)-48] == MENU_ITEM_TYPE_SUB_MENU))
-              // || ((menuCommand.length() == 1) && (menuCharsRequired[menuCommand.charAt(0)-48] == MENU_ITEM_TYPE_DIRECT_COMMAND))
-              // || ((menuCommand.length() == 2) && (menuCharsRequired[menuCommand.charAt(1)-38] == MENU_ITEM_TYPE_DIRECT_COMMAND)) ) { 
-
-              if ( ((menuCommand.length() == 0) 
-                    && (menuCharsRequired[index0] == MENU_ITEM_TYPE_DIRECT_COMMAND))
-              || ((menuCommand.length() == 1) 
-                    &&  ( (menuCharsRequired[index1] == MENU_ITEM_TYPE_SUB_MENU)
-                       || (menuCharsRequired[index1] == MENU_ITEM_TYPE_DIRECT_COMMAND) ))
-              || ((menuCommand.length() == 2) 
-                    &&  (menuCharsRequired[index1] != MENU_ITEM_TYPE_ONE_OR_MORE_CHARS)
-                    &&  (menuCharsRequired[index2] == MENU_ITEM_TYPE_DIRECT_COMMAND)) 
-              ) { 
-                debug_println("doKeyPress(): MENU_ITEM_TYPE_DIRECT_COMMAND : ");
-                menuCommand += key;
-                doMenu();
-              } else {
-                if ((menuCharsRequired[index0] == MENU_ITEM_TYPE_SUB_MENU) 
-                && (menuCommand.length() == 0)) {  // menu type needs only one char
-                  debug_println("doKeyPress(): MENU_ITEM_TYPE_SUB_MENU : "); 
-                  menuCommand += key;
-                  oledRenderer.renderMenu(menuCommand, false);
-                // } else if ( (menuCharsRequired[index0] == MENU_ITEM_TYPE_SELECT_FROM_LIST) 
-                //           && (menuCommand.length() == 0)) {  // menu type needs only one char
-                //   debug_println("doKeyPress(): MENU_ITEM_TYPE_SELECT_FROM_LIST : "); 
-                //   menuCommand += key;
-                //   writeOledMenu(menuCommand, false);
-                } else {  //menu type allows/requires more than one char
-                  debug_println("doKeyPress(): MENU_ITEM_TYPE_ONE_OR_MORE_CHARS");
-                  menuCommand += key;
-                  oledRenderer.renderMenu(menuCommand, true);
-                }
-              }
-            } else {
-              doDirectCommand(key, true);
-            }
+            doDirectCommand(key, true);
             break;
-          }
+            
           default:  // A, B, C, D
             doDirectCommand(key, true);
             break;
@@ -1046,170 +1028,21 @@ void doKeyPress(char key, bool pressed) {
         debug_print("doKeyPress(): key ssid from found... "); debug_println(key);
         switch (key){
           case '0': case '1': case '2': case '3': case '4': 
-            wifiSsidManager.selectFound(key - '0'+(page*5));
+            wifiSsidManager.selectFound(key - '0'+(uiState.page*5));
             break;
           case '#': // next page
             if (foundSsidsCount>5) {
-              if ( (page+1)*5 < foundSsidsCount ) {
-                page++;
+              if ( (uiState.page+1)*5 < foundSsidsCount ) {
+                uiState.page++;
               } else {
-                page = 0;
+                uiState.page = 0;
               }
               oledRenderer.renderFoundSsids(""); 
             }
             break;
           case '9': // rescan for SSIDs
-            page = 0; // reset to first page
+            uiState.page = 0; // reset to first page
             wifiSsidManager.browseSsids();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_ROSTER:
-        debug_print("doKeyPress(): key Roster... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            selectRoster((key - '0')+(page*5));
-            break;
-          case '#':  // next page
-            if ( rosterSize > 5 ) {
-              if ( (page+1)*5 < rosterSize ) {
-                page++;
-              } else {
-                page = 0;
-              }
-              oledRenderer.renderRoster(""); 
-            }
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_TURNOUTS_THROW:
-      case KEYPAD_USE_SELECT_TURNOUTS_CLOSE:
-        debug_print("doKeyPress(): key turnouts... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            selectTurnoutList((key - '0')+(page*10), (keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW) ? TurnoutThrow : TurnoutClose);
-            break;
-          case '#':  // next page
-            if ( turnoutListSize > 10 ) {
-              if ( (page+1)*10 < turnoutListSize ) {
-                page++;
-              } else {
-                page = 0;
-              }
-              oledRenderer.renderTurnoutList("", (keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW) ? TurnoutThrow : TurnoutClose); 
-            }
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_ROUTES:
-        debug_print("doKeyPress(): key routes... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            selectRouteList((key - '0')+(page*10));
-            break;
-          case '#':  // next page
-            if ( routeListSize > 10 ) {
-              if ( (page+1)*10 < routeListSize ) {
-                page++;
-              } else {
-                page = 0;
-              }
-              oledRenderer.renderRouteList(""); 
-            }
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_FUNCTION:
-        debug_print("doKeyPress(): key function... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            selectFunctionList((key - '0')+(functionPage*10));
-            break;
-          case '#':  // next page
-            if ( (functionPage+1)*10 < MAX_FUNCTIONS ) {
-              functionPage++;
-              oledRenderer.renderFunctionList(""); 
-            } else {
-              functionPage = 0;
-              keypadUseType = KEYPAD_USE_OPERATION;
-              oledRenderer.renderDirectCommands();
-            }
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_EDIT_CONSIST:
-        debug_print("key Edit Consist... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            if ( (key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
-              selectEditConsistList(key - '0');
-            }
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_DROP_LOCO:
-        debug_print("key Drop Loco... "); debug_println(key);
-        switch (key){
-          case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            // Convert 1-based display to 0-based index
-            if ( (key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
-              releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), key - '0' - 1);
-              resetMenu();
-              oledRenderer.renderSpeed();
-            }
-            break;
-          case '0':  // Drop all locos
-            releaseAllLocos(throttleManager.getCurrentThrottleIndex());
-            resetMenu();
-            oledRenderer.renderSpeed();
-            break;
-          case '*':  // cancel
-            resetMenu();
-            oledRenderer.renderSpeed();
             break;
           default:  // do nothing 
             break;
@@ -1223,16 +1056,17 @@ void doKeyPress(char key, bool pressed) {
   } else {  // released
     debug_println("doKeyPress(): released"); 
     
-    // Route to new menu system if enabled, in operation mode, and menu is active
-    if (useNewMenuSystem && keypadUseType == KEYPAD_USE_OPERATION && menuSystem.isActive()) {
-      // Menu is active, don't process key releases through old system
+    // Route to menu system if in operation mode and menu is active
+    if (keypadUseType == KEYPAD_USE_OPERATION && menuSystem.isActive()) {
+      // Menu is active, don't process key releases through legacy handlers
       debug_println("doKeyPress(): Menu active, ignoring key release");
+      processing = false;
       return;
     }
     
     switch (keypadUseType) {
       case KEYPAD_USE_OPERATION:
-        if ( (!menuCommandStarted) && (key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D and only if a menu command has not be started
+        if ((key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D
           debug_println("doKeyPress(): Operation - Process key release KEYPAD_USE_OPERATION");
           doDirectCommand(key, false);
         } else {
@@ -1240,18 +1074,13 @@ void doKeyPress(char key, bool pressed) {
         }
         break;
     
-      case KEYPAD_USE_SELECT_FUNCTION:
-        if (functionHasBeenSelected) {
-          debug_println("doKeyPress(): Operation - Process key release KEYPAD_USE_SELECT_FUNCTION");
-          doFunction(throttleManager.getCurrentThrottleIndex(), (key - '0')+(functionPage*10), false);
-          keypadUseType = KEYPAD_USE_OPERATION;
-          functionHasBeenSelected = false;
-        }
+      default:  // do nothing for other modes
         break;
     }
   }
 
-  debug_println("doKeyPress(): end"); 
+  debug_println("doKeyPress(): end");
+  processing = false;
 }
 
 void doDirectCommand(char key, bool pressed) {
@@ -1285,209 +1114,6 @@ void doDirectAction(int buttonAction) {
   inputManager.dispatch(ev);
 }
 
-void doMenu() {
-  String loco = "";
-  String function = "";
-  bool menuCommandStartedTemp = false;
-  debug_print("doMenu(): "); debug_println(menuCommand);
-  
-  switch (menuCommand[0]) {
-    case MENU_ITEM_EXTRAS: { // Extra menu 
-        char subCommand = menuCommand.charAt(1);
-        if (menuCommand.length() > 1) { // must be a submenu command
-          // debug_println("doMenu(): length>1");
-          doMenuCommand(subCommand+65-48); // convert '0'-'9' to 'A' - 'J'
-          menuCommandStartedTemp = true;
-        } else {
-          // debug_println("doMenu(): else");
-          oledRenderer.renderSpeed();
-        }
-        break;
-      }
-      default: {
-        // debug_println("doMenu(): default");
-        doMenuCommand(menuCommand[0]);
-        // menuCommandStartedTemp = false;
-      }
-  }
-  menuCommandStarted = menuCommandStartedTemp; 
-  debug_println("doMenu(): end");
-}
-
-void doMenuCommand(char menuItem) {
-  debug_print("doMenuCommand(): "); debug_print(menuCommand); debug_print(" : "); debug_println(menuItem);
-  String loco = "";
-  String function = "";
-  int startAt = 1;               // in main menu
-  if (menuItem>'9') startAt = 2; // in the submenu
-
-    switch (menuItem) {
-    case MENU_ITEM_ADD_LOCO: { // select loco
-        if (menuCommand.length()>startAt) {
-          if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
-            wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
-          }
-          loco = menuCommand.substring(startAt, menuCommand.length());
-          loco = getLocoWithLength(loco);
-          debug_print("add Loco: "); debug_println(loco);
-          wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
-          wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
-          wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
-          resetFunctionStates(throttleManager.getCurrentThrottleIndex());
-          oledRenderer.renderSpeed();
-        } else {
-          page = 0;
-          oledRenderer.renderRoster("");
-        }
-        break;
-      }
-    case MENU_ITEM_DROP_LOCO: { // de-select loco
-        loco = menuCommand.substring(startAt, menuCommand.length());
-        if (loco!="") { // a loco is specified
-          if (!CONSIST_RELEASE_BY_INDEX) {
-            loco = getLocoWithLength(loco);
-            releaseOneLoco(throttleManager.getCurrentThrottleIndex(), loco);
-          } else {
-            releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), loco.toInt());
-          }
-        } else { //not loco specified so release all
-          releaseAllLocos(throttleManager.getCurrentThrottleIndex());
-        }
-  oledRenderer.renderSpeed();
-        break;
-      }
-  case MENU_ITEM_TOGGLE_DIRECTION: { // change direction
-    toggleDirection(throttleManager.getCurrentThrottleIndex());
-        break;
-      }
-     case MENU_ITEM_SPEED_STEP_MULTIPLIER: { // toggle speed step additional Multiplier
-  cycleSpeedStep();
-        break;
-      }
-   case MENU_ITEM_THROW_POINT: {  // throw point
-        if (menuCommand.length()>startAt) {
-          String turnout = turnoutPrefix + menuCommand.substring(startAt, menuCommand.length());
-          // if (!turnout.equals("")) { // a turnout is specified
-            debug_print("throw point: "); debug_println(turnout);
-            wiThrottleProtocol.setTurnout(turnout, TurnoutThrow);
-          // }
-          oledRenderer.renderSpeed();
-        } else {
-          page = 0;
-          oledRenderer.renderTurnoutList("", TurnoutThrow);
-        }
-        break;
-      }
-    case MENU_ITEM_CLOSE_POINT: {  // close point
-        if (menuCommand.length()>startAt) {
-          String turnout = turnoutPrefix + menuCommand.substring(startAt, menuCommand.length());
-          // if (!turnout.equals("")) { // a turnout is specified
-            debug_print("close point: "); debug_println(turnout);
-            wiThrottleProtocol.setTurnout(turnout, TurnoutClose);
-          // }
-          oledRenderer.renderSpeed();
-        } else {
-          page = 0;
-          oledRenderer.renderTurnoutList("",TurnoutClose);
-        }
-        break;
-      }
-    case MENU_ITEM_ROUTE: {  // route
-        if (menuCommand.length()>startAt) {
-          String route = routePrefix + menuCommand.substring(startAt, menuCommand.length());
-          // if (!route.equals("")) { // a loco is specified
-            debug_print("route: "); debug_println(route);
-            wiThrottleProtocol.setRoute(route);
-          // }
-          oledRenderer.renderSpeed();
-        } else {
-          page = 0;
-          oledRenderer.renderRouteList("");
-        }
-        break;
-      }
-    case MENU_ITEM_TRACK_POWER: {
-        powerToggle();
-        break;
-      }
-    case MENU_ITEM_FUNCTION_KEY_TOGGLE: { // toggle showing Def Keys vs Function labels
-        hashShowsFunctionsInsteadOfKeyDefs = !hashShowsFunctionsInsteadOfKeyDefs;
-  oledRenderer.renderSpeed();
-        break;
-      } 
-    case MENU_ITEM_EDIT_CONSIST: { // edit consist - loco facings
-        // writeOledEditConsist();
-        // break;
-        char key = menuCommand.charAt(startAt);
-        if (menuCommand.length()>startAt) {
-          if ( ((key-'0') > 0) // can't change lead
-          && ((key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) ) {
-            selectEditConsistList(key - '0');
-          }
-          oledRenderer.renderSpeed();
-        } else {
-          writeOledEditConsist();
-        }
-        break;
-      } 
-    case MENU_ITEM_HEARTBEAT_TOGGLE: { // disable/enable the heartbeat Check
-  heartbeatMonitor.toggleEnabled(); wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled()); writeHeartbeatCheck();
-  oledRenderer.renderSpeed();
-        break;
-      }
-    case MENU_ITEM_DROP_BEFORE_ACQUIRE_TOGGLE: { // disable/enable drop before Acquire
-        toggleDropBeforeAquire();
-  oledRenderer.renderSpeed();
-        break;
-      }
-    case MENU_ITEM_SAVE_CURRENT_LOCOS: {
-        writePreferences();
-  oledRenderer.renderSpeed();
-        break;
-      }
-    case MENU_ITEM_INCREASE_MAX_THROTTLES: { //increase number of Throttles
-        changeNumberOfThrottles(true);
-        break;
-      }
-    case MENU_ITEM_DECREASE_MAX_THROTTLES: { // decrease numbe rof throttles
-        changeNumberOfThrottles(false);
-        break;
-      }
-    case MENU_ITEM_DISCONNECT: { // disconnect   
-        if (witConnectionState == CONNECTION_STATE_CONNECTED) {
-          witConnectionState = CONNECTION_STATE_DISCONNECTED;
-          // clearPreferences();
-          // writePreferences();
-          preferencesRead = false;
-          disconnectWitServer();
-        } else {
-          connectWitServer();
-        }
-        break;
-      }
-    case MENU_ITEM_OFF_SLEEP: { // sleep/off
-        // clearPreferences();
-        // writePreferences();
-        deepSleepStart();
-        break;
-      }
-    case MENU_ITEM_FUNCTION: { // function button
-        if (menuCommand.length()>startAt) {
-          function = menuCommand.substring(startAt, menuCommand.length());
-          int functionNumber = function.toInt();
-          if (function != "") { // a function is specified
-            doFunction(throttleManager.getCurrentThrottleIndex(), functionNumber, true, true);  // always act like latching i.e. pressed
-          }
-          oledRenderer.renderSpeed();
-        } else {
-          functionPage = 0;
-          oledRenderer.renderFunctionList("");
-        }
-        break;
-      }
-  }
-}
-
 static void onPasswordCommit() {
   // Accept the entered password and return to normal mode
   selectedSsidPassword = ssidPasswordEntered;
@@ -1513,7 +1139,7 @@ void enterSsidPassword() {
 
 void resetMenu() {
   debug_println("resetMenu()");
-  page = 0;
+  uiState.page = 0;
   menuCommand = "";
   menuCommandStarted = false;
   if ( (keypadUseType != KEYPAD_USE_SELECT_SSID) 
@@ -1534,7 +1160,7 @@ void resetFunctionLabels(int multiThrottleIndex) {
   for (int i=0; i<MAX_FUNCTIONS; i++) {
     functionLabels[multiThrottleIndex][i] = "";
   }
-  functionPage = 0;
+  uiState.functionPage = 0;
 }
 
 void resetAllFunctionLabels() {
@@ -1958,7 +1584,7 @@ void selectFunctionList(int selection) {
   String function = functionLabels[throttleManager.getCurrentThrottleIndex()][selection];
     debug_print("Function Selected: "); debug_println(function);
   doFunction(throttleManager.getCurrentThrottleIndex(), selection, true,false);
-    functionHasBeenSelected = true;    
+    uiState.functionHasBeenSelected = true;    
   oledRenderer.renderSpeed();
     // keypadUseType = KEYPAD_USE_OPERATION;   // don't reset it now.  Do so on the release.
   }
@@ -2034,10 +1660,9 @@ void refreshOled() {
   oledRenderer.renderFunctionList(lastOledStringParameter);
       break;
     case last_oled_screen_menu:
-  oledRenderer.renderMenu(lastOledStringParameter, true);
-      break;
     case last_oled_screen_extra_submenu:
-  oledRenderer.renderMenu(lastOledStringParameter, false);
+      // Old menu system removed - fallback to speed screen
+      oledRenderer.renderSpeed();
       break;
     case last_oled_screen_all_locos:
   oledRenderer.renderAllLocosScreen(lastOledBoolParameter);

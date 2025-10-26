@@ -6,7 +6,13 @@
 // Simple mode id for now; can expand to enum class later.
 enum class InputMode : uint8_t {
     Operation,
-    PasswordEntry
+    PasswordEntry,
+    RosterSelection,
+    TurnoutSelection,
+    RouteSelection,
+    FunctionSelection,
+    DropLocoSelection,
+    EditConsist
 };
 
 class InputManager {
@@ -15,6 +21,12 @@ public:
 
     void setOperationHandler(IModeHandler *h) { opHandler_ = h; }
     void setPasswordHandler(IModeHandler *h) { pwHandler_ = h; }
+    void setRosterSelectionHandler(IModeHandler *h) { rosterHandler_ = h; }
+    void setTurnoutSelectionHandler(IModeHandler *h) { turnoutHandler_ = h; }
+    void setRouteSelectionHandler(IModeHandler *h) { routeHandler_ = h; }
+    void setFunctionSelectionHandler(IModeHandler *h) { functionHandler_ = h; }
+    void setDropLocoSelectionHandler(IModeHandler *h) { dropLocoHandler_ = h; }
+    void setEditConsistHandler(IModeHandler *h) { editConsistHandler_ = h; }
     void setActionFallbackHandler(IModeHandler *h) { actionHandler_ = h; }
 
     void setMode(InputMode mode);
@@ -42,6 +54,12 @@ private:
     InputMode mode_ { InputMode::Operation };
     IModeHandler *opHandler_ { nullptr };
     IModeHandler *pwHandler_ { nullptr };
+    IModeHandler *rosterHandler_ { nullptr };
+    IModeHandler *turnoutHandler_ { nullptr };
+    IModeHandler *routeHandler_ { nullptr };
+    IModeHandler *functionHandler_ { nullptr };
+    IModeHandler *dropLocoHandler_ { nullptr };
+    IModeHandler *editConsistHandler_ { nullptr };
     IModeHandler *actionHandler_ { nullptr }; // used for Action events if active handler doesn't consume
     IModeHandler *active_ { nullptr };
     static constexpr size_t MaxDevices = 8;
@@ -52,6 +70,12 @@ private:
         switch (m) {
             case InputMode::Operation: return opHandler_;
             case InputMode::PasswordEntry: return pwHandler_;
+            case InputMode::RosterSelection: return rosterHandler_;
+            case InputMode::TurnoutSelection: return turnoutHandler_;
+            case InputMode::RouteSelection: return routeHandler_;
+            case InputMode::FunctionSelection: return functionHandler_;
+            case InputMode::DropLocoSelection: return dropLocoHandler_;
+            case InputMode::EditConsist: return editConsistHandler_;
             default: return nullptr;
         }
     }

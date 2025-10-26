@@ -24,85 +24,6 @@ void OledRenderer::renderArray(bool isThreeColumns, bool isPassword, bool sendBu
 }
 
 // New wrapper for menu rendering (replaces previous inline logic from sketch)
-void OledRenderer::renderMenu(const String &soFar, bool primeMenu) {
-	lastOledScreen = last_oled_screen_menu;
-	lastOledStringParameter = soFar;
-	menuIsShowing = true;
-	// Fallback to operation keypad mode (no dedicated menu constant defined)
-	keypadUseType = KEYPAD_USE_OPERATION;
-	clearArray();
-	
-	// Populate menu items (1-9 and 0) from menuText array
-	if (soFar == "" || soFar.length() == 0) {
-		// Display main menu items
-		int offset = primeMenu ? 0 : 10; // Submenu uses offset 10
-		for (int i = 1 + offset; i < 10 + offset; i++) {
-			int displayLine = (i < 6 + offset) ? i - offset : i + 1 - offset;
-			oledText[displayLine - 1] = String(i - offset) + ": " + menuText[i][0];
-		}
-		oledText[10] = "0: " + menuText[0 + offset][0];
-	} else {
-		// Submenu - show title and command being entered
-		int cmd = soFar.substring(0,1).toInt();
-		int offset = primeMenu ? 0 : 10;
-		
-		// Special case: Function menu (item 0) should show function list, not generic menu
-		if (soFar.charAt(0) == MENU_ITEM_FUNCTION && soFar.length() == 1) {
-			// Just "0" pressed - show the function list instead of generic menu
-			renderFunctionList("");
-			return;
-		}
-		
-		// Special case: Extras menu (item 9) should show submenu list like main menu
-		if (soFar.charAt(0) == MENU_ITEM_EXTRAS && soFar.length() == 1) {
-			// Just "9" pressed - show extras submenu items without header
-			// Display items 1-9 in lines 0-4 and 6-9, item 0 in line 10
-			for (int i = 1; i < 10; i++) {
-				int displayLine = (i < 6) ? i - 1 : i; // 1-5 -> lines 0-4, 6-9 -> lines 6-9
-				oledText[displayLine] = String(i) + ": " + menuText[i + 10][0];
-			}
-			oledText[10] = "0: " + menuText[10][0];
-			// Set the bottom bar text for extras menu
-			oledText[5] = menuText[9][1]; // Item 9 is Extras
-		} else {
-			// Regular submenu - show header and command being entered
-			oledText[0] = ">> " + menuText[cmd + offset][0] + ":";
-			oledText[6] = soFar.substring(1, soFar.length());
-			
-			// Set the appropriate menu text (instructions) for this submenu
-			oledText[5] = menuText[cmd + offset][1];
-			
-			// For certain menu items, show relevant content (like current locos for drop loco)
-			char currentChar = throttleManager.getCurrentThrottleChar();
-			switch (soFar.charAt(0)) {
-				case MENU_ITEM_DROP_LOCO: {
-					// Show current locos for drop selection
-					if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
-						renderAllLocos(false);
-					}
-					break;
-				}
-				case MENU_ITEM_TOGGLE_DIRECTION: {
-					// Show current loco status
-					if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) <= 0) {
-						oledText[2] = MSG_THROTTLE_NUMBER + String(throttleManager.getCurrentThrottleIndex()+1);
-						oledText[3] = MSG_NO_LOCO_SELECTED;
-					}
-					break;
-				}
-			}
-		}
-	}
-	
-	// Don't override menu text if it was already set above
-	if (soFar == "" || soFar.length() == 0) {
-		// Populate key definition / function hints depending on hashShowsFunctionsInsteadOfKeyDefs
-		if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu); else setMenuTextForOled(menu_menu_hash_is_functions);
-	}
-	// Don't draw top line when called from operating mode - menu should be clean
-	renderArrayInternal(false,false,true,false);
-}
-
 void OledRenderer::renderNewMenu(MenuSystem& menuSys) {
 	menuIsShowing = true;
 	clearArray();
@@ -162,9 +83,8 @@ void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
 	clearArray();
 	renderAllLocos(hideLeadLoco);
 	// Provide a header/menu line for consist editing or loco overview
-	// Use existing add-loco labels as generic placeholders (ALL_LOCOS constants not defined)
-	oledText[0] = MENU_ITEM_TEXT_TITLE_ADD_LOCO;
-	oledText[5] = MENU_ITEM_TEXT_MENU_ADD_LOCO;
+	oledText[0] = "Add Loco";
+	oledText[5] = "addr+# Add  * Cancel  # Roster";
 	renderArrayInternal(false,false,true,false);
 }
 
@@ -174,7 +94,7 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 	if (soFar == "") {
 	clearArray();
 		for (int i=0; i<5 && i<foundSsidsCount; i++) {
-			int globalIndex = (page*5)+i;
+			int globalIndex = (uiState.page*5)+i;
 			if (globalIndex < foundSsidsCount && foundSsids[globalIndex].length()>0) {
 				String ssid = foundSsids[globalIndex];
 				// int rssi = foundSsidRssis[globalIndex]; // not needed here; glyph resolved during draw
@@ -192,7 +112,7 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 		}
 		int totalPages = (foundSsidsCount + 4) / 5; // ceil
 		String baseMenu = menu_text[menu_select_ssids_from_found];
-		String pageIndicator = " p" + String(page+1) + "/" + String(totalPages);
+		String pageIndicator = " p" + String(uiState.page+1) + "/" + String(totalPages);
 		int maxChars = 24; // conservative width for 128px with small font
 		if (baseMenu.length() > (maxChars - pageIndicator.length())) {
 			baseMenu = baseMenu.substring(0, maxChars - pageIndicator.length());
@@ -206,16 +126,16 @@ void OledRenderer::renderRoster(const String &soFar) {
 	lastOledScreen = last_oled_screen_roster;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	keypadUseType = KEYPAD_USE_SELECT_ROSTER;
+	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
-		for (int i=0; i<5 && ((page*5)+i<rosterSize); i++) {
-			int index = rosterSortedIndex[(page*5)+i];
+		for (int i=0; i<5 && ((uiState.page*5)+i<rosterSize); i++) {
+			int index = rosterSortedIndex[(uiState.page*5)+i];
 			if (rosterAddress[index] != 0) {
 				oledText[i] = String(i) + ": " + rosterName[index] + " (" + rosterAddress[index] + ")" ;
 			}
 		}
-		oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_roster];
+		oledText[5] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_roster];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -223,19 +143,18 @@ void OledRenderer::renderRoster(const String &soFar) {
 void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) {
 	lastOledScreen = last_oled_screen_turnout_list;
 	lastOledStringParameter = soFar;
-	lastOledTurnoutParameter = action;
 	menuIsShowing = true;
-	keypadUseType = (action == TurnoutThrow) ? KEYPAD_USE_SELECT_TURNOUTS_THROW : KEYPAD_USE_SELECT_TURNOUTS_CLOSE;
+	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
 		int j = 0;
 		for (int i=0; i<10 && i<turnoutListSize; i++) {
 			j = (i<5) ? i : i+1;
-			if (turnoutListUserName[(page*10)+i].length()>0) {
-				oledText[j] = String(turnoutListIndex[i]) + ": " + turnoutListUserName[(page*10)+i].substring(0,10);
+			if (turnoutListUserName[(uiState.page*10)+i].length()>0) {
+				oledText[j] = String(turnoutListIndex[i]) + ": " + turnoutListUserName[(uiState.page*10)+i].substring(0,10);
 			}
 		}
-		oledText[5] = "(" + String(page+1) +  ") " + menu_text[menu_turnout_list];
+		oledText[5] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_turnout_list];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -244,17 +163,17 @@ void OledRenderer::renderRouteList(const String &soFar) {
 	lastOledScreen = last_oled_screen_route_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	keypadUseType = KEYPAD_USE_SELECT_ROUTES;
+	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
 		int j = 0;
 		for (int i=0; i<10 && i<routeListSize; i++) {
 			j = (i<5) ? i : i+1;
-			if (routeListUserName[(page*10)+i].length()>0) {
-				oledText[j] = String(routeListIndex[i]) + ": " + routeListUserName[(page*10)+i].substring(0,10);
+			if (routeListUserName[(uiState.page*10)+i].length()>0) {
+				oledText[j] = String(routeListIndex[i]) + ": " + routeListUserName[(uiState.page*10)+i].substring(0,10);
 			}
 		}
-		oledText[5] =  "(" + String(page+1) +  ") " + menu_text[menu_route_list];
+		oledText[5] =  "(" + String(uiState.page+1) +  ") " + menu_text[menu_route_list];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -263,8 +182,8 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 	lastOledScreen = last_oled_screen_function_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	keypadUseType = KEYPAD_USE_SELECT_FUNCTION;
-	functionHasBeenSelected = false;
+	// keypadUseType set by handler
+	uiState.functionHasBeenSelected = false;
 	if (soFar == "") {
 		clearArray();
 		char currentChar = throttleManager.getCurrentThrottleChar();
@@ -272,7 +191,7 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 		if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0 ) {
 			int j = 0; int k = 0;
 			for (int i=0; i<10; i++) {
-				k = (functionPage*10) + i;
+				k = (uiState.functionPage*10) + i;
 				if (k < MAX_FUNCTIONS) {
 					j = (i<5) ? i : i+1;
 					oledText[j] = String(i) + ": " + ((k<10) ? functionLabels[currentIdx][k].substring(0,10) : String(k) + "-" + functionLabels[currentIdx][k].substring(0,7));
@@ -281,7 +200,7 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 					}
 				}
 			}
-			oledText[5] = "(" + String(functionPage) +  ") " + menu_text[menu_function_list];
+			oledText[5] = "(" + String(uiState.functionPage) +  ") " + menu_text[menu_function_list];
 		} else {
 			oledText[0] = MSG_NO_FUNCTIONS;
 			oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx+1);
@@ -311,13 +230,13 @@ void OledRenderer::renderFunctions() {
 }
 
 void OledRenderer::renderEditConsist() {
-	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); keypadUseType = KEYPAD_USE_EDIT_CONSIST; renderAllLocos(true); oledText[0] = MENU_ITEM_TEXT_TITLE_EDIT_CONSIST; oledText[5] = MENU_ITEM_TEXT_MENU_EDIT_CONSIST; renderArrayInternal(false,false,true,false);
+	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); /* keypadUseType set by handler */ renderAllLocos(true); oledText[0] = "Edit Consist Facing"; oledText[5] = "no Chng Facing   * Close"; renderArrayInternal(false,false,true,false);
 }
 
 void OledRenderer::renderDropLocoList() {
 	menuIsShowing = true;
 	clearArray();
-	keypadUseType = KEYPAD_USE_SELECT_DROP_LOCO;
+	// keypadUseType set by handler
 	
 	char currentChar = throttleManager.getCurrentThrottleChar();
 	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
@@ -376,7 +295,7 @@ void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, boo
 		// Draw signal bars if sentinel present
 		if (hasWifiGlyph) {
 			// Determine signal strength from page-adjusted RSSI global index
-			int globalIndex = (page * 5) + i;
+			int globalIndex = (uiState.page * 5) + i;
 			int rssi = (globalIndex < foundSsidsCount) ? foundSsidRssis[globalIndex] : -100;
 			int strength; // 0=weak, 1=low, 2=medium, 3=strong
 			if (rssi >= -50) strength = 3;

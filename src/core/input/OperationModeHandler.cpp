@@ -2,9 +2,19 @@
 #include "../OledRenderer.h"
 #include "../ThrottleManager.h"
 #include "../../../actions.h" // for SPEED_STOP_THEN_TOGGLE_DIRECTION / DIRECTION_TOGGLE constants
+#include "../../../static.h"
 
 extern ThrottleManager throttleManager; // provided by sketch
 extern OledRenderer oledRenderer; // global renderer
+
+void OperationModeHandler::onEnter() {
+    // Render speed screen when entering operation mode
+    oledRenderer.renderSpeed();
+}
+
+void OperationModeHandler::onExit() {
+    // Clean up when leaving operation mode (currently no-op)
+}
 
 bool OperationModeHandler::handle(const InputEvent &ev) {
     switch (ev.type) {
