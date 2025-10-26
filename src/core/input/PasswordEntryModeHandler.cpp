@@ -3,7 +3,6 @@
 #include "static.h" // root-level include (platformio include_dir=.)
 
 extern OledRenderer oledRenderer;
-extern int keypadUseType; // transitional (will be removed)
 extern int encoderUseType; // transitional
 
 void PasswordEntryModeHandler::render() {

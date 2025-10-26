@@ -45,6 +45,8 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 #include "src/core/OledRenderer.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
+#include "src/core/input/WifiSelectionHandler.h"
+#include "src/core/input/WiThrottleServerSelectionHandler.h"
 #include "src/core/input/RosterSelectionHandler.h"
 #include "src/core/input/TurnoutSelectionHandler.h"
 #include "src/core/input/RouteSelectionHandler.h"
@@ -63,8 +65,6 @@ OledRenderer oledRenderer(u8g2); // OLED renderer instance (requires U8G2 refere
 MenuSystem menuSystem;           // New table-driven menu system
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
-int keypadUseType = 0;
-int encoderUseType = 0;
 bool menuCommandStarted = false;
 String menuCommand = "";
 TrackPower trackPower = PowerOff; // initial power state
@@ -132,6 +132,8 @@ struct AdditionalButtonDef buttonDefsStatic[MAX_ADDITIONAL_BUTTONS];
 OperationModeHandler operationModeHandler(throttleManager);
 static void onPasswordCommit();
 PasswordEntryModeHandler passwordModeHandler(32, onPasswordCommit); // arbitrary max len
+WifiSelectionHandler wifiSelectionHandler(oledRenderer, wifiSsidManager);
+WiThrottleServerSelectionHandler witServerSelectionHandler(oledRenderer);
 RosterSelectionHandler rosterSelectionHandler(oledRenderer);
 TurnoutSelectionHandler turnoutSelectionHandler(oledRenderer);
 RouteSelectionHandler routeSelectionHandler(oledRenderer);
@@ -343,11 +345,11 @@ unsigned long additionalButtonDebounceDelay = ADDITIONAL_BUTTON_DEBOUNCE_DELAY; 
 // *********************************************************************************
 
 void displayUpdateFromWit(int multiThrottleIndex) {
-  debug_print("displayUpdateFromWit(): keyapdeUseType "); debug_print(keypadUseType); 
+  debug_print("displayUpdateFromWit(): mode: "); debug_print((int)inputManager.getMode()); 
   debug_print(" menuIsShowing "); debug_print(menuIsShowing);
   debug_print(" multiThrottleIndex "); debug_print(multiThrottleIndex);
   debug_println("");
-  if ( (keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) 
+  if ( inputManager.isInOperationMode() && (!menuIsShowing) 
   && (multiThrottleIndex==throttleManager.getCurrentThrottleIndex()) ) {
   oledRenderer.renderSpeed();
   }
@@ -424,7 +426,7 @@ void witServiceLoop() {
 void browseWitService() {
   debug_println("browseWitService()");
 
-  keypadUseType = KEYPAD_USE_SELECT_WITHROTTLE_SERVER;
+  // Legacy mode - not yet migrated to InputManager
 
   double startTime = millis();
   double nowTime = startTime;
@@ -529,6 +531,8 @@ void browseWitService() {
     } else {
       debug_println("WiT Selection required");
       witConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
+      inputManager.setMode(InputMode::WiThrottleServerSelection);
+      witServerSelectionHandler.setSource(WiThrottleServerSource::Discovered);
     }
   }
 }
@@ -541,7 +545,7 @@ void selectWitServer(int selection) {
     selectedWitServerIP = foundWitServersIPs[selection];
     selectedWitServerPort = foundWitServersPorts[selection];
     selectedWitServerName = foundWitServersNames[selection];
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
   }
 }
 
@@ -606,14 +610,15 @@ void connectWitServer() {
   oledRenderer.renderBattery();
     u8g2.sendBuffer();
 
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
 
     doStartupCommands();
   }
 }
 
 void enterWitServer() {
-  keypadUseType = KEYPAD_USE_ENTER_WITHROTTLE_SERVER;
+  inputManager.setMode(InputMode::WiThrottleServerSelection);
+  witServerSelectionHandler.setSource(WiThrottleServerSource::ManualEntry);
   if (witServerIpAndPortChanged) { // don't refresh the screen if nothing nothing has changed
     debug_println("enterWitServer()");
     clearOledArray(); 
@@ -782,9 +787,7 @@ void setup() {
 
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_13,0); //1 = High, 0 = Low
 
-  keypadUseType = KEYPAD_USE_SELECT_SSID;
-  encoderUseType = ENCODER_USE_OPERATION;
-  ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
+  ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST; // Start with configured networks list
 
   initialiseAdditionalButtons();
 
@@ -799,6 +802,8 @@ void setup() {
   // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
   inputManager.setPasswordHandler(&passwordModeHandler);
+  inputManager.setWifiSelectionHandler(&wifiSelectionHandler);
+  inputManager.setWiThrottleServerSelectionHandler(&witServerSelectionHandler);
   inputManager.setRosterSelectionHandler(&rosterSelectionHandler);
   inputManager.setTurnoutSelectionHandler(&turnoutSelectionHandler);
   inputManager.setRouteSelectionHandler(&routeSelectionHandler);
@@ -806,7 +811,7 @@ void setup() {
   inputManager.setDropLocoSelectionHandler(&dropLocoSelectionHandler);
   inputManager.setEditConsistHandler(&editConsistSelectionHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
-  inputManager.forceMode(InputMode::Operation); // ensure active_ bound even if mode already Operation
+  inputManager.forceMode(InputMode::WifiSelection); // Start with WiFi selection at boot
   // Initialize HeartbeatMonitor with defaults
   heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED); // Slim wrapper: enabled + period only
   heartbeatMonitor.setOnPeriodChange([](unsigned long p){
@@ -879,13 +884,15 @@ void doKeyPress(char key, bool pressed) {
     if (processing) return;
     processing = true;
     
-    debug_print("doKeyPress(): key: "); debug_print(key); debug_print(" keypadUseType: ");debug_println(keypadUseType);
+    debug_print("doKeyPress(): key: "); debug_print(key); 
+    debug_print(" pressed: "); debug_print(pressed);
+    debug_print(" mode: "); debug_println((int)inputManager.getMode());
 
   if (pressed)  { //pressed
-    debug_println("doKeyPress(): pressed"); 
+    debug_println("doKeyPress(): PRESSED branch"); 
     
     // Route to menu system if in operation mode
-    if (keypadUseType == KEYPAD_USE_OPERATION) {
+    if (inputManager.isInOperationMode()) {
       if (menuSystem.isActive()) {
         // Menu is already active, route key to menu system
         menuSystem.handleKey(key);
@@ -900,13 +907,7 @@ void doKeyPress(char key, bool pressed) {
     }
     
     // Route list selection modes through InputManager
-    if (keypadUseType == KEYPAD_USE_SELECT_ROSTER ||
-        keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_THROW ||
-        keypadUseType == KEYPAD_USE_SELECT_TURNOUTS_CLOSE ||
-        keypadUseType == KEYPAD_USE_SELECT_ROUTES ||
-        keypadUseType == KEYPAD_USE_SELECT_FUNCTION ||
-        keypadUseType == KEYPAD_USE_SELECT_DROP_LOCO ||
-        keypadUseType == KEYPAD_USE_EDIT_CONSIST) {
+    if (inputManager.isInSelectionMode()) {
       InputEvent ev;
       ev.timestamp = millis();
       if (key >= '0' && key <= '9') {
@@ -923,168 +924,67 @@ void doKeyPress(char key, bool pressed) {
       return;
     }
     
-    switch (keypadUseType) {
-      case KEYPAD_USE_OPERATION:
-        debug_print("doKeyPress(): key operation... "); debug_println(key);
+    // Handle Operation mode (only if not in a selection mode)
+    if (inputManager.getMode() == InputMode::Operation) {
+      debug_print("doKeyPress(): key operation... "); debug_println(key);
 
-        switch (key) {
-          case '#': // show functions or direct commands
-            if (!hashShowsFunctionsInsteadOfKeyDefs) {
-              if (!oledDirectCommandsAreBeingDisplayed) {
-                oledRenderer.renderDirectCommands();
-              } else {
-                oledDirectCommandsAreBeingDisplayed = false;
-                oledRenderer.renderSpeed();
-              }
+      switch (key) {
+        case '#': // show functions or direct commands
+          if (!hashShowsFunctionsInsteadOfKeyDefs) {
+            if (!oledDirectCommandsAreBeingDisplayed) {
+              oledRenderer.renderDirectCommands();
             } else {
-              inputManager.setMode(InputMode::FunctionSelection);
+              oledDirectCommandsAreBeingDisplayed = false;
+              oledRenderer.renderSpeed();
             }
-            break;
-
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9': 
-            doDirectCommand(key, true);
-            break;
-            
-          default:  // A, B, C, D
-            doDirectCommand(key, true);
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_ENTER_WITHROTTLE_SERVER:
-        debug_print("doKeyPress(): key: Enter wit... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            witEntryAddChar(key);
-            break;
-          case '*': // backspace
-            witEntryDeleteChar(key);
-            break;
-          case '#': // end of command
-            if (witServerIpAndPortEntered.length() == 17) {
-              witConnectionState = CONNECTION_STATE_ENTERED;
-            }
-            break;
-          default:  // do nothing 
-            break;
-        }
-
-        break;
-
-      case KEYPAD_USE_ENTER_SSID_PASSWORD: {
-        debug_print("doKeyPress(): key: Enter password... "); debug_println(key);
-        if (pressed) {
-          InputEvent ev; ev.timestamp = millis();
-          if (key == '#') {
-            ev.type = InputEventType::PasswordCommit; ev.ivalue = 0; ev.cvalue = '#';
-          } else if (key == '*') {
-            ev.type = InputEventType::KeypadSpecial; ev.ivalue = 0; ev.cvalue = '*';
-          } else if (key >= '0' && key <= '9') {
-            ev.type = InputEventType::KeypadChar; ev.ivalue = key - '0'; ev.cvalue = key;
           } else {
-            ev.type = InputEventType::KeypadSpecial; ev.ivalue = 0; ev.cvalue = key;
+            inputManager.setMode(InputMode::FunctionSelection);
           }
-          inputManager.dispatch(ev);
-        }
-        break; }
+          break;
 
-      case KEYPAD_USE_SELECT_WITHROTTLE_SERVER:
-        debug_print("doKeyPress(): key: Select wit... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4':
-            selectWitServer(key - '0');
-            break;
-          case '#': // show ip address entry screen
-            witConnectionState = CONNECTION_STATE_ENTRY_REQUIRED;
-            buildWitEntry();
-            enterWitServer();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_SSID:
-        debug_print("doKeyPress(): key ssid... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-          case '5': case '6': case '7': case '8': case '9':
-            wifiSsidManager.selectConfigured(key - '0');
-            break;
-          case '#': // show found SSIds
-            ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
-            keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
-            ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
-            // browseSsids();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      case KEYPAD_USE_SELECT_SSID_FROM_FOUND:
-        debug_print("doKeyPress(): key ssid from found... "); debug_println(key);
-        switch (key){
-          case '0': case '1': case '2': case '3': case '4': 
-            wifiSsidManager.selectFound(key - '0'+(uiState.page*5));
-            break;
-          case '#': // next page
-            if (foundSsidsCount>5) {
-              if ( (uiState.page+1)*5 < foundSsidsCount ) {
-                uiState.page++;
-              } else {
-                uiState.page = 0;
-              }
-              oledRenderer.renderFoundSsids(""); 
-            }
-            break;
-          case '9': // rescan for SSIDs
-            uiState.page = 0; // reset to first page
-            wifiSsidManager.browseSsids();
-            break;
-          default:  // do nothing 
-            break;
-        }
-        break;
-
-      default:  // do nothing 
-        break;
+        case '0': case '1': case '2': case '3': case '4': 
+        case '5': case '6': case '7': case '8': case '9': 
+          doDirectCommand(key, true);
+          break;
+          
+        default:  // A, B, C, D
+          doDirectCommand(key, true);
+          break;
+      }
+      processing = false;
+      return;
     }
 
   } else {  // released
-    debug_println("doKeyPress(): released"); 
+    debug_println("doKeyPress(): RELEASED branch"); 
     
     // Route to menu system if in operation mode and menu is active
-    if (keypadUseType == KEYPAD_USE_OPERATION && menuSystem.isActive()) {
+    if (inputManager.isInOperationMode() && menuSystem.isActive()) {
       // Menu is active, don't process key releases through legacy handlers
       debug_println("doKeyPress(): Menu active, ignoring key release");
       processing = false;
       return;
     }
     
-    switch (keypadUseType) {
-      case KEYPAD_USE_OPERATION:
-        if ((key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D
-          debug_println("doKeyPress(): Operation - Process key release KEYPAD_USE_OPERATION");
-          doDirectCommand(key, false);
-        } else {
-          debug_println("doKeyPress(): Non-Operation - Don't process key release");
-        }
-        break;
-    
-      default:  // do nothing for other modes
-        break;
+    debug_print("doKeyPress(): Checking Operation mode for release... mode=");
+    debug_println((int)inputManager.getMode());
+    if (inputManager.getMode() == InputMode::Operation) {
+      debug_print("doKeyPress(): In Operation mode, key='"); debug_print(key); debug_println("'");
+      if ((key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D
+        debug_println("doKeyPress(): Operation - Process key release");
+        doDirectCommand(key, false);
+      } else {
+        debug_println("doKeyPress(): Non-Operation - Don't process key release");
+      }
     }
   }
-
-  debug_println("doKeyPress(): end");
+  
   processing = false;
 }
 
 void doDirectCommand(char key, bool pressed) {
-  debug_print("doDirectCommand(): key: "); debug_println(key);
+  debug_print("doDirectCommand(): key: "); debug_print(key); 
+  debug_print(" pressed: "); debug_println(pressed);
   int buttonAction = 0 ;
   if (key<=57) {
     buttonAction = buttonActions[(key - '0')];
@@ -1094,6 +994,8 @@ void doDirectCommand(char key, bool pressed) {
   debug_print("doDirectCommand(): Action: "); debug_println(buttonAction);
   if (buttonAction!=FUNCTION_NULL) {
     if ( (buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31) ) {
+      debug_print("doDirectCommand(): Calling doDirectFunction with fn="); 
+      debug_print(buttonAction); debug_print(" pressed="); debug_println(pressed);
   doDirectFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed);
   } else {
       if (pressed) { // only process these on key press
@@ -1118,8 +1020,6 @@ static void onPasswordCommit() {
   // Accept the entered password and return to normal mode
   selectedSsidPassword = ssidPasswordEntered;
   ssidConnectionState = CONNECTION_STATE_SELECTED;
-  keypadUseType = KEYPAD_USE_OPERATION;
-  encoderUseType = ENCODER_USE_OPERATION;
   inputManager.setMode(InputMode::Operation);
   oledRenderer.renderSpeed();
 }
@@ -1135,17 +1035,6 @@ static void onPasswordCommit() {
 void enterSsidPassword() {
   // When WifiSsidManager sets state to PASSWORD_ENTRY, InputManager already drives password UI.
   // This stub avoids unresolved symbol errors during phased refactor.
-}
-
-void resetMenu() {
-  debug_println("resetMenu()");
-  uiState.page = 0;
-  menuCommand = "";
-  menuCommandStarted = false;
-  if ( (keypadUseType != KEYPAD_USE_SELECT_SSID) 
-    && (keypadUseType != KEYPAD_USE_SELECT_WITHROTTLE_SERVER) ) {
-    keypadUseType = KEYPAD_USE_OPERATION; 
-  }
 }
 
 void resetFunctionStates(int multiThrottleIndex) {
@@ -1549,7 +1438,7 @@ void selectRoster(int selection) {
   wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
   resetFunctionStates(throttleManager.getCurrentThrottleIndex());
   oledRenderer.renderSpeed();
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
   }
 }
 
@@ -1561,7 +1450,7 @@ void selectTurnoutList(int selection, TurnoutAction action) {
     debug_print("Turnout Selected: "); debug_println(turnout);
     wiThrottleProtocol.setTurnout(turnout,action);
   oledRenderer.renderSpeed();
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
   }
 }
 
@@ -1573,7 +1462,7 @@ void selectRouteList(int selection) {
     debug_print("Route Selected: "); debug_println(route);
     wiThrottleProtocol.setRoute(route);
   oledRenderer.renderSpeed();
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
   }
 }
 
@@ -1583,10 +1472,10 @@ void selectFunctionList(int selection) {
   if ((selection>=0) && (selection < MAX_FUNCTIONS)) {
   String function = functionLabels[throttleManager.getCurrentThrottleIndex()][selection];
     debug_print("Function Selected: "); debug_println(function);
-  doFunction(throttleManager.getCurrentThrottleIndex(), selection, true,false);
+    // Use force mode to toggle function state
+    doFunction(throttleManager.getCurrentThrottleIndex(), selection, true, true);
     uiState.functionHasBeenSelected = true;    
   oledRenderer.renderSpeed();
-    // keypadUseType = KEYPAD_USE_OPERATION;   // don't reset it now.  Do so on the release.
   }
 }
 
@@ -1597,7 +1486,7 @@ void selectEditConsistList(int selection) {
     String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleManager.getCurrentThrottleChar(), selection);
     toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
   oledRenderer.renderSpeed();
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
     menuCommandStarted = false;
   }
 }

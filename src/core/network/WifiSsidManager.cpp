@@ -6,8 +6,10 @@
 #include "../OledRenderer.h"
 #include "../UIState.h"
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros
+#include "../input/InputManager.h"
 
 // External state still hosted in sketch
+extern InputManager inputManager;
 extern int ssidSelectionSource;
 extern int ssidConnectionState;
 extern bool autoConnectToFirstDefinedServer;
@@ -20,7 +22,6 @@ extern bool foundSsidsOpen[];
 extern int foundSsidsCount;
 // Timeout & sources
 // SSID_CONNECTION_TIMEOUT is a macro constant in static.h
-extern int keypadUseType;
 // Configured arrays
 extern String ssids[];
 extern String passwords[];
@@ -200,7 +201,7 @@ void WifiSsidManager::showConfiguredList() {
         routePrefix = routePrefixes[0];
     } else {
         ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
-    keypadUseType = KEYPAD_USE_SELECT_SSID;
+        // Mode will be set by caller (WiTcontroller.ino setup logic)
     }
 }
 
@@ -220,6 +221,7 @@ void WifiSsidManager::selectFound(int index) {
     if (selectedSsidPasswordStr.length()==0) {
             changeState(State::PasswordEntry);
             ssidConnectionState = CONNECTION_STATE_PASSWORD_ENTRY;
+            inputManager.setMode(InputMode::PasswordEntry);
         } else {
             changeState(State::Selected);
             ssidConnectionState = CONNECTION_STATE_SELECTED;
@@ -253,6 +255,7 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
 void WifiSsidManager::startPasswordEntry() {
     changeState(State::PasswordEntry);
     ssidConnectionState = CONNECTION_STATE_PASSWORD_ENTRY;
+    inputManager.setMode(InputMode::PasswordEntry);
 }
 
 void WifiSsidManager::appendPasswordChar(char c) {
@@ -325,7 +328,7 @@ void WifiSsidManager::connectSelectedInternal() {
         oledRenderer.renderBattery();
         oledRenderer.renderArray(false,false,true,true);
         ssidConnectionState = CONNECTION_STATE_CONNECTED;
-        keypadUseType = KEYPAD_USE_SELECT_WITHROTTLE_SERVER;
+        // Mode will be set by caller (WiTcontroller.ino after connection)
         if (!MDNS.begin(wifiHostname.c_str())) {
             debug_println("Error setting up MDNS responder!");
             oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;

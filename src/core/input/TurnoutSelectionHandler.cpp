@@ -14,13 +14,11 @@ TurnoutSelectionHandler::TurnoutSelectionHandler(OledRenderer &renderer)
 void TurnoutSelectionHandler::onEnter() {
     page_ = 0;
     uiState.page = 0;  // Sync with global state for renderer
-    keypadUseType = (action_ == TurnoutThrow) ? KEYPAD_USE_SELECT_TURNOUTS_THROW : KEYPAD_USE_SELECT_TURNOUTS_CLOSE;
     renderer_.renderTurnoutList("", action_);
 }
 
 void TurnoutSelectionHandler::onExit() {
     page_ = 0;
-    keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
     // Don't render here - let the next mode's onEnter handle rendering
 }

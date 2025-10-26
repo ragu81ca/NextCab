@@ -22,9 +22,6 @@ extern OledRenderer oledRenderer;
 #define maxRouteList 60     // must be a multiple of 10
 
 
-extern int keypadUseType;
-extern int encoderUseType;
-
 extern bool menuCommandStarted;
 extern String menuCommand;
 // UI state (bridging): map legacy names directly to uiState fields via macros (no separate globals)

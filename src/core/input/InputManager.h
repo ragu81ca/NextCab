@@ -7,6 +7,8 @@
 enum class InputMode : uint8_t {
     Operation,
     PasswordEntry,
+    WifiSelection,
+    WiThrottleServerSelection,
     RosterSelection,
     TurnoutSelection,
     RouteSelection,
@@ -21,6 +23,8 @@ public:
 
     void setOperationHandler(IModeHandler *h) { opHandler_ = h; }
     void setPasswordHandler(IModeHandler *h) { pwHandler_ = h; }
+    void setWifiSelectionHandler(IModeHandler *h) { wifiSelectionHandler_ = h; }
+    void setWiThrottleServerSelectionHandler(IModeHandler *h) { witServerSelectionHandler_ = h; }
     void setRosterSelectionHandler(IModeHandler *h) { rosterHandler_ = h; }
     void setTurnoutSelectionHandler(IModeHandler *h) { turnoutHandler_ = h; }
     void setRouteSelectionHandler(IModeHandler *h) { routeHandler_ = h; }
@@ -32,6 +36,19 @@ public:
     void setMode(InputMode mode);
     void forceMode(InputMode mode); // always rebind active handler & call onEnter
     InputMode getMode() const { return mode_; }
+    
+    // Helper methods for common mode checks
+    bool isInOperationMode() const { return mode_ == InputMode::Operation; }
+    bool isInSelectionMode() const { 
+        return mode_ == InputMode::WifiSelection ||
+               mode_ == InputMode::WiThrottleServerSelection ||
+               mode_ == InputMode::RosterSelection ||
+               mode_ == InputMode::TurnoutSelection ||
+               mode_ == InputMode::RouteSelection ||
+               mode_ == InputMode::FunctionSelection ||
+               mode_ == InputMode::DropLocoSelection ||
+               mode_ == InputMode::EditConsist;
+    }
 
     // Dispatch event to active mode; if not consumed can implement fallbacks.
     void dispatch(const InputEvent &ev);
@@ -54,6 +71,8 @@ private:
     InputMode mode_ { InputMode::Operation };
     IModeHandler *opHandler_ { nullptr };
     IModeHandler *pwHandler_ { nullptr };
+    IModeHandler *wifiSelectionHandler_ { nullptr };
+    IModeHandler *witServerSelectionHandler_ { nullptr };
     IModeHandler *rosterHandler_ { nullptr };
     IModeHandler *turnoutHandler_ { nullptr };
     IModeHandler *routeHandler_ { nullptr };
@@ -70,6 +89,8 @@ private:
         switch (m) {
             case InputMode::Operation: return opHandler_;
             case InputMode::PasswordEntry: return pwHandler_;
+            case InputMode::WifiSelection: return wifiSelectionHandler_;
+            case InputMode::WiThrottleServerSelection: return witServerSelectionHandler_;
             case InputMode::RosterSelection: return rosterHandler_;
             case InputMode::TurnoutSelection: return turnoutHandler_;
             case InputMode::RouteSelection: return routeHandler_;

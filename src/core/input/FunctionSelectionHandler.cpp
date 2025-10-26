@@ -14,13 +14,11 @@ FunctionSelectionHandler::FunctionSelectionHandler(OledRenderer &renderer)
 void FunctionSelectionHandler::onEnter() {
     functionPage_ = 0;
     uiState.functionPage = 0;  // Sync with global state for renderer
-    keypadUseType = KEYPAD_USE_SELECT_FUNCTION;
     renderer_.renderFunctionList("");
 }
 
 void FunctionSelectionHandler::onExit() {
     functionPage_ = 0;
-    keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
     // Don't render here - let the next mode's onEnter handle rendering
 }

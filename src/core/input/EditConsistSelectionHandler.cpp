@@ -13,13 +13,11 @@ EditConsistSelectionHandler::EditConsistSelectionHandler(OledRenderer &renderer)
     : renderer_(renderer) {}
 
 void EditConsistSelectionHandler::onEnter() {
-    keypadUseType = KEYPAD_USE_EDIT_CONSIST;
     renderer_.renderEditConsist();
 }
 
 void EditConsistSelectionHandler::onExit() {
     // Clean up state when exiting this mode
-    keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
     // Don't render here - let the next mode's onEnter handle rendering
 }

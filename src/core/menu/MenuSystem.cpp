@@ -3,9 +3,10 @@
 #include "../../../WiTcontroller.h"
 #include "../ThrottleManager.h"
 #include "../OledRenderer.h"
+#include "../input/InputManager.h"
 #include "../../../static.h"
 
-extern int keypadUseType;
+extern InputManager inputManager;
 extern OledRenderer oledRenderer;
 extern ThrottleManager throttleManager;
 
@@ -126,8 +127,8 @@ void MenuSystem::executeCurrentItem() {
         // Exit menu system
         _active = false;
         _stackDepth = 0;
-        // If handler didn't change keypadUseType (e.g., didn't show roster), return to speed
-        if (keypadUseType == KEYPAD_USE_OPERATION) {
+        // If handler didn't change mode (e.g., didn't show roster), return to speed
+        if (inputManager.isInOperationMode()) {
             oledRenderer.renderSpeed();
         }
     }
@@ -148,7 +149,7 @@ void MenuSystem::showMainMenu() {
         }
     }
     
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
     // Ensure old menu state is cleared
     extern bool menuCommandStarted;
     extern String menuCommand;
@@ -166,7 +167,7 @@ void MenuSystem::exitMenu() {
 
 void MenuSystem::exitToSpeed() {
     _active = false;
-    keypadUseType = KEYPAD_USE_OPERATION;
+    inputManager.setMode(InputMode::Operation);
     oledRenderer.renderSpeed();
 }
 

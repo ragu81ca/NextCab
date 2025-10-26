@@ -90,7 +90,6 @@ void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
 
 void OledRenderer::renderFoundSsids(const String &soFar) {
 	menuIsShowing = true;
-	keypadUseType = KEYPAD_USE_SELECT_SSID_FROM_FOUND;
 	if (soFar == "") {
 	clearArray();
 		for (int i=0; i<5 && i<foundSsidsCount; i++) {
@@ -126,7 +125,6 @@ void OledRenderer::renderRoster(const String &soFar) {
 	lastOledScreen = last_oled_screen_roster;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
 		for (int i=0; i<5 && ((uiState.page*5)+i<rosterSize); i++) {
@@ -144,7 +142,6 @@ void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) 
 	lastOledScreen = last_oled_screen_turnout_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
 		int j = 0;
@@ -163,7 +160,6 @@ void OledRenderer::renderRouteList(const String &soFar) {
 	lastOledScreen = last_oled_screen_route_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	// keypadUseType set by handler
 	if (soFar == "") {
 	clearArray();
 		int j = 0;
@@ -182,7 +178,6 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 	lastOledScreen = last_oled_screen_function_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
-	// keypadUseType set by handler
 	uiState.functionHasBeenSelected = false;
 	if (soFar == "") {
 		clearArray();
@@ -212,8 +207,6 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 }
 
 void OledRenderer::renderEnterPassword() {
-	keypadUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
-	encoderUseType = KEYPAD_USE_ENTER_SSID_PASSWORD;
 	clearArray();
 	String temp = ssidPasswordEntered+ssidPasswordCurrentChar;
 	if (temp.length()>12) { temp = "\253"+temp.substring(temp.length()-12); } else { temp = " "+temp; }
@@ -230,13 +223,12 @@ void OledRenderer::renderFunctions() {
 }
 
 void OledRenderer::renderEditConsist() {
-	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); /* keypadUseType set by handler */ renderAllLocos(true); oledText[0] = "Edit Consist Facing"; oledText[5] = "no Chng Facing   * Close"; renderArrayInternal(false,false,true,false);
+	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); renderAllLocos(true); oledText[0] = "Edit Consist Facing"; oledText[5] = "no Chng Facing   * Close"; renderArrayInternal(false,false,true,false);
 }
 
 void OledRenderer::renderDropLocoList() {
 	menuIsShowing = true;
 	clearArray();
-	// keypadUseType set by handler
 	
 	char currentChar = throttleManager.getCurrentThrottleChar();
 	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);

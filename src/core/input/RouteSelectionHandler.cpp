@@ -14,13 +14,11 @@ RouteSelectionHandler::RouteSelectionHandler(OledRenderer &renderer)
 void RouteSelectionHandler::onEnter() {
     page_ = 0;
     uiState.page = 0;  // Sync with global state for renderer
-    keypadUseType = KEYPAD_USE_SELECT_ROUTES;
     renderer_.renderRouteList("");
 }
 
 void RouteSelectionHandler::onExit() {
     page_ = 0;
-    keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
     // Don't render here - let the next mode's onEnter handle rendering
 }

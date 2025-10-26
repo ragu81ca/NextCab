@@ -2,7 +2,10 @@
 //#include removed WiTcontroller.h direct dependency to shrink globals usage
 #include "ThrottleManager.h"
 #include "OledRenderer.h"
+#include "input/InputManager.h"
 #include "../../WiTcontroller.h" // still needed for some macros/functions
+
+extern InputManager inputManager;
 
 ThrottleManager::ThrottleManager() {}
 
@@ -18,7 +21,7 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 
 
 void ThrottleManager::writeSpeedIfVisible(int throttle) {
-	if ((keypadUseType == KEYPAD_USE_OPERATION) && (!menuIsShowing) && (throttle==currentThrottleIndex)) {
+	if (inputManager.isInOperationMode() && (!menuIsShowing) && (throttle==currentThrottleIndex)) {
 		oledRenderer.renderSpeed();
 	}
 }

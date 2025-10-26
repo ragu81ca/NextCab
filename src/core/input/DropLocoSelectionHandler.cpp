@@ -13,13 +13,11 @@ DropLocoSelectionHandler::DropLocoSelectionHandler(OledRenderer &renderer)
     : renderer_(renderer) {}
 
 void DropLocoSelectionHandler::onEnter() {
-    keypadUseType = KEYPAD_USE_SELECT_DROP_LOCO;
     renderer_.renderDropLocoList();
 }
 
 void DropLocoSelectionHandler::onExit() {
     // Clean up state when exiting this mode
-    keypadUseType = KEYPAD_USE_OPERATION;
     menuCommandStarted = false;
     // Don't render here - let the next mode's onEnter handle rendering
 }

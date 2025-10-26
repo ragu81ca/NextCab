@@ -230,22 +230,8 @@ extern const int glyph_speed_step;
 #define SLEEP_REASON_INACTIVITY 1
 #define SLEEP_REASON_BATTERY 2
 
-#define KEYPAD_USE_OPERATION 0
-#define KEYPAD_USE_SELECT_SSID 1
-#define KEYPAD_USE_SELECT_SSID_FROM_FOUND 2
-#define KEYPAD_USE_SELECT_WITHROTTLE_SERVER 3
-#define KEYPAD_USE_ENTER_WITHROTTLE_SERVER 4
-#define KEYPAD_USE_SELECT_ROSTER 5
-#define KEYPAD_USE_SELECT_TURNOUTS_THROW 6
-#define KEYPAD_USE_SELECT_TURNOUTS_CLOSE 7
-#define KEYPAD_USE_SELECT_ROUTES 8
-#define KEYPAD_USE_SELECT_FUNCTION 9
-#define KEYPAD_USE_ENTER_SSID_PASSWORD 10
-#define KEYPAD_USE_EDIT_CONSIST 11
-#define KEYPAD_USE_SELECT_DROP_LOCO 12
-
-#define ENCODER_USE_OPERATION 0
-#define ENCODER_USE_SSID_PASSWORD 1
+// Legacy mode constants - DEPRECATED (migrated to InputManager architecture)
+// Kept for historical reference only - no longer used in code
 
 // used for both wit and ssid
 #define CONNECTION_STATE_DISCONNECTED 0
