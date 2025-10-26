@@ -32,6 +32,10 @@ private:
     void renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine);
     void renderFunctions();
     void renderAllLocos(bool hideLeadLoco); // now private again
+    
+    // Helper functions for unified loco list rendering
+    bool checkNeedSuffixes(char throttleChar, int numLocos);
+    String formatLocoDisplay(const String &loco, bool needSuffixes);
     // (kept declaration moved to public)
 
     U8G2 &display;

@@ -222,8 +222,50 @@ void OledRenderer::renderFunctions() {
 	for (int i=0; i < MAX_FUNCTIONS; i++) if (functionStates[currentIdx][i]) { display.drawRBox(i*4+12,12+1,5,7,2); display.setDrawColor(0); display.setFont(FONT_FUNCTION_INDICATORS); display.drawUTF8( i*4+1+12, 18+1, String( (i<10) ? i : ((i<20) ? i-10 : i-20)).c_str()); display.setDrawColor(1); }
 }
 
+// Helper: Check if we need to show S/L suffixes (only if there are duplicate addresses with different types)
+bool OledRenderer::checkNeedSuffixes(char throttleChar, int numLocos) {
+	if (numLocos <= 1) return false;
+	
+	for (int idx1 = 0; idx1 < numLocos; idx1++) {
+		String loco1 = wiThrottleProtocol.getLocomotiveAtPosition(throttleChar, idx1);
+		if (loco1.length() > 1 && (loco1.charAt(0) == 'S' || loco1.charAt(0) == 'L')) {
+			String addr1 = loco1.substring(1);
+			for (int idx2 = idx1 + 1; idx2 < numLocos; idx2++) {
+				String loco2 = wiThrottleProtocol.getLocomotiveAtPosition(throttleChar, idx2);
+				if (loco2.length() > 1 && (loco2.charAt(0) == 'S' || loco2.charAt(0) == 'L')) {
+					String addr2 = loco2.substring(1);
+					if (addr1.equals(addr2) && loco1.charAt(0) != loco2.charAt(0)) {
+						return true; // Found duplicate addresses with different types
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+// Helper: Format locomotive display string (strip S/L prefix, optionally add suffix)
+String OledRenderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
+	String displayLoco = loco;
+	if (displayLoco.length() > 0 && (displayLoco.charAt(0) == 'S' || displayLoco.charAt(0) == 'L')) {
+		char prefix = displayLoco.charAt(0);
+		displayLoco = displayLoco.substring(1);
+		if (needSuffixes) {
+			displayLoco += " (" + String(prefix) + ")";
+		}
+	}
+	return displayLoco;
+}
+
 void OledRenderer::renderEditConsist() {
-	lastOledScreen = last_oled_screen_edit_consist; menuIsShowing = false; clearArray(); renderAllLocos(true); oledText[0] = "Edit Consist Facing"; oledText[5] = "no Chng Facing   * Close"; renderArrayInternal(false,false,true,false);
+	lastOledScreen = last_oled_screen_edit_consist; 
+	menuIsShowing = false; 
+	clearArray(); 
+	renderAllLocos(false); // Show ALL locos including lead loco (was true, hiding lead)
+	oledText[0] = "Edit Consist Facing"; 
+	oledText[5] = "no Chng Facing   * Close"; 
+	renderArrayInternal(false,false,false,false);
+	u8g2.sendBuffer();
 }
 
 void OledRenderer::renderDropLocoList() {
@@ -233,6 +275,10 @@ void OledRenderer::renderDropLocoList() {
 	char currentChar = throttleManager.getCurrentThrottleChar();
 	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
 	
+	// Check if we need to show S/L suffixes
+	bool needSuffixes = checkNeedSuffixes(currentChar, numLocos);
+	
+	// Render the locos
 	if (numLocos > 0) {
 		// Display locos with 1-based numbering for user-friendliness
 		for (int index = 0; index < numLocos && index < 9; index++) {
@@ -240,7 +286,9 @@ void OledRenderer::renderDropLocoList() {
 			int displayNum = index + 1;  // Convert to 1-based
 			int linePos = (index < 4) ? index : index + 2;  // Skip line 4 (instructions)
 			
-			oledText[linePos + 1] = String(displayNum) + ": " + loco;
+			String displayLoco = formatLocoDisplay(loco, needSuffixes);
+			
+			oledText[linePos + 1] = String(displayNum) + ": " + displayLoco;
 			if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) {
 				oledTextInvert[linePos + 1] = true;
 			}
@@ -258,7 +306,34 @@ void OledRenderer::renderHeartbeatCheck() {
 }
 
 void OledRenderer::renderAllLocos(bool hideLeadLoco) {
-	lastOledScreen = last_oled_screen_all_locos; lastOledBoolParameter = hideLeadLoco; int startAt = (hideLeadLoco) ? 1 : 0; String loco; int j=0; int i=0; char currentChar = throttleManager.getCurrentThrottleChar(); if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) { for (int index=0; ((index < wiThrottleProtocol.getNumberOfLocomotives(currentChar)) && (i < 8)); index++) { j = (i<4) ? i : i+2; loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index); if (i>=startAt) { oledText[j+1] = String(i) + ": " + loco; if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) oledTextInvert[j+1] = true; } i++; } }
+	lastOledScreen = last_oled_screen_all_locos; 
+	lastOledBoolParameter = hideLeadLoco; 
+	int startAt = (hideLeadLoco) ? 1 : 0; 
+	String loco; 
+	int j=0; 
+	int i=0; 
+	char currentChar = throttleManager.getCurrentThrottleChar(); 
+	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
+	
+	// Check if we need to show S/L suffixes
+	bool needSuffixes = checkNeedSuffixes(currentChar, numLocos);
+	
+	// Render the locos
+	if (numLocos > 0) { 
+		for (int index=0; ((index < numLocos) && (i < 8)); index++) { 
+			j = (i<4) ? i : i+2; 
+			loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index); 
+			
+			if (i>=startAt) {
+				String displayLoco = formatLocoDisplay(loco, needSuffixes);
+				
+				oledText[j+1] = String(i) + ": " + displayLoco; 
+				if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) 
+					oledTextInvert[j+1] = true; 
+			} 
+			i++; 
+		} 
+	}
 }
 // Internal unified array renderer
 void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {

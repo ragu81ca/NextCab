@@ -33,11 +33,13 @@ bool EditConsistSelectionHandler::handle(const InputEvent &ev) {
     switch (key) {
         case '0': case '1': case '2': case '3': case '4': 
         case '5': case '6': case '7': case '8': case '9':
-            // Toggle loco facing and return to operation mode
-            if ((key - '0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
-                // Toggle the facing direction
-                if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 1) {
-                    String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleManager.getCurrentThrottleChar(), key - '0');
+            {
+                int selectedIndex = key - '0';
+                int numLocos = wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar());
+                
+                // Check if selection is valid (0-based index must be < numLocos)
+                if (selectedIndex < numLocos && numLocos > 1) {
+                    String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleManager.getCurrentThrottleChar(), selectedIndex);
                     toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
                 }
                 // Return to operation mode - onEnter will render speed

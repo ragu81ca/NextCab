@@ -137,15 +137,8 @@ namespace MenuHandlers {
     }
     
     void handleEditConsist(MenuContext& ctx) {
-        if (ctx.input.length() > 0) {
-            char key = ctx.input.charAt(0);
-            if (((key - '0') > 0) && ((key - '0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()))) {
-                selectEditConsistList(key - '0');
-            }
-        } else {
-            // Show list via InputManager
-            inputManager.setMode(InputMode::EditConsist);
-        }
+        // Show list via InputManager
+        inputManager.setMode(InputMode::EditConsist);
     }
     
     void handleHeartbeatToggle(MenuContext& ctx) {
@@ -223,7 +216,7 @@ namespace MenuDefinitions {
         MenuItem::action(1, "Fn Key Toggle", "N/A",
                         MenuHandlers::handleFunctionKeyToggle),
         
-        MenuItem::input(2, "Edt Consist", "# Select * Cancel",
+        MenuItem::action(2, "Edt Consist", "N/A",
                        MenuHandlers::handleEditConsist),
         
         MenuItem::action(3, "TBA", "N/A",

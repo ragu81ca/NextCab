@@ -78,8 +78,15 @@ void MenuSystem::selectItem(uint8_t index) {
                 ctx.currentThrottleIndex = throttleManager.getCurrentThrottleIndex();
                 ctx.menuSystem = this;
                 item.handler(ctx);
+                
+                // Only exit to speed if handler didn't change the mode
+                // This allows handlers to transition to other modes (e.g., EditConsist, FunctionSelection)
+                if (inputManager.isInOperationMode()) {
+                    exitToSpeed();
+                }
+            } else {
+                exitToSpeed();
             }
-            exitToSpeed();
             break;
             
         case MenuItemType::TEXT_INPUT:
