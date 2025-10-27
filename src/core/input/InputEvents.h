@@ -6,7 +6,10 @@ enum class InputEventType : uint8_t {
     SpeedDelta,           // ivalue = signed delta (clicks)
     SpeedAbsolute,        // ivalue = 0-127 absolute speed
     EncoderClick,         // short press or click
-    EncoderLongPress,     // long press action
+    EncoderDoubleClick,   // double-click (for cycling momentum levels)
+    EncoderHold,          // button held for >500ms (for braking)
+    EncoderHoldRelease,   // button released after hold (stop braking)
+    EncoderLongPress,     // long press action (legacy)
     // Keypad press events
     KeypadChar,           // key press: cvalue = '0'..'9', letters etc.
     KeypadSpecial,        // key press: cvalue = '*', '#', etc.

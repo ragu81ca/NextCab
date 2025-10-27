@@ -17,4 +17,10 @@ private:
     IInputDevice::DispatchFn _dispatch { nullptr };
     long _lastEncoderValue = 0;      // raw hardware position
     unsigned long _lastClickMs = 0;  // debounce timestamp for button
+    unsigned long _buttonPressStartMs = 0; // track when button was pressed
+    unsigned long _lastDoubleClickMs = 0;   // for double-click detection
+    unsigned long _lastButtonEventMs = 0;   // track last button press/release for rotation filtering
+    bool _buttonWasPressed = false;  // track button state
+    bool _longPressTriggered = false; // prevent multiple long-press events
+    bool _waitingForDoubleClick = false; // true when waiting for potential second click
 };

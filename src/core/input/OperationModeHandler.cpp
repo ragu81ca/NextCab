@@ -67,6 +67,39 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // If action not recognized, do nothing so other handlers could consume (none now).
             return false;
         }
+        case InputEventType::EncoderDoubleClick: {
+            // Double-click cycles momentum levels: Off -> Low -> Med -> High -> Off
+            throttleManager.momentum().cycleMomentumLevel();
+            oledRenderer.renderSpeed(); // Update display to show new momentum indicator
+            #if INPUT_DEBUG
+            Serial.println("[OperationModeHandler] EncoderDoubleClick: momentum level cycled");
+            #endif
+            return true;
+        }
+        case InputEventType::EncoderHold: {
+            // Hold activates braking on current locomotive
+            int idx = throttleManager.getCurrentThrottleIndex();
+            if (throttle_.hasLocomotive(idx)) {
+                throttleManager.momentum().setBraking(idx, true);
+                oledRenderer.renderSpeed(); // Update display to show brake indicator
+                #if INPUT_DEBUG
+                Serial.println("[OperationModeHandler] EncoderHold: braking activated");
+                #endif
+            }
+            return true;
+        }
+        case InputEventType::EncoderHoldRelease: {
+            // Release deactivates braking on current locomotive
+            int idx = throttleManager.getCurrentThrottleIndex();
+            if (throttle_.hasLocomotive(idx)) {
+                throttleManager.momentum().setBraking(idx, false);
+                oledRenderer.renderSpeed(); // Update display to hide brake indicator
+                #if INPUT_DEBUG
+                Serial.println("[OperationModeHandler] EncoderHoldRelease: braking deactivated");
+                #endif
+            }
+            return true;
+        }
         case InputEventType::DirectionToggle: {
             int idx = throttleManager.getCurrentThrottleIndex();
             throttle_.toggleDirection(idx);

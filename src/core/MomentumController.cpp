@@ -180,33 +180,35 @@ bool MomentumController::isBraking(int throttle) const {
 }
 
 // Acceleration rates (speed units per second)
-// Doubled ramp times: Low=~4s, Medium=~8s, High=~16s
+// Realistic momentum based on prototype physics:
+// Low = light passenger (12s), Medium = mixed freight (25s), High = heavy freight (50s)
 float MomentumController::getAccelRate() const {
     switch (momentumLevel_) {
-        case MomentumLevel::Low:    return 30.0f;  // ~4 seconds 0-126
-        case MomentumLevel::Medium: return 15.0f;  // ~8 seconds 0-126
-        case MomentumLevel::High:   return 7.5f;   // ~16 seconds 0-126
+        case MomentumLevel::Low:    return 10.5f;  // ~12 seconds 0-126
+        case MomentumLevel::Medium: return 5.0f;   // ~25 seconds 0-126
+        case MomentumLevel::High:   return 2.5f;   // ~50 seconds 0-126
         default:                    return 999.0f; // Instant (off)
     }
 }
 
-// Deceleration rates (speed units per second) - SLOWER than accel for realistic coasting
+// Deceleration rates (speed units per second) - MUCH slower for realistic coasting
+// Trains coast 1.5-2x longer than they accelerate
 float MomentumController::getDecelRate() const {
     switch (momentumLevel_) {
-        case MomentumLevel::Low:    return 15.0f;  // ~8 seconds (2x slower than accel)
-        case MomentumLevel::Medium: return 10.0f;  // ~12 seconds (1.5x slower than accel)
-        case MomentumLevel::High:   return 5.0f;   // ~25 seconds (3x+ slower than accel!)
+        case MomentumLevel::Low:    return 7.0f;   // ~18 seconds (1.5x accel)
+        case MomentumLevel::Medium: return 3.2f;   // ~40 seconds (1.6x accel)
+        case MomentumLevel::High:   return 1.4f;   // ~90 seconds (1.8x accel!)
         default:                    return 999.0f; // Instant (off)
     }
 }
 
-// Brake rates (speed units per second) - for future Stage 4/5 implementation
-// These will be used when user holds down decel button or similar
+// Brake rates (speed units per second) - ACTIVE braking when user holds encoder
+// Much faster than coasting, but still realistic train braking
 float MomentumController::getBrakeRate() const {
     switch (momentumLevel_) {
-        case MomentumLevel::Low:    return 50.0f;  // ~2.5 seconds (faster than normal decel)
-        case MomentumLevel::Medium: return 40.0f;  // ~3.2 seconds
-        case MomentumLevel::High:   return 30.0f;  // ~4.2 seconds
+        case MomentumLevel::Low:    return 25.0f;  // ~5 seconds (emergency stop feel)
+        case MomentumLevel::Medium: return 15.0f;  // ~8 seconds (moderate braking)
+        case MomentumLevel::High:   return 10.0f;  // ~13 seconds (heavy train needs time!)
         default:                    return 999.0f; // Instant (off)
     }
 }

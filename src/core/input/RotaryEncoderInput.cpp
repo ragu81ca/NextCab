@@ -54,42 +54,136 @@ void RotaryEncoderInput::begin() {
 void RotaryEncoderInput::poll() {
     // Poll for rotation
     if (rotaryEncoder.encoderChanged()) {
-        long newValue = rotaryEncoder.readEncoder();
-        long delta = newValue - _lastEncoderValue;
-        _lastEncoderValue = newValue;
-        if (delta != 0) {
-            // Apply user-configured rotation direction: clockwise may be increase or decrease.
-            // Legacy macro ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED is defined globally.
-            // Positive hardware delta corresponds to one physical direction; invert if necessary.
-            #ifdef ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
-            if (!encoderRotationClockwiseIsIncreaseSpeed) {
-                delta = -delta;
+        unsigned long now = millis();
+        const unsigned long buttonBounceFilterMs = 100; // Ignore rotation for 100ms after button events
+        
+        // Filter out mechanical bounce from button press/release
+        if (now - _lastButtonEventMs > buttonBounceFilterMs) {
+            long newValue = rotaryEncoder.readEncoder();
+            long delta = newValue - _lastEncoderValue;
+            _lastEncoderValue = newValue;
+            if (delta != 0) {
+                // Apply user-configured rotation direction: clockwise may be increase or decrease.
+                // Legacy macro ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED is defined globally.
+                // Positive hardware delta corresponds to one physical direction; invert if necessary.
+                #ifdef ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
+                if (!encoderRotationClockwiseIsIncreaseSpeed) {
+                    delta = -delta;
+                }
+                #endif
+                #if WITCONTROLLER_DEBUG == 0
+                Serial.print("[Rotary] raw delta:"); Serial.print(newValue - (_lastEncoderValue - delta)); Serial.print(" applied:"); Serial.println(delta);
+                #endif
+                if (_dispatch) {
+                    InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = now;
+                    _dispatch(gev);
+                }
             }
+        } else {
+            // Update the encoder value to stay in sync, but don't dispatch the event
+            _lastEncoderValue = rotaryEncoder.readEncoder();
+            #if INPUT_DEBUG
+            Serial.println("[Rotary] rotation ignored - too soon after button event (mechanical bounce)");
             #endif
-            #if WITCONTROLLER_DEBUG == 0
-            Serial.print("[Rotary] raw delta:"); Serial.print(newValue - (_lastEncoderValue - delta)); Serial.print(" applied:"); Serial.println(delta);
-            #endif
-            if (_dispatch) {
-                InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = millis();
-                _dispatch(gev);
-            }
         }
     }
 
-    // Button (debounced short press)
-    if (rotaryEncoder.isEncoderButtonClicked()) {
-        unsigned long now = millis();
-        const unsigned long debounceMs = 200; // matches legacy ROTARY_ENCODER_DEBOUNCE_TIME
-        if (now - _lastClickMs >= debounceMs) {
-            _lastClickMs = now;
+    // Button handling: detect double-click, hold, and single click
+    unsigned long now = millis();
+    bool buttonPressed = rotaryEncoder.isEncoderButtonDown();
+    
+    const unsigned long holdThresholdMs = 500; // 500ms hold for braking
+    const unsigned long doubleClickWindowMs = 400;
+    const unsigned long minClickDurationMs = 50; // debounce: ignore very short clicks
+    
+    // Detect button press start (for hold detection)
+    if (buttonPressed && !_buttonWasPressed) {
+        _buttonPressStartMs = now;
+        _buttonWasPressed = true;
+        _longPressTriggered = false;
+        _lastButtonEventMs = now; // Track button event for rotation filtering
+        #if INPUT_DEBUG
+        Serial.println("[Rotary] button pressed");
+        #endif
+    }
+    
+    // Detect long press (hold) - trigger after holdThresholdMs
+    if (buttonPressed && _buttonWasPressed && !_longPressTriggered) {
+        if (now - _buttonPressStartMs >= holdThresholdMs) {
+            _longPressTriggered = true;
+            _waitingForDoubleClick = false; // Cancel any pending single-click
+            _lastDoubleClickMs = 0;
             if (_dispatch) {
-                InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
+                InputEvent gev; gev.type = InputEventType::EncoderHold; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
                 _dispatch(gev);
             }
             #if INPUT_DEBUG
-            Serial.println("[Rotary] button click dispatched");
+            Serial.println("[Rotary] hold detected - braking activated");
             #endif
         }
+    }
+    
+    // Detect button release
+    if (!buttonPressed && _buttonWasPressed) {
+        _buttonWasPressed = false;
+        unsigned long pressDuration = now - _buttonPressStartMs;
+        _lastButtonEventMs = now; // Track button event for rotation filtering
+        
+        #if INPUT_DEBUG
+        Serial.print("[Rotary] button released after "); Serial.print(pressDuration); Serial.println("ms");
+        #endif
+        
+        // Release after long press
+        if (_longPressTriggered) {
+            if (_dispatch) {
+                InputEvent gev; gev.type = InputEventType::EncoderHoldRelease; gev.ivalue = 0; gev.cvalue = 0; gev.timestamp = now;
+                _dispatch(gev);
+            }
+            #if INPUT_DEBUG
+            Serial.println("[Rotary] hold released - braking deactivated");
+            #endif
+        }
+        // Normal click (not a long press) - but must be longer than debounce threshold
+        else if (pressDuration >= minClickDurationMs && pressDuration < holdThresholdMs) {
+            // Check if this is the second click of a double-click
+            if (_waitingForDoubleClick && (now - _lastDoubleClickMs) < doubleClickWindowMs) {
+                // Double-click confirmed!
+                _waitingForDoubleClick = false;
+                _lastDoubleClickMs = 0;
+                if (_dispatch) {
+                    InputEvent gev; gev.type = InputEventType::EncoderDoubleClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
+                    _dispatch(gev);
+                }
+                #if INPUT_DEBUG
+                Serial.println("[Rotary] DOUBLE-CLICK confirmed - cycling momentum");
+                #endif
+            } else {
+                // First click - start waiting for potential second click
+                _waitingForDoubleClick = true;
+                _lastDoubleClickMs = now;
+                #if INPUT_DEBUG
+                Serial.println("[Rotary] first click - waiting for potential double-click");
+                #endif
+            }
+        }
+        #if INPUT_DEBUG
+        else if (pressDuration < minClickDurationMs) {
+            Serial.println("[Rotary] click too short - ignored (debounce)");
+        }
+        #endif
+    }
+    
+    // Delayed single-click dispatch (after double-click window expires without second click)
+    if (_waitingForDoubleClick && (now - _lastDoubleClickMs) >= doubleClickWindowMs) {
+        _waitingForDoubleClick = false;
+        _lastDoubleClickMs = 0;
+        if (_dispatch) {
+            InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
+            _dispatch(gev);
+        }
+        #if INPUT_DEBUG
+        Serial.println("[Rotary] SINGLE-CLICK dispatched (double-click window expired)");
+        #endif
     }
 }
 

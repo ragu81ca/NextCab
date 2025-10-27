@@ -24,6 +24,7 @@ public:
     void renderBattery();
     void renderSpeedStepMultiplier();
     void renderMomentumIndicator();
+    void renderBrakeIndicator();
     void renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer=true, bool drawTopLine=false);
     void clearArray();
     // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
