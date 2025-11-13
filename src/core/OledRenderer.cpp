@@ -481,13 +481,33 @@ void OledRenderer::renderMomentumIndicator() {
 }
 
 void OledRenderer::renderBrakeIndicator() {
-    // Show "B" when braking is active on current throttle
+    // Show "B" when braking, up arrow when accelerating, down arrow when decelerating
     int currentIdx = throttleManager.getCurrentThrottleIndex();
-    if (!throttleManager.momentum().isBraking(currentIdx)) return;
     
-    display.setDrawColor(1);
-    display.setFont(FONT_DEFAULT);
-    display.drawStr(22, 38, "B"); // Position next to momentum indicator
+    // Priority 1: Show "B" if actively braking
+    if (throttleManager.momentum().isBraking(currentIdx)) {
+        display.setDrawColor(1);
+        display.setFont(FONT_DEFAULT);
+        display.drawStr(22, 38, "B");
+        return;
+    }
+    
+    // Priority 2: Show acceleration/deceleration indicators
+    int targetSpeed = throttleManager.momentum().getTargetSpeed(currentIdx);
+    int actualSpeed = throttleManager.momentum().getActualSpeed(currentIdx);
+    
+    // Only show arrows if there's a significant difference (more than 1 speed step)
+    if (targetSpeed > actualSpeed + 1) {
+        // Accelerating - show up arrow glyph
+        display.setDrawColor(1);
+        display.setFont(FONT_GLYPHS);
+        display.drawGlyph(22, 38, glyph_arrow_up);
+    } else if (targetSpeed + 1 < actualSpeed) {
+        // Decelerating - show down arrow glyph
+        display.setDrawColor(1);
+        display.setFont(FONT_GLYPHS);
+        display.drawGlyph(22, 38, glyph_arrow_down);
+    }
 }
 
 void OledRenderer::renderSpeed() {

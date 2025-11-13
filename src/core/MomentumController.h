@@ -1,6 +1,11 @@
 // MomentumController.h - Simulated momentum/inertia for throttle control
 #pragma once
 #include <Arduino.h>
+#include <WiThrottleProtocol.h> // For Direction enum
+
+// Forward declarations
+class ThrottleManager;
+class SoundController;
 
 // Momentum levels (Off, Low, Medium, High)
 enum class MomentumLevel {
@@ -14,8 +19,8 @@ class MomentumController {
 public:
     MomentumController();
     
-    // Initialize with WiThrottle protocol reference
-    void begin();
+    // Initialize with references
+    void begin(ThrottleManager* throttleMgr, SoundController* soundCtrl = nullptr);
     
     // Called from main loop - updates actual speed towards target
     void update();
@@ -45,6 +50,23 @@ public:
     void setBraking(int throttle, bool braking);
     bool isBraking(int throttle) const;
     
+    // Direction change safety: request direction change while train is moving.
+    // If already pending, this toggles it back (cancels the change).
+    // Returns true if direction change was queued (train is moving), false if applied immediately (stopped).
+    bool requestDirectionChange(int throttle, Direction targetDirection);
+    
+    // Check if there's a pending direction change for a throttle
+    bool hasPendingDirectionChange(int throttle) const;
+    
+    // Get the pending target direction (for display feedback)
+    Direction getPendingDirection(int throttle) const;
+    
+    // Get the original direction (direction train is actually still moving)
+    Direction getOriginalDirection(int throttle) const;
+    
+    // Clear pending direction change (called by ThrottleManager after applying)
+    void clearPendingDirectionChange(int throttle);
+    
 private:
     // Calculate rate of change based on momentum level
     float getAccelRate() const;
@@ -64,6 +86,22 @@ private:
 	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126)
 	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth ramping)
 	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag
-	unsigned long lastUpdate_[MOMENTUM_MAX_THROTTLES]; // Last update time    // Timing
+	unsigned long lastUpdate_[MOMENTUM_MAX_THROTTLES]; // Last update time
+	
+	// Direction change safety: prevents direction change while train is moving.
+	// When direction is toggled while train has momentum, we automatically brake to stop.
+	// If direction is toggled again before stopping, it cancels the pending change.
+	bool pendingDirectionChange_[MOMENTUM_MAX_THROTTLES]; // Direction change requested while moving?
+	Direction pendingDirection_[MOMENTUM_MAX_THROTTLES];   // Target direction for pending change
+	Direction originalDirection_[MOMENTUM_MAX_THROTTLES];  // Direction train is actually moving (for cancel)
+	
+	// Event helpers
+	void triggerBrakeSound(int throttle, bool enable);
+	
+	// References to other controllers
+	ThrottleManager* throttleMgr_;
+	SoundController* soundCtrl_;
+	
+    // Timing
     static constexpr unsigned long UPDATE_INTERVAL_MS = 500; // Update every 500ms (2Hz) - reduces network traffic
 };

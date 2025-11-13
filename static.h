@@ -223,6 +223,8 @@ extern const String label_track_power;
 extern const int glyph_heartbeat_off;
 extern const int glyph_track_power;
 extern const int glyph_speed_step;
+extern const int glyph_arrow_up;
+extern const int glyph_arrow_down;
 // const int glyph_direction_forward = 0x0070;
 // const int glyph_direction_reverse = 0x006d;
 

@@ -22,6 +22,8 @@ void HeartbeatMonitor::loop() {
 
 void HeartbeatMonitor::toggleEnabled() { heartbeatCheckEnabled = !heartbeatCheckEnabled; }
 
+void HeartbeatMonitor::setEnabled(bool enabled) { heartbeatCheckEnabled = enabled; }
+
 void HeartbeatMonitor::setOnTimeout(void (*cb)()) { onTimeout = cb; }
 
 void HeartbeatMonitor::setPeriod(unsigned long seconds) {

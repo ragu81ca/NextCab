@@ -17,7 +17,8 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 		currentSpeed[i] = 0;
 		currentDirection[i] = Forward;
 	}
-	momentum_.begin();
+	momentum_.begin(this, &sound_); // Pass both ThrottleManager and SoundController to momentum
+	sound_.begin(this); // Initialize sound controller with reference to ThrottleManager
 }
 
 
@@ -54,23 +55,21 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	currentSpeed[throttle] = newSpeed;
 	momentum_.setTargetSpeed(throttle, newSpeed);
 	
-	// Send actual speed (potentially different if momentum active)
-	int actualSpeed = momentum_.getActualSpeed(throttle);
-	proto->setSpeed(tChar, actualSpeed);
+	// updateMomentum() handles all speed sending with rate limiting
+	// When momentum is "off", it uses instant rates (999.0) for immediate response
 	
-	lastSpeedSentPerThrottle[throttle] = actualSpeed;
-	lastSpeedSentTime = millis();
-	lastSpeedSent = actualSpeed;
-	lastSpeedThrottleIndex = throttle;
 	// Input layer devices now handle their own internal state; no synchronization callback needed.
 	oledRenderer.renderSpeed();
 }
 
 void ThrottleManager::updateMomentum() {
-	if (!momentum_.isActive() || !proto) return;
+	if (!proto) return;
 	
-	// Update momentum calculations
+	// Always update momentum - when "off", it uses instant rates (999.0)
 	momentum_.update();
+	
+	// Update sound controller (handles non-blocking function pulses)
+	sound_.update();
 	
 	// Send updated actual speeds to locos if they've changed
 	for (int throttle = 0; throttle < maxThrottles; throttle++) {
@@ -78,21 +77,52 @@ void ThrottleManager::updateMomentum() {
 		
 		int actualSpeed = momentum_.getActualSpeed(throttle);
 		
-		// Send if this throttle's speed changed since last update
-		if (actualSpeed == lastSpeedSentPerThrottle[throttle]) {
-			continue; // No change for this throttle
+		// Check if train has stopped and there's a pending direction change
+		// This handles the queued direction change after emergency braking to stop.
+		if (actualSpeed == 0 && momentum_.hasPendingDirectionChange(throttle)) {
+			// Get the pending target direction
+			Direction newDir = momentum_.getPendingDirection(throttle);
+			
+			Serial.print("Applying queued direction change for T");
+			Serial.print(throttle);
+			Serial.print(" to ");
+			Serial.println(newDir == Forward ? "Forward" : "Reverse");
+			
+			// Clear the pending flag and ensure brake is released
+			momentum_.clearPendingDirectionChange(throttle);
+			momentum_.setBraking(throttle, false);  // Explicitly release brake
+			
+			// Apply the direction change now that train is stopped
+			changeDirection(throttle, newDir);
+			
+			// Note: changeDirection() already updates the display
 		}
 		
-		// Speed changed - send update
-		proto->setSpeed(getMultiThrottleChar(throttle), actualSpeed);
-		lastSpeedSentPerThrottle[throttle] = actualSpeed;
-		lastSpeedSentTime = millis();
-		lastSpeedSent = actualSpeed; // For backward compatibility
-		lastSpeedThrottleIndex = throttle;
+		// Rate-limited speed sending (prevents command station flooding while ensuring final speed is sent)
+		unsigned long now = millis();
+		bool shouldSend = false;
 		
-		// Update display if this is the visible throttle
-		if (throttle == currentThrottleIndex) {
-			writeSpeedIfVisible(throttle);
+		// Check if speed has changed since last send
+		if (actualSpeed != lastSpeedSentPerThrottle[throttle]) {
+			// Speed changed - apply rate limiting
+			if (now - lastSpeedSetTime[throttle] >= SPEED_SET_RATE_LIMIT_MS) {
+				shouldSend = true;
+			}
+		}
+		
+		if (shouldSend) {
+			// Send speed update to command station
+			proto->setSpeed(getMultiThrottleChar(throttle), actualSpeed);
+			lastSpeedSentPerThrottle[throttle] = actualSpeed;
+			lastSpeedSetTime[throttle] = now; // Update rate limiting timestamp
+			lastSpeedSentTime = millis();
+			lastSpeedSent = actualSpeed; // For backward compatibility
+			lastSpeedThrottleIndex = throttle;
+			
+			// Update display if this is the visible throttle
+			if (throttle == currentThrottleIndex) {
+				writeSpeedIfVisible(throttle);
+			}
 		}
 	}
 }
@@ -142,6 +172,41 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 	char tChar = getMultiThrottleChar(throttle);
 	int locoCount = proto->getNumberOfLocomotives(tChar);
 	if (locoCount <= 0) return;
+	
+	// Safety check: if momentum is active and train is moving, request the direction change.
+	// This will queue it (brake to stop first) or cancel if already pending.
+	// Returns true if the change was queued (train is moving).
+	if (momentum_.isActive() && momentum_.requestDirectionChange(throttle, direction)) {
+		// Direction change was queued - train will brake to stop first
+		// Update the display direction immediately to show target direction
+		currentDirection[throttle] = direction;
+		
+		Serial.print("Direction change queued for T");
+		Serial.print(throttle);
+		Serial.print(" to ");
+		Serial.println(direction == Forward ? "Forward" : "Reverse");
+		oledRenderer.renderSpeed(); // Update display to show new direction + braking indicator
+		return;
+	}
+	
+	// If we get here and there WAS a pending change, it was cancelled
+	// Restore the original direction (direction train is actually still moving)
+	if (momentum_.isActive() && !momentum_.hasPendingDirectionChange(throttle)) {
+		// Check if we just cancelled (by detecting brake was just released)
+		// If train is still moving, restore original direction for display
+		int actualSpeed = momentum_.getActualSpeed(throttle);
+		if (actualSpeed > 0) {
+			currentDirection[throttle] = momentum_.getOriginalDirection(throttle);
+			Serial.print("Direction change cancelled for T");
+			Serial.print(throttle);
+			Serial.print(" - restored to ");
+			Serial.println(currentDirection[throttle] == Forward ? "Forward" : "Reverse");
+			oledRenderer.renderSpeed();
+			return;
+		}
+	}
+	
+	// Safe to change direction immediately (either momentum off, train stopped, or change was cancelled)
 	currentDirection[throttle] = direction;
 	if (locoCount == 1) {
 		proto->setDirection(tChar, direction);
@@ -163,6 +228,33 @@ void ThrottleManager::toggleDirection(int throttle) {
 	if (!proto) return;
 	if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) > 0)
 		changeDirection(throttle, (currentDirection[throttle]==Forward)?Reverse:Forward);
+}
+
+void ThrottleManager::setFunction(int throttle, int funcNum, bool state) {
+	setFunction(throttle, funcNum, state, false); // Default: don't force
+}
+
+void ThrottleManager::setFunction(int throttle, int funcNum, bool state, bool force) {
+	if (!proto) return;
+	char tChar = getMultiThrottleChar(throttle);
+	if (proto->getNumberOfLocomotives(tChar) == 0) return; // No loco on this throttle
+	
+	// Set function on the lead locomotive (first in consist)
+	String leadLoco = proto->getLocomotiveAtPosition(tChar, 0);
+	proto->setFunction(tChar, leadLoco, funcNum, state, force);
+	
+	// Update OLED to reflect function state change
+	oledRenderer.renderSpeed();
+	
+	#ifdef MOMENTUM_DEBUG
+	Serial.print("[ThrottleManager] T");
+	Serial.print(throttle);
+	Serial.print(" F");
+	Serial.print(funcNum);
+	Serial.print(state ? " ON" : " OFF");
+	if (force) Serial.print(" (FORCED)");
+	Serial.println();
+	#endif
 }
 
 void ThrottleManager::nextThrottle() {

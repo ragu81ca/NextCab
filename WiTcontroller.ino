@@ -595,8 +595,12 @@ void connectWitServer() {
     }
 
     witConnectionState = CONNECTION_STATE_CONNECTED;
-    // Heartbeat: we rely on WiThrottleProtocol internal checkHeartbeat() to send '*' periodically.
-    // Client does NOT enforce a timeout; the command station will disconnect us if it stops hearing heartbeats.
+    
+    // Start heartbeat monitoring now that we're connected
+    if (HEARTBEAT_ENABLED) {
+      heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, true);
+      debug_println("Heartbeat monitoring started");
+    }
 
     oledText[3] = MSG_CONNECTED;
     if (!hashShowsFunctionsInsteadOfKeyDefs) {
@@ -634,6 +638,13 @@ void enterWitServer() {
 
 void disconnectWitServer() {
   debug_println("disconnectWitServer()");
+  
+  // Stop heartbeat monitoring
+  if (HEARTBEAT_ENABLED) {
+    heartbeatMonitor.setEnabled(false); // Disable monitoring
+    debug_println("Heartbeat monitoring stopped");
+  }
+  
   for (int i=0; i<throttleManager.getMaxThrottles(); i++) {
     releaseAllLocos(i);
   }
@@ -812,8 +823,17 @@ void setup() {
   inputManager.setEditConsistHandler(&editConsistSelectionHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::WifiSelection); // Start with WiFi selection at boot
-  // Initialize HeartbeatMonitor with defaults
-  heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, HEARTBEAT_ENABLED); // Slim wrapper: enabled + period only
+  
+  // Initialize HeartbeatMonitor but don't start it yet (will start after WiThrottle connection)
+  // Register heartbeat timeout handler
+  heartbeatMonitor.setOnTimeout([](){
+    debug_println("Heartbeat timeout - server not responding, disconnecting");
+    // Disconnect and attempt reconnection
+    witConnectionState = CONNECTION_STATE_DISCONNECTED;
+    wiThrottleProtocol.disconnect();
+  });
+  
+  // Register period change handler
   heartbeatMonitor.setOnPeriodChange([](unsigned long p){
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
@@ -860,7 +880,7 @@ void loop() {
       checkForShutdownOnNoResponse();
     } else {
       wiThrottleProtocol.check();    // parse incoming messages
-  // Slim heartbeat monitor: no activity tracking or timeout logic; library handles periodic sends.
+      heartbeatMonitor.loop();       // check for heartbeat timeout
     }
   }
   // Unified device polling (rotary/pot, keypad, additional buttons)
@@ -1511,13 +1531,19 @@ void receivingServerInfoOled(int index, int maxExpected) {
       lastReceivingServerDetailsTime = millis();
       broadcastMessageTime = millis();
       setMenuTextForOled(menu_menu);
-      refreshOled();
+      // Only refresh if user is in operation mode - prevents race condition with selection/password modes
+      if (inputManager.isInOperationMode()) {
+        refreshOled();
+      }
     } // else do nothing
   } else {
     lastReceivingServerDetailsTime = 0;
     broadcastMessageTime = 0;
     broadcastMessageText = "";
-    refreshOled();
+    // Only refresh if user is in operation mode - prevents race condition with selection/password modes
+    if (inputManager.isInOperationMode()) {
+      refreshOled();
+    }
   }
 }
 

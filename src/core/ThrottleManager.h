@@ -4,6 +4,7 @@
 #include <WiThrottleProtocol.h>
 #include "../../static.h"
 #include "MomentumController.h"
+#include "SoundController.h"
 
 // Define maximum number of throttles (can be overridden at compile time)
 #ifndef WIT_MAX_THROTTLES
@@ -23,6 +24,8 @@ public:
 	void speedEstopCurrent();
 	void changeDirection(int throttle, Direction direction);
 	void toggleDirection(int throttle);
+	void setFunction(int throttle, int funcNum, bool state); // Set function on/off
+	void setFunction(int throttle, int funcNum, bool state, bool force); // Set function with force option
 	void nextThrottle();
 	void selectThrottle(int idx);
 	void changeNumberOfThrottles(bool increase);
@@ -35,6 +38,9 @@ public:
 	// Momentum control
 	MomentumController& momentum() { return momentum_; }
 	void updateMomentum(); // Called from main loop
+
+	// Sound control
+	SoundController& sound() { return sound_; }
 
 	// Newly encapsulated scalar throttle state
 	int getCurrentThrottleIndex() const { return currentThrottleIndex; }
@@ -64,6 +70,9 @@ private:
 	
 	// Momentum controller
 	MomentumController momentum_;
+	
+	// Sound controller
+	SoundController sound_;
 
 	// Moved former globals (defined in WiTcontroller.ino) into this manager
 	int currentThrottleIndex { 0 }; // which multi throttle is active
@@ -75,6 +84,11 @@ private:
 	unsigned long lastSpeedSentTime { 0 }; // debounce speed changes
 	int lastSpeedSent { 0 }; // last speed value sent (for backward compatibility)
 	int lastSpeedThrottleIndex { 0 }; // throttle index last speed belonged to
+	
+	// Rate limiting for when momentum is disabled (prevents command station flooding)
+	unsigned long lastSpeedSetTime[WIT_MAX_THROTTLES] { 0 }; // Per-throttle rate limiting
+	static constexpr unsigned long SPEED_SET_RATE_LIMIT_MS = 100; // Max 10 updates/second when momentum disabled
+	
 	// Per-throttle tracking for momentum system
 	int lastSpeedSentPerThrottle[WIT_MAX_THROTTLES] { 0 }; // Track last sent speed per throttle
 	// Arrays migrated from sketch

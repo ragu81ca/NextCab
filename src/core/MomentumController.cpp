@@ -1,29 +1,37 @@
 // MomentumController.cpp - Implementation of throttle momentum/inertia simulation
 #include "MomentumController.h"
+#include "ThrottleManager.h"
+#include "SoundController.h"
 #include <math.h>
 
 MomentumController::MomentumController() 
-    : momentumLevel_(MomentumLevel::Off) {
+    : momentumLevel_(MomentumLevel::Off), throttleMgr_(nullptr), soundCtrl_(nullptr) {
     for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
         targetSpeed_[i] = 0;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
         lastUpdate_[i] = 0;
+        pendingDirectionChange_[i] = false;
+        pendingDirection_[i] = Forward;
+        originalDirection_[i] = Forward;
     }
 }
 
-void MomentumController::begin() {
-    // Initialize if needed
+void MomentumController::begin(ThrottleManager* throttleMgr, SoundController* soundCtrl) {
+    throttleMgr_ = throttleMgr;
+    soundCtrl_ = soundCtrl;
 }
 
 void MomentumController::update() {
-    if (!isActive()) return; // Skip if momentum is off
-    
+    // Always process momentum updates - when "off", rates are set to 999.0 for instant changes
     unsigned long now = millis();
+    
+    // When momentum is off, use faster update rate for immediate response
+    unsigned long updateInterval = isActive() ? UPDATE_INTERVAL_MS : 50; // 50ms when off, 500ms when active
     
     for (int throttle = 0; throttle < MOMENTUM_MAX_THROTTLES; throttle++) {
         // Check if enough time has passed for this throttle
-        if (now - lastUpdate_[throttle] < UPDATE_INTERVAL_MS) {
+        if (now - lastUpdate_[throttle] < updateInterval) {
             continue;
         }
         
@@ -35,6 +43,26 @@ void MomentumController::update() {
         // Already at target? Nothing to do
         if (abs(actual - target) < 0.5f) {
             actualSpeed_[throttle] = (float)target;
+            
+            // Safety check: if train has stopped and there's a pending direction change, notify ThrottleManager
+            // This allows the queued direction change to be applied now that it's safe.
+            if (target == 0 && actual == 0 && hasPendingDirectionChange(throttle)) {
+                // Release brake since we've reached stop
+                if (braking_[throttle]) {
+                    setBraking(throttle, false);
+                }
+                
+                #ifdef MOMENTUM_DEBUG
+                Serial.print("[Momentum] T");
+                Serial.print(throttle);
+                Serial.println(" Stopped - ready for pending direction change");
+                #endif
+                
+                // ThrottleManager will poll hasPendingDirectionChange() and apply the direction
+                // Note: We don't apply it here because MomentumController shouldn't directly
+                // call ThrottleManager's direction methods (would create circular dependency)
+            }
+            
             continue;
         }
         
@@ -101,6 +129,11 @@ void MomentumController::setTargetSpeed(int throttle, int speed) {
     
     int oldTarget = targetSpeed_[throttle];
     targetSpeed_[throttle] = speed;
+    
+    // Emit sound event when target speed changes (user moves throttle)
+    if (soundCtrl_ && speed != oldTarget) {
+        soundCtrl_->onSpeedChange(throttle, oldTarget, speed);
+    }
     
     // Debug output only if target actually changed
     if (speed != oldTarget && isActive()) {
@@ -171,7 +204,14 @@ void MomentumController::cycleMomentumLevel() {
 
 void MomentumController::setBraking(int throttle, bool braking) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    
+    bool wasbraking = braking_[throttle];
     braking_[throttle] = braking;
+    
+    // Emit brake state change event to sound controller
+    if (braking != wasbraking && soundCtrl_) {
+        soundCtrl_->onBrakeStateChange(throttle, braking);
+    }
 }
 
 bool MomentumController::isBraking(int throttle) const {
@@ -223,4 +263,88 @@ float MomentumController::applyAccelCurve(float delta, float distance) const {
 float MomentumController::applyDecelCurve(float delta, float distance) const {
     // Linear ramping - consistent speed decrease
     return delta;
+}
+
+void MomentumController::triggerBrakeSound(int throttle, bool enable) {
+    // Legacy method - now handled by SoundController via events
+    // Kept for compatibility but functionality moved to setBraking event emission
+}
+
+// ============================================================================
+// Direction Change Safety
+// ============================================================================
+
+// Request a direction change. If train is moving, queues the change and starts braking.
+// If already queued, toggles back (cancels the pending change).
+// Returns true if direction change was queued (train is moving), false if no action needed (stopped).
+bool MomentumController::requestDirectionChange(int throttle, Direction targetDirection) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
+    
+    // If momentum is off, don't queue - let caller handle immediately
+    if (!isActive()) return false;
+    
+    // Check if train is actually moving
+    int actualSpeed = (int)round(actualSpeed_[throttle]);
+    
+    if (actualSpeed > 0) {
+        // Train is moving
+        
+        // If already pending, toggle it back (cancel)
+        if (pendingDirectionChange_[throttle]) {
+            pendingDirectionChange_[throttle] = false;
+            setBraking(throttle, false);  // Release brake since we cancelled
+            
+            #ifdef MOMENTUM_DEBUG
+            Serial.print("[Momentum] T");
+            Serial.print(throttle);
+            Serial.println(" Direction change CANCELLED");
+            #endif
+            
+            return false; // Cancelled, no longer pending
+        }
+        
+        // Not pending yet - queue the direction change and force brake to stop
+        pendingDirectionChange_[throttle] = true;
+        pendingDirection_[throttle] = targetDirection;
+        originalDirection_[throttle] = targetDirection == Forward ? Reverse : Forward; // Opposite of target = current
+        
+        // Force emergency braking to bring train to stop
+        setBraking(throttle, true);
+        setTargetSpeed(throttle, 0);
+        
+        #ifdef MOMENTUM_DEBUG
+        Serial.print("[Momentum] T");
+        Serial.print(throttle);
+        Serial.print(" Direction change queued to ");
+        Serial.print(targetDirection == Forward ? "Forward" : "Reverse");
+        Serial.print(" - braking to stop (speed=");
+        Serial.print(actualSpeed);
+        Serial.println(")");
+        #endif
+        
+        return true; // Direction change queued
+    }
+    
+    // Train is stopped - no need to queue
+    return false; // Caller should apply direction change immediately
+}
+
+bool MomentumController::hasPendingDirectionChange(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
+    return pendingDirectionChange_[throttle];
+}
+
+Direction MomentumController::getPendingDirection(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return Forward;
+    return pendingDirection_[throttle];
+}
+
+Direction MomentumController::getOriginalDirection(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return Forward;
+    return originalDirection_[throttle];
+}
+
+void MomentumController::clearPendingDirectionChange(int throttle) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    pendingDirectionChange_[throttle] = false;
 }

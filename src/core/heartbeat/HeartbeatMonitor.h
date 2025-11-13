@@ -7,6 +7,7 @@ public:
     void noteActivity(unsigned long serverReportedSeconds, bool force = false);
     void loop();
     void toggleEnabled();
+    void setEnabled(bool enabled);  // Explicitly set enabled state
     void setPeriod(unsigned long seconds); // protocol may request heartbeat change
 
     bool enabled() const { return heartbeatCheckEnabled; }

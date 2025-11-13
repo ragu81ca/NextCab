@@ -34,6 +34,8 @@ const String label_track_power = "TRK";
 const int glyph_heartbeat_off = 0x00b7;
 const int glyph_track_power = 0x00eb;
 const int glyph_speed_step = 0x00d6;
+const int glyph_arrow_up = 0x008F;      // Open Iconic arrow-thick-top (up arrow)
+const int glyph_arrow_down = 0x008E;    // Open Iconic arrow-thick-bottom (down arrow)
 
 #ifdef  DISPLAY_SPEED_AS_PERCENT
 const bool speedDisplayAsPercent = DISPLAY_SPEED_AS_PERCENT;
