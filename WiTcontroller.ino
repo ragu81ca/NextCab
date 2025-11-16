@@ -512,7 +512,7 @@ void browseWitService() {
       debug_print("' ("); debug_print(foundWitServersIPs[i]); debug_print(":"); debug_print(foundWitServersPorts[i]); debug_println(")");
       if (i<5) {  // only have room for 5
         String truncatedIp = ".." + foundWitServersIPs[i].toString().substring(foundWitServersIPs[i].toString().lastIndexOf("."));
-        oledText[i] = String(i) + ": " + truncatedIp + ":" + String(foundWitServersPorts[i]) + " " + foundWitServersNames[i];
+        oledText[i] = String(i+1) + ": " + truncatedIp + ":" + String(foundWitServersPorts[i]) + " " + foundWitServersNames[i];
       }
     }
 
@@ -761,11 +761,6 @@ void initialiseAdditionalButtons() {
   additionalButtonsConfigured = true;
 }
 
-void additionalButtonLoop() {
-  // Legacy loop retained for compatibility during transition; now delegated to unified producer.
-  if (additionalButtonsConfigured) { /* now polled via inputManager.pollAllDevices() */ }
-}
-
 // *********************************************************************************
 //  Setup and Loop
 // *********************************************************************************
@@ -873,18 +868,23 @@ void loop() {
   if (ssidConnectionState != CONNECTION_STATE_CONNECTED) {
     wifiSsidManager.loop();
     // Password entry input mode now internalized; ensureInputModeForPassword removed.
-    checkForShutdownOnNoResponse();
+    checkForShutdownOnNoResponse(); // Check for user inactivity during WiFi connection
   } else {  
     if (witConnectionState != CONNECTION_STATE_CONNECTED) {
       witServiceLoop();
-      checkForShutdownOnNoResponse();
+      checkForShutdownOnNoResponse(); // Check for user inactivity during server connection
     } else {
       wiThrottleProtocol.check();    // parse incoming messages
-      heartbeatMonitor.loop();       // check for heartbeat timeout
+      heartbeatMonitor.loop();       // check for heartbeat timeout (different from user inactivity)
     }
   }
   // Unified device polling (rotary/pot, keypad, additional buttons)
   inputManager.pollAllDevices();
+  
+  // Reset inactivity timer on any potential user input during pre-WiFi connection sequence
+  if (!inputManager.isInOperationMode()) {
+    startWaitForSelection = millis();
+  }
   
   // Update momentum (handles smooth speed ramping)
   throttleManager.updateMomentum();
@@ -1053,12 +1053,6 @@ static void onPasswordCommit() {
 
 // Preferences read flag (referenced during disconnect/reconnect)
 // (definition moved earlier near top of file)
-
-// Legacy password entry function referenced by WifiSsidManager (UI now handled via PasswordEntryModeHandler)
-void enterSsidPassword() {
-  // When WifiSsidManager sets state to PASSWORD_ENTRY, InputManager already drives password UI.
-  // This stub avoids unresolved symbol errors during phased refactor.
-}
 
 void resetFunctionStates(int multiThrottleIndex) {
   debug_println("resetFunctionStates()");
@@ -1395,14 +1389,6 @@ void reconnect() {
   disconnectWitServer();
 }
 
-
-void checkForShutdownOnNoResponse() {
-  if (millis()-startWaitForSelection > MAX_HEARTBEAT_PERIOD) {  // default is 4 minutes
-      debug_println("Waited too long for a selection. Shutting down");
-      deepSleepStart();
-  }
-}
-
 String getDots(int howMany) {
   //             123456789_123456789_123456789_123456789_123456789_123456789_
   String dots = "............................................................";
@@ -1416,6 +1402,20 @@ int compareStrings( const void *str1, const void *str2 ) {
     int val = strcmp(rec1, rec2);
 
     return val;
+}
+
+void checkForShutdownOnNoResponse() {
+  // Only check inactivity during pre-WiFi/server connection sequence
+  // Once connected to both WiFi and server, this timeout doesn't apply
+  if (ssidConnectionState == CONNECTION_STATE_CONNECTED && 
+      witConnectionState == CONNECTION_STATE_CONNECTED) {
+    return; // In operating mode - inactivity timeout doesn't apply
+  }
+  
+  if (millis() - startWaitForSelection > PRE_WIFI_INACTIVITY_TIMEOUT) {
+    debug_println("Pre-WiFi inactivity timeout. Going to sleep");
+    deepSleepStart(SLEEP_REASON_INACTIVITY);
+  }
 }
 
 void doStartupCommands() {

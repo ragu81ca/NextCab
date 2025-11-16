@@ -33,7 +33,6 @@ extern String routePrefixes[];   // declared in config_network.h normally
 extern void setAppnameForOled();
 extern void clearOledArray();
 extern void buildWitEntry();
-extern void enterSsidPassword();
 // Use renderer instance directly instead of indirect extern wrappers
 extern OledRenderer oledRenderer;
 extern void setMenuTextForOled(int);
@@ -98,9 +97,7 @@ void WifiSsidManager::loop() {
             browseSsids();
         }
     }
-    if (ssidConnectionState == CONNECTION_STATE_PASSWORD_ENTRY) {
-        enterSsidPassword(); // still external UI/password logic
-    }
+    // Password entry UI is automatically handled by InputManager when mode is set to PasswordEntry
     if (ssidConnectionState == CONNECTION_STATE_SELECTED) {
         connectSelectedInternal();
     }
@@ -184,8 +181,8 @@ void WifiSsidManager::showConfiguredList() {
     for (int i=0;i<maxSsids;i++) {
     debug_print(i+1); debug_print(": "); debug_println(ssids[i]);
         int j=i; if (i>=5) j=i+1; // gap for menu line
-        if (i<=10) {
-            oledText[j] = String(i) + ": ";
+        if (i<=8) {  // Only display up to 9 networks (keys 1-9)
+            oledText[j] = String(i+1) + ": ";
             if (ssids[i].length()<9) oledText[j] += ssids[i]; else oledText[j] += ssids[i].substring(0,9) + "..";
         }
     }

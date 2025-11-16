@@ -825,6 +825,15 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 #endif
 
 // ***************************************************
+// Pre-WiFi Inactivity Timeout
+
+// Timeout for WiFi/password/server selection screens (2 minutes)
+// Device sleeps if no user input during connection sequence
+#ifndef PRE_WIFI_INACTIVITY_TIMEOUT
+   #define PRE_WIFI_INACTIVITY_TIMEOUT 120000
+#endif
+
+// ***************************************************
 // Heartbeat 
 
 // max period 

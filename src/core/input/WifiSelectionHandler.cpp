@@ -45,11 +45,11 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
     char key = ev.cvalue;
     
     if (source_ == WifiSelectionSource::Configured) {
-        // Selecting from configured networks
+        // Selecting from configured networks (1-based for users, convert to 0-based indices)
         switch (key) {
-            case '0': case '1': case '2': case '3': case '4': 
-            case '5': case '6': case '7': case '8': case '9':
-                wifiManager_.selectConfigured(key - '0');
+            case '1': case '2': case '3': case '4': case '5': 
+            case '6': case '7': case '8': case '9':
+                wifiManager_.selectConfigured(key - '1');
                 // Manager will transition to password entry or WiThrottle selection
                 return true;
                 
@@ -65,10 +65,10 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
                 return false;
         }
     } else {
-        // Selecting from scanned networks
+        // Selecting from scanned networks (1-based for users, convert to 0-based indices)
         switch (key) {
-            case '0': case '1': case '2': case '3': case '4':
-                wifiManager_.selectFound((key - '0') + (page_ * 5));
+            case '1': case '2': case '3': case '4': case '5':
+                wifiManager_.selectFound((key - '1') + (page_ * 5));
                 // Manager will transition to password entry or WiThrottle selection
                 return true;
                 

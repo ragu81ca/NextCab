@@ -36,10 +36,10 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
     char key = ev.cvalue;
     
     if (source_ == WiThrottleServerSource::Discovered) {
-        // Selecting from discovered servers
+        // Selecting from discovered servers (1-based for users, convert to 0-based indices)
         switch (key) {
-            case '0': case '1': case '2': case '3': case '4':
-                selectWitServer(key - '0');
+            case '1': case '2': case '3': case '4': case '5':
+                selectWitServer(key - '1');
                 // selectWitServer will connect and transition to Operation mode
                 return true;
                 

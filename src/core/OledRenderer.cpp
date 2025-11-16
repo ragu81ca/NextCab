@@ -100,7 +100,7 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 				// Truncate SSID to keep line width stable
 				if (ssid.length()>13) ssid = ssid.substring(0,13);
 				// Store SSID line; glyph will be drawn inline later (we reserve last char position)
-				oledText[i] = String(i) + ": " + ssid + " ";
+				oledText[i] = String(i+1) + ": " + ssid + " ";
 				// Append placeholder marker we can detect when rendering to draw glyph instead of text character
 				// Using '\x01' sentinel (non-printable) to signal glyph draw.
 				oledText[i] += '\x01';
