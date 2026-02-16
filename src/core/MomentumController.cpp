@@ -5,8 +5,9 @@
 #include <math.h>
 
 MomentumController::MomentumController() 
-    : momentumLevel_(MomentumLevel::Off), throttleMgr_(nullptr), soundCtrl_(nullptr) {
+    : throttleMgr_(nullptr), soundCtrl_(nullptr) {
     for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
+        momentumLevel_[i] = MomentumLevel::Off;
         targetSpeed_[i] = 0;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
@@ -27,7 +28,7 @@ void MomentumController::update() {
     unsigned long now = millis();
     
     // When momentum is off, use faster update rate for immediate response
-    unsigned long updateInterval = isActive() ? UPDATE_INTERVAL_MS : 50; // 50ms when off, 500ms when active
+    unsigned long updateInterval = isAnyActive() ? UPDATE_INTERVAL_MS : 50; // 50ms when off, 500ms when active
     
     for (int throttle = 0; throttle < MOMENTUM_MAX_THROTTLES; throttle++) {
         // Check if enough time has passed for this throttle
@@ -81,14 +82,14 @@ void MomentumController::update() {
         float distance = abs(target - actual);
         bool accelerating = (target > actual);
         
-        // Get base rate based on momentum level and direction
+        // Get base rate based on momentum level and direction (per-throttle)
         float baseRate;
         if (braking_[throttle] && !accelerating) {
-            baseRate = getBrakeRate(); // Faster decel when braking
+            baseRate = getBrakeRate(throttle); // Faster decel when braking
         } else if (accelerating) {
-            baseRate = getAccelRate();
+            baseRate = getAccelRate(throttle);
         } else {
-            baseRate = getDecelRate();
+            baseRate = getDecelRate(throttle);
         }
         
         // Calculate delta for this update
@@ -113,7 +114,7 @@ void MomentumController::update() {
         if ((int)round(newSpeed) != (int)round(actual)) {
             const char* levelNames[] = {"Off", "Low", "Med", "High"};
             Serial.print("Momentum[");
-            Serial.print(levelNames[(int)momentumLevel_]);
+            Serial.print(levelNames[(int)momentumLevel_[throttle]]);
             Serial.print("] T");
             Serial.print(throttle);
             Serial.print(": ");
@@ -147,7 +148,7 @@ void MomentumController::setTargetSpeed(int throttle, int speed) {
     }
     
     // Debug output only if target actually changed
-    if (speed != oldTarget && isActive()) {
+    if (speed != oldTarget && isActive(throttle)) {
         Serial.print("Target speed set T");
         Serial.print(throttle);
         Serial.print(": ");
@@ -159,8 +160,8 @@ void MomentumController::setTargetSpeed(int throttle, int speed) {
         Serial.println(")");
     }
     
-    // If momentum is off, snap actual to target immediately
-    if (!isActive()) {
+    // If momentum is off for this throttle, snap actual to target immediately
+    if (!isActive(throttle)) {
         actualSpeed_[throttle] = (float)speed;
     }
 }
@@ -187,30 +188,58 @@ void MomentumController::emergencyStopAll() {
     }
 }
 
-void MomentumController::setMomentumLevel(MomentumLevel level) {
-    MomentumLevel oldLevel = momentumLevel_;
-    momentumLevel_ = level;
+void MomentumController::setMomentumLevel(int throttle, MomentumLevel level) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    
+    MomentumLevel oldLevel = momentumLevel_[throttle];
+    momentumLevel_[throttle] = level;
     
     // Debug output
     const char* levelNames[] = {"Off", "Low", "Med", "High"};
-    Serial.print("Momentum level changed: ");
+    Serial.print("Momentum level T");
+    Serial.print(throttle);
+    Serial.print(" changed: ");
     Serial.print(levelNames[(int)oldLevel]);
     Serial.print(" -> ");
     Serial.println(levelNames[(int)level]);
     
-    // If turning off, snap all actual speeds to targets
+    // If turning off, snap this throttle's actual speed to target
     if (level == MomentumLevel::Off && oldLevel != MomentumLevel::Off) {
-        for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
-            actualSpeed_[i] = (float)targetSpeed_[i];
-        }
-        Serial.println("Momentum disabled - all speeds snapped to target");
+        actualSpeed_[throttle] = (float)targetSpeed_[throttle];
+        Serial.print("Momentum disabled T");
+        Serial.print(throttle);
+        Serial.println(" - speed snapped to target");
     }
 }
 
-void MomentumController::cycleMomentumLevel() {
-    int current = (int)momentumLevel_;
+void MomentumController::setMomentumLevelAll(MomentumLevel level) {
+    for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
+        setMomentumLevel(i, level);
+    }
+}
+
+MomentumLevel MomentumController::getMomentumLevel(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return MomentumLevel::Off;
+    return momentumLevel_[throttle];
+}
+
+bool MomentumController::isActive(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
+    return momentumLevel_[throttle] != MomentumLevel::Off;
+}
+
+bool MomentumController::isAnyActive() const {
+    for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
+        if (momentumLevel_[i] != MomentumLevel::Off) return true;
+    }
+    return false;
+}
+
+void MomentumController::cycleMomentumLevel(int throttle) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    int current = (int)momentumLevel_[throttle];
     current = (current + 1) % 4; // 0->1->2->3->0
-    setMomentumLevel((MomentumLevel)current);
+    setMomentumLevel(throttle, (MomentumLevel)current);
 }
 
 void MomentumController::setBraking(int throttle, bool braking) {
@@ -233,8 +262,9 @@ bool MomentumController::isBraking(int throttle) const {
 // Acceleration rates (speed units per second)
 // Realistic momentum based on prototype physics:
 // Low = light passenger (12s), Medium = mixed freight (25s), High = heavy freight (50s)
-float MomentumController::getAccelRate() const {
-    switch (momentumLevel_) {
+float MomentumController::getAccelRate(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
+    switch (momentumLevel_[throttle]) {
         case MomentumLevel::Low:    return 10.5f;  // ~12 seconds 0-126
         case MomentumLevel::Medium: return 5.0f;   // ~25 seconds 0-126
         case MomentumLevel::High:   return 2.5f;   // ~50 seconds 0-126
@@ -244,8 +274,9 @@ float MomentumController::getAccelRate() const {
 
 // Deceleration rates (speed units per second) - MUCH slower for realistic coasting
 // Trains coast 1.5-2x longer than they accelerate
-float MomentumController::getDecelRate() const {
-    switch (momentumLevel_) {
+float MomentumController::getDecelRate(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
+    switch (momentumLevel_[throttle]) {
         case MomentumLevel::Low:    return 7.0f;   // ~18 seconds (1.5x accel)
         case MomentumLevel::Medium: return 3.2f;   // ~40 seconds (1.6x accel)
         case MomentumLevel::High:   return 1.4f;   // ~90 seconds (1.8x accel!)
@@ -255,8 +286,9 @@ float MomentumController::getDecelRate() const {
 
 // Brake rates (speed units per second) - ACTIVE braking when user holds encoder
 // Much faster than coasting, but still realistic train braking
-float MomentumController::getBrakeRate() const {
-    switch (momentumLevel_) {
+float MomentumController::getBrakeRate(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
+    switch (momentumLevel_[throttle]) {
         case MomentumLevel::Low:    return 25.0f;  // ~5 seconds (emergency stop feel)
         case MomentumLevel::Medium: return 15.0f;  // ~8 seconds (moderate braking)
         case MomentumLevel::High:   return 10.0f;  // ~13 seconds (heavy train needs time!)
@@ -291,8 +323,8 @@ void MomentumController::triggerBrakeSound(int throttle, bool enable) {
 bool MomentumController::requestDirectionChange(int throttle, Direction targetDirection) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
     
-    // If momentum is off, don't queue - let caller handle immediately
-    if (!isActive()) return false;
+    // If momentum is off for this throttle, don't queue - let caller handle immediately
+    if (!isActive(throttle)) return false;
     
     // Check if train is actually moving
     int actualSpeed = (int)round(actualSpeed_[throttle]);

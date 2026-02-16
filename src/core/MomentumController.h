@@ -38,13 +38,16 @@ public:
     void emergencyStop(int throttle);
     void emergencyStopAll();
     
-    // Momentum level control
-    void setMomentumLevel(MomentumLevel level);
-    MomentumLevel getMomentumLevel() const { return momentumLevel_; }
-    void cycleMomentumLevel(); // Off -> Low -> Medium -> High -> Off
+    // Momentum level control (per-throttle)
+    void setMomentumLevel(int throttle, MomentumLevel level);
+    void setMomentumLevelAll(MomentumLevel level); // convenience: set all throttles
+    MomentumLevel getMomentumLevel(int throttle) const;
+    void cycleMomentumLevel(int throttle); // Off -> Low -> Medium -> High -> Off
     
-    // Check if momentum is currently active
-    bool isActive() const { return momentumLevel_ != MomentumLevel::Off; }
+    // Check if momentum is active for a specific throttle
+    bool isActive(int throttle) const;
+    // Check if ANY throttle has momentum active (for global decisions like update interval)
+    bool isAnyActive() const;
     
     // Brake control (for future stage 5)
     void setBraking(int throttle, bool braking);
@@ -68,10 +71,10 @@ public:
     void clearPendingDirectionChange(int throttle);
     
 private:
-    // Calculate rate of change based on momentum level
-    float getAccelRate() const;
-    float getDecelRate() const;
-    float getBrakeRate() const;
+    // Calculate rate of change based on momentum level for a specific throttle
+    float getAccelRate(int throttle) const;
+    float getDecelRate(int throttle) const;
+    float getBrakeRate(int throttle) const;
     
 	// Logarithmic curve for natural feel
 	float applyAccelCurve(float delta, float distance) const;
@@ -80,7 +83,8 @@ private:
 	// Use WIT_MAX_THROTTLES to avoid conflict with MAX_THROTTLES macro
 	static constexpr int MOMENTUM_MAX_THROTTLES = 6;
 	
-	MomentumLevel momentumLevel_;
+	// Per-throttle momentum level
+	MomentumLevel momentumLevel_[MOMENTUM_MAX_THROTTLES];
 	
 	// Per-throttle state
 	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126)

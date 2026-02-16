@@ -42,8 +42,8 @@ void WiThrottleDelegate::receivedSpeedMultiThrottle(char multiThrottle, int spee
     noteServerActivity();
     int idx = getMultiThrottleIndex(multiThrottle);
     
-    // When momentum is active, ignore server speed echoes - we manage speed locally
-    if (throttleManager.momentum().isActive()) {
+    // When momentum is active for this throttle, ignore server speed echoes - we manage speed locally
+    if (throttleManager.momentum().isActive(idx)) {
         return;
     }
     

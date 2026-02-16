@@ -68,8 +68,9 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             return false;
         }
         case InputEventType::EncoderDoubleClick: {
-            // Double-click cycles momentum levels: Off -> Low -> Med -> High -> Off
-            throttleManager.momentum().cycleMomentumLevel();
+            // Double-click cycles momentum levels for the CURRENT throttle: Off -> Low -> Med -> High -> Off
+            int idx = throttleManager.getCurrentThrottleIndex();
+            throttleManager.momentum().cycleMomentumLevel(idx);
             oledRenderer.renderSpeed(); // Update display to show new momentum indicator
             #if INPUT_DEBUG
             Serial.println("[OperationModeHandler] EncoderDoubleClick: momentum level cycled");

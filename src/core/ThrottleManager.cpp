@@ -176,7 +176,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 	// Safety check: if momentum is active and train is moving, request the direction change.
 	// This will queue it (brake to stop first) or cancel if already pending.
 	// Returns true if the change was queued (train is moving).
-	if (momentum_.isActive() && momentum_.requestDirectionChange(throttle, direction)) {
+	if (momentum_.isActive(throttle) && momentum_.requestDirectionChange(throttle, direction)) {
 		// Direction change was queued - train will brake to stop first
 		// Update the display direction immediately to show target direction
 		currentDirection[throttle] = direction;
@@ -191,7 +191,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 	
 	// If we get here and there WAS a pending change, it was cancelled
 	// Restore the original direction (direction train is actually still moving)
-	if (momentum_.isActive() && !momentum_.hasPendingDirectionChange(throttle)) {
+	if (momentum_.isActive(throttle) && !momentum_.hasPendingDirectionChange(throttle)) {
 		// Check if we just cancelled (by detecting brake was just released)
 		// If train is still moving, restore original direction for display
 		int actualSpeed = momentum_.getActualSpeed(throttle);

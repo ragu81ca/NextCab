@@ -149,7 +149,8 @@ namespace MenuHandlers {
     }
     
     void handleMomentumToggle(MenuContext& ctx) {
-        throttleManager.momentum().cycleMomentumLevel();
+        int idx = throttleManager.getCurrentThrottleIndex();
+        throttleManager.momentum().cycleMomentumLevel(idx);
         // Visual feedback will come from adding display indicator later (Stage 2)
     }
     

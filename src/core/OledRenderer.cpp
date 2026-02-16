@@ -464,11 +464,14 @@ void OledRenderer::renderBattery() {
 void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(FONT_GLYPHS); display.drawGlyph(1,38,glyph_speed_step); display.setFont(FONT_DEFAULT); display.drawStr(9,37,String(throttleManager.getSpeedStep()).c_str()); } }
 
 void OledRenderer::renderMomentumIndicator() {
-    // Only show when momentum is active (not Off)
-    if (!throttleManager.momentum().isActive()) return;
+    // Show momentum indicator for the currently-selected throttle
+    int currentIdx = throttleManager.getCurrentThrottleIndex();
+    
+    // Only show when momentum is active (not Off) for this throttle
+    if (!throttleManager.momentum().isActive(currentIdx)) return;
     
     const char* levelChar = "";
-    switch (throttleManager.momentum().getMomentumLevel()) {
+    switch (throttleManager.momentum().getMomentumLevel(currentIdx)) {
         case MomentumLevel::Low:    levelChar = "L"; break;
         case MomentumLevel::Medium: levelChar = "M"; break;
         case MomentumLevel::High:   levelChar = "H"; break;
