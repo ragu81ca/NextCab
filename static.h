@@ -232,17 +232,14 @@ extern const int glyph_arrow_down;
 #define SLEEP_REASON_INACTIVITY 1
 #define SLEEP_REASON_BATTERY 2
 
-// Legacy mode constants - DEPRECATED (migrated to InputManager architecture)
-// Kept for historical reference only - no longer used in code
-
-// used for both wit and ssid
-#define CONNECTION_STATE_DISCONNECTED 0
-#define CONNECTION_STATE_CONNECTED 1
-#define CONNECTION_STATE_SELECTION_REQUIRED 2
-#define CONNECTION_STATE_ENTRY_REQUIRED 3
-#define CONNECTION_STATE_SELECTED 4
-#define CONNECTION_STATE_PASSWORD_ENTRY 5
-#define CONNECTION_STATE_ENTERED 6
+// *******************************************************************************************************************
+// System State Management
+//
+// Legacy CONNECTION_STATE_* defines have been REPLACED by SystemState enum (see src/core/SystemState.h)
+// The unified SystemState enum provides clear application state tracking:
+//   Boot → WiFi states → WifiConnected → Server states → Operating
+// Eliminates redundant ssidConnectionState and witConnectionState variables
+// *******************************************************************************************************************
 
 #define SSID_CONNECTION_SOURCE_LIST 0
 #define SSID_CONNECTION_SOURCE_BROWSE 1

@@ -47,9 +47,6 @@ public:
     void browseSsids(); // Trigger SSID scan and display results
     void showConfiguredList(); // Display configured network list
 
-    // Legacy compatibility helpers
-    int rawConnectionStateMacro() const; // map enum to CONNECTION_STATE_* macro ints
-
 private:
     void connectSelectedInternal();
     void getSsidPasswordAndMetadataForFound();

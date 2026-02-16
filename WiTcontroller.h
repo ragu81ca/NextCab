@@ -38,7 +38,6 @@ extern bool circleValues;
 
 extern String selectedSsid;
 extern String selectedSsidPassword;
-extern int ssidConnectionState;
 
 extern String ssidPasswordEntered;
 extern bool ssidPasswordChanged;

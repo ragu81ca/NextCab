@@ -35,6 +35,7 @@
 BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 // Core managers & devices
 #include "src/core/input/InputManager.h"
+#include "src/core/SystemState.h"
 #include "src/core/input/KeypadInput.h"
 #include "src/core/input/RotaryEncoderInput.h"
 #include "src/core/input/PotThrottleInput.h"
@@ -146,7 +147,6 @@ SystemActionHandler systemActionHandler(throttleManager);
 // bool ssidConnected = false;
 String selectedSsid = "";
 String selectedSsidPassword = "";
-int ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
 
 // ssid password entry
 String ssidPasswordEntered = "";
@@ -157,8 +157,10 @@ IPAddress selectedWitServerIP;
 int selectedWitServerPort = 0;
 String selectedWitServerName ="";
 int noOfWitServices = 0;
-int witConnectionState = CONNECTION_STATE_DISCONNECTED;
 String serverType = "";
+
+// Unified system state manager (replaces ssidConnectionState and witConnectionState)
+SystemStateManager systemStateManager(inputManager);
 
 //found wiThrottle servers
 IPAddress foundWitServersIPs[maxFoundWitServers];
@@ -407,18 +409,21 @@ static void computeIdentityFromMac() {
 // *********************************************************************************
 
 void witServiceLoop() {
-  if (witConnectionState == CONNECTION_STATE_DISCONNECTED) {
+  SystemState state = systemStateManager.getState();
+  
+  if (state == SystemState::WifiConnected || state == SystemState::ServerScanning) {
     browseWitService(); 
   }
 
-  if (witConnectionState == CONNECTION_STATE_ENTRY_REQUIRED) {
+  if (state == SystemState::ServerManualEntry) {
     enterWitServer();
   }
 
-  if ( (witConnectionState == CONNECTION_STATE_SELECTED) 
-  || (witConnectionState == CONNECTION_STATE_ENTERED) ) {
+  if (state == SystemState::ServerConnecting) {
     connectWitServer();
   }
+  
+  // ServerSelection state just waits for user input via WiThrottleServerSelectionHandler
 }
 
 // (Removed misplaced global-level identity initialization; now performed inside setup())
@@ -500,7 +505,7 @@ void browseWitService() {
     debug_println(oledText[1]);
     delay(1000);
     buildWitEntry();
-    witConnectionState = CONNECTION_STATE_ENTRY_REQUIRED;
+    systemStateManager.setState(SystemState::ServerManualEntry);
   
   } else {
     debug_print(noOfWitServices);  debug_println(MSG_SERVICES_FOUND);
@@ -527,11 +532,10 @@ void browseWitService() {
       selectedWitServerIP = foundWitServersIPs[0];
       selectedWitServerPort = foundWitServersPorts[0];
       selectedWitServerName = foundWitServersNames[0];
-      witConnectionState = CONNECTION_STATE_SELECTED;
+      systemStateManager.setState(SystemState::ServerConnecting);
     } else {
       debug_println("WiT Selection required");
-      witConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
-      inputManager.setMode(InputMode::WiThrottleServerSelection);
+      systemStateManager.setState(SystemState::ServerSelection);
       witServerSelectionHandler.setSource(WiThrottleServerSource::Discovered);
     }
   }
@@ -541,11 +545,10 @@ void selectWitServer(int selection) {
   debug_print("selectWitServer() "); debug_println(selection);
 
   if ((selection>=0) && (selection < foundWitServersCount)) {
-    witConnectionState = CONNECTION_STATE_SELECTED;
+    systemStateManager.setState(SystemState::ServerConnecting);
     selectedWitServerIP = foundWitServersIPs[selection];
     selectedWitServerPort = foundWitServersPorts[selection];
     selectedWitServerName = foundWitServersNames[selection];
-    inputManager.setMode(InputMode::Operation);
   }
 }
 
@@ -573,8 +576,7 @@ void connectWitServer() {
   oledRenderer.renderArray(false, false, true, true);
     delay(5000);
     
-    witConnectionState = CONNECTION_STATE_DISCONNECTED;
-    ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
+    systemStateManager.setState(SystemState::WifiConnected); // Go back to WiFi connected, will rescan
     ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
     witServerIpAndPortChanged = true;
 
@@ -594,11 +596,12 @@ void connectWitServer() {
       wiThrottleProtocol.requireHeartbeat(true);
     }
 
-    witConnectionState = CONNECTION_STATE_CONNECTED;
+    systemStateManager.setState(SystemState::Operating);
     
     // Start heartbeat monitoring now that we're connected
+    // Use MAX period initially to give server time to send its preferred period
     if (HEARTBEAT_ENABLED) {
-      heartbeatMonitor.begin(DEFAULT_HEARTBEAT_PERIOD, true);
+      heartbeatMonitor.begin(MAX_HEARTBEAT_PERIOD / 1000, true); // Start with 240 seconds
       debug_println("Heartbeat monitoring started");
     }
 
@@ -613,8 +616,6 @@ void connectWitServer() {
   oledRenderer.renderArray(false, false, true, true);
   oledRenderer.renderBattery();
     u8g2.sendBuffer();
-
-    inputManager.setMode(InputMode::Operation);
 
     doStartupCommands();
   }
@@ -652,7 +653,7 @@ void disconnectWitServer() {
   debug_println("Disconnected from wiThrottle server\n");
   clearOledArray(); oledText[0] = MSG_DISCONNECTED;
   oledRenderer.renderArray(false, false, true, true);
-  witConnectionState = CONNECTION_STATE_DISCONNECTED;
+  systemStateManager.setState(SystemState::WifiConnected);
   witServerIpAndPortChanged = true;
 }
 
@@ -824,7 +825,7 @@ void setup() {
   heartbeatMonitor.setOnTimeout([](){
     debug_println("Heartbeat timeout - server not responding, disconnecting");
     // Disconnect and attempt reconnection
-    witConnectionState = CONNECTION_STATE_DISCONNECTED;
+    systemStateManager.setState(SystemState::WifiConnected);
     wiThrottleProtocol.disconnect();
   });
   
@@ -865,24 +866,42 @@ void setup() {
 
 void loop() {
   
-  if (ssidConnectionState != CONNECTION_STATE_CONNECTED) {
-    wifiSsidManager.loop();
-    // Password entry input mode now internalized; ensureInputModeForPassword removed.
-    checkForShutdownOnNoResponse(); // Check for user inactivity during WiFi connection
-  } else {  
-    if (witConnectionState != CONNECTION_STATE_CONNECTED) {
+  // State machine: execute appropriate logic based on current system state
+  SystemState currentState = systemStateManager.getState();
+  
+  switch (currentState) {
+    case SystemState::Boot:
+    case SystemState::WifiScanning:
+    case SystemState::WifiSelection:
+    case SystemState::WifiPasswordEntry:
+    case SystemState::WifiConnecting:
+      // WiFi connection sequence
+      wifiSsidManager.loop();
+      checkForShutdownOnNoResponse(); // Check for user inactivity
+      break;
+      
+    case SystemState::WifiConnected:
+    case SystemState::ServerScanning:
+    case SystemState::ServerSelection:
+    case SystemState::ServerManualEntry:
+    case SystemState::ServerConnecting:
+      // WiThrottle server connection sequence
       witServiceLoop();
-      checkForShutdownOnNoResponse(); // Check for user inactivity during server connection
-    } else {
+      checkForShutdownOnNoResponse(); // Check for user inactivity
+      break;
+      
+    case SystemState::Operating:
+      // Normal operation - controlling locos
       wiThrottleProtocol.check();    // parse incoming messages
       heartbeatMonitor.loop();       // check for heartbeat timeout (different from user inactivity)
-    }
+      break;
   }
+  
   // Unified device polling (rotary/pot, keypad, additional buttons)
   inputManager.pollAllDevices();
   
-  // Reset inactivity timer on any potential user input during pre-WiFi connection sequence
-  if (!inputManager.isInOperationMode()) {
+  // Reset inactivity timer on any potential user input during pre-connection sequence
+  if (systemStateManager.isInPreConnectionSequence()) {
     startWaitForSelection = millis();
   }
   
@@ -1042,8 +1061,7 @@ void doDirectAction(int buttonAction) {
 static void onPasswordCommit() {
   // Accept the entered password and return to normal mode
   selectedSsidPassword = ssidPasswordEntered;
-  ssidConnectionState = CONNECTION_STATE_SELECTED;
-  inputManager.setMode(InputMode::Operation);
+  systemStateManager.setState(SystemState::WifiConnecting);
   oledRenderer.renderSpeed();
 }
 
@@ -1405,15 +1423,14 @@ int compareStrings( const void *str1, const void *str2 ) {
 }
 
 void checkForShutdownOnNoResponse() {
-  // Only check inactivity during pre-WiFi/server connection sequence
-  // Once connected to both WiFi and server, this timeout doesn't apply
-  if (ssidConnectionState == CONNECTION_STATE_CONNECTED && 
-      witConnectionState == CONNECTION_STATE_CONNECTED) {
+  // Only check inactivity during pre-connection sequence
+  // Once operating, this timeout doesn't apply
+  if (systemStateManager.isOperating()) {
     return; // In operating mode - inactivity timeout doesn't apply
   }
   
   if (millis() - startWaitForSelection > PRE_WIFI_INACTIVITY_TIMEOUT) {
-    debug_println("Pre-WiFi inactivity timeout. Going to sleep");
+    debug_println("Pre-connection inactivity timeout. Going to sleep");
     deepSleepStart(SLEEP_REASON_INACTIVITY);
   }
 }

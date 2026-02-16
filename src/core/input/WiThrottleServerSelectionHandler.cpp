@@ -3,8 +3,10 @@
 #include "../OledRenderer.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
+#include "../SystemState.h"
 
 extern InputManager inputManager;
+extern SystemStateManager systemStateManager;
 extern String witServerIpAndPortEntered;
 extern bool witServerIpAndPortChanged;
 
@@ -44,7 +46,7 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
                 return true;
                 
             case '#':  // Switch to manual entry
-                witConnectionState = CONNECTION_STATE_ENTRY_REQUIRED;
+                systemStateManager.setState(SystemState::ServerManualEntry);
                 buildWitEntry();
                 enterWitServer();
                 setSource(WiThrottleServerSource::ManualEntry);
@@ -80,7 +82,7 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
                 
             case '#':  // Commit
                 if (witServerIpAndPortEntered.length() == 17) {
-                    witConnectionState = CONNECTION_STATE_ENTERED;
+                    systemStateManager.setState(SystemState::ServerConnecting);
                     // Connection will be attempted in loop()
                 }
                 return true;

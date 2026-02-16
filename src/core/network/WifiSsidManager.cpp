@@ -7,11 +7,12 @@
 #include "../UIState.h"
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros
 #include "../input/InputManager.h"
+#include "../SystemState.h"
 
 // External state still hosted in sketch
 extern InputManager inputManager;
+extern SystemStateManager systemStateManager;
 extern int ssidSelectionSource;
-extern int ssidConnectionState;
 extern bool autoConnectToFirstDefinedServer;
 extern String turnoutPrefix;
 extern String routePrefix;
@@ -65,19 +66,6 @@ void WifiSsidManager::changeState(State s) {
     }
 }
 
-int WifiSsidManager::rawConnectionStateMacro() const {
-    switch(currentState) {
-        case State::Disconnected: return CONNECTION_STATE_DISCONNECTED;
-        case State::Scanning: return CONNECTION_STATE_DISCONNECTED; // no direct parallel
-        case State::SelectionRequired: return CONNECTION_STATE_SELECTION_REQUIRED;
-        case State::PasswordEntry: return CONNECTION_STATE_PASSWORD_ENTRY;
-        case State::Selected: return CONNECTION_STATE_SELECTED;
-        case State::Connecting: return CONNECTION_STATE_SELECTED; // legacy merging
-        case State::Connected: return CONNECTION_STATE_CONNECTED;
-    }
-    return CONNECTION_STATE_DISCONNECTED;
-}
-
 WifiSsidManager::FoundSsid WifiSsidManager::getFound(int i) const {
     FoundSsid fs{"",0,false};
     if (i>=0 && i<foundSsidsCount) {
@@ -90,7 +78,7 @@ WifiSsidManager::FoundSsid WifiSsidManager::getFound(int i) const {
 
 void WifiSsidManager::loop() {
     // Replicates legacy ssidsLoop decision tree.
-    if (ssidConnectionState == CONNECTION_STATE_DISCONNECTED) {
+    if (!systemStateManager.isConnectedToWifi()) {
         if (ssidSelectionSource == SSID_CONNECTION_SOURCE_LIST) {
             showConfiguredList();
         } else {
@@ -98,7 +86,7 @@ void WifiSsidManager::loop() {
         }
     }
     // Password entry UI is automatically handled by InputManager when mode is set to PasswordEntry
-    if (ssidConnectionState == CONNECTION_STATE_SELECTED) {
+    if (systemStateManager.getState() == SystemState::WifiConnecting) {
         connectSelectedInternal();
     }
 }
@@ -145,11 +133,11 @@ void WifiSsidManager::browseSsids() {
         // Use unified rendering path: delegate to OledRenderer::renderFoundSsids
         uiState.page = 0; // reset to first page
         oledRenderer.renderFoundSsids("");
-        ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
+        systemStateManager.setState(SystemState::WifiSelection);
         if ((foundSsidsCount>0) && (autoConnectToFirstDefinedServer)) {
             for (int i=0;i<foundSsidsCount;i++) {
                 if (foundSsids[i] == ssids[0]) {
-                    ssidConnectionState = CONNECTION_STATE_SELECTED;
+                    systemStateManager.setState(SystemState::WifiConnecting);
                     selectedSsidStr = foundSsids[i];
                     getSsidPasswordAndMetadataForFound();
                 }
@@ -193,12 +181,12 @@ void WifiSsidManager::showConfiguredList() {
     if (maxSsids == 1) {
     selectedSsidStr = ssids[0];
     selectedSsidPasswordStr = passwords[0];
-        ssidConnectionState = CONNECTION_STATE_SELECTED;
+        systemStateManager.setState(SystemState::WifiConnecting);
         turnoutPrefix = turnoutPrefixes[0];
         routePrefix = routePrefixes[0];
     } else {
-        ssidConnectionState = CONNECTION_STATE_SELECTION_REQUIRED;
-        // Mode will be set by caller (WiTcontroller.ino setup logic)
+        systemStateManager.setState(SystemState::WifiSelection);
+        // Mode will be set by systemStateManager
     }
 }
 
@@ -207,7 +195,7 @@ void WifiSsidManager::selectConfigured(int index) {
     selectedSsidStr = ssids[index];
     selectedSsidPasswordStr = passwords[index];
         changeState(State::Selected);
-        ssidConnectionState = CONNECTION_STATE_SELECTED;
+        systemStateManager.setState(SystemState::WifiConnecting);
     }
 }
 
@@ -217,11 +205,10 @@ void WifiSsidManager::selectFound(int index) {
         getSsidPasswordAndMetadataForFound();
     if (selectedSsidPasswordStr.length()==0) {
             changeState(State::PasswordEntry);
-            ssidConnectionState = CONNECTION_STATE_PASSWORD_ENTRY;
-            inputManager.setMode(InputMode::PasswordEntry);
+            systemStateManager.setState(SystemState::WifiPasswordEntry);
         } else {
             changeState(State::Selected);
-            ssidConnectionState = CONNECTION_STATE_SELECTED;
+            systemStateManager.setState(SystemState::WifiConnecting);
         }
     }
 }
@@ -251,8 +238,7 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
 
 void WifiSsidManager::startPasswordEntry() {
     changeState(State::PasswordEntry);
-    ssidConnectionState = CONNECTION_STATE_PASSWORD_ENTRY;
-    inputManager.setMode(InputMode::PasswordEntry);
+    systemStateManager.setState(SystemState::WifiPasswordEntry);
 }
 
 void WifiSsidManager::appendPasswordChar(char c) {
@@ -324,15 +310,15 @@ void WifiSsidManager::connectSelectedInternal() {
         oledText[3] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
         oledRenderer.renderBattery();
         oledRenderer.renderArray(false,false,true,true);
-        ssidConnectionState = CONNECTION_STATE_CONNECTED;
-        // Mode will be set by caller (WiTcontroller.ino after connection)
+        systemStateManager.setState(SystemState::WifiConnected);
+        // Mode will be set by systemStateManager
         if (!MDNS.begin(wifiHostname.c_str())) {
             debug_println("Error setting up MDNS responder!");
             oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
             oledRenderer.renderBattery();
             oledRenderer.renderArray(false,false,true,true);
             delay(2000);
-            ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
+            systemStateManager.setState(SystemState::Boot);
         } else {
             debug_print("MDNS responder started: "); debug_println(wifiHostname);
         }
@@ -343,7 +329,7 @@ void WifiSsidManager::connectSelectedInternal() {
         oledRenderer.renderArray(false,false,true,true);
         delay(2000);
         WiFi.disconnect();
-        ssidConnectionState = CONNECTION_STATE_DISCONNECTED;
+        systemStateManager.setState(SystemState::Boot);
         ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
     }
 }

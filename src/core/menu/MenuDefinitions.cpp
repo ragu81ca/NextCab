@@ -8,6 +8,7 @@
 #include "../heartbeat/HeartbeatMonitor.h"
 #include "../input/InputManager.h"
 #include "../input/TurnoutSelectionHandler.h"
+#include "../SystemState.h"
 
 // External dependencies
 extern WiThrottleProtocol wiThrottleProtocol;
@@ -36,7 +37,7 @@ extern void toggleDropBeforeAquire();
 extern String getLocoWithLength(String loco);
 extern void doFunction(int, int, bool, bool);
 extern void selectEditConsistList(int);
-extern int witConnectionState;
+extern SystemStateManager systemStateManager;
 extern bool preferencesRead;
 
 // ==================== Menu Handlers ====================
@@ -161,8 +162,8 @@ namespace MenuHandlers {
     }
     
     void handleDisconnect(MenuContext& ctx) {
-        if (witConnectionState == 2) { // CONNECTION_STATE_CONNECTED
-            witConnectionState = 0; // CONNECTION_STATE_DISCONNECTED
+        if (systemStateManager.isOperating()) {
+            systemStateManager.setState(SystemState::WifiConnected);
             preferencesRead = false;
             disconnectWitServer();
         }
