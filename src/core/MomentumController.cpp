@@ -40,6 +40,17 @@ void MomentumController::update() {
         int target = targetSpeed_[throttle];
         float actual = actualSpeed_[throttle];
         
+        // Sound leads movement: If sound controller is still notching for this throttle,
+        // delay the actual speed change so engine sound transitions complete first.
+        // This creates the realistic effect of the diesel engine revving up before the train moves,
+        // or revving down before the train slows.
+        if (soundCtrl_ && soundCtrl_->isNotching(throttle)) {
+            // Sound is still transitioning - don't change actual speed yet
+            // Debug: uncomment to trace waiting
+            // Serial.print(\"[Momentum] T\"); Serial.print(throttle); Serial.println(\" waiting for sound notching...\");
+            continue;
+        }
+        
         // Already at target? Nothing to do
         if (abs(actual - target) < 0.5f) {
             actualSpeed_[throttle] = (float)target;

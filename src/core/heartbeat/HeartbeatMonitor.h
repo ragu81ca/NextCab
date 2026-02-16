@@ -17,10 +17,14 @@ public:
     // Callback hooks (set by sketch)
     void setOnTimeout(void (*cb)());
     void setOnPeriodChange(void (*cb)(unsigned long));
+    // Configurable timeout multiplier (timeout = period * multiplier)
+    static constexpr unsigned long TIMEOUT_MULTIPLIER = 6; // Increased from 4 for better tolerance
+    
 private:
     unsigned long heartbeatPeriod { 10 }; // seconds
     unsigned long lastServerResponseTime { 0 }; // seconds since boot
     bool heartbeatCheckEnabled { true };
+    bool timeoutInProgress { false }; // Guard against multiple timeout firings
 
     void (*onTimeout)() { nullptr };   // invoked when timeout triggers
     void (*onPeriodChange)(unsigned long) { nullptr }; // invoked when period changes

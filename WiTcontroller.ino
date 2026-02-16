@@ -599,10 +599,13 @@ void connectWitServer() {
     systemStateManager.setState(SystemState::Operating);
     
     // Start heartbeat monitoring now that we're connected
-    // Use MAX period initially to give server time to send its preferred period
+    // Use MAX period initially (240s) to give server time to send its preferred period
+    // The server's heartbeat config message will update this to the correct value (usually 10s)
+    // If the server doesn't send a period, DEFAULT_HEARTBEAT_PERIOD will be used as fallback
     if (HEARTBEAT_ENABLED) {
-      heartbeatMonitor.begin(MAX_HEARTBEAT_PERIOD / 1000, true); // Start with 240 seconds
-      debug_println("Heartbeat monitoring started");
+      heartbeatMonitor.begin(MAX_HEARTBEAT_PERIOD / 1000, true);
+      debug_printf("Heartbeat monitoring started with initial timeout %lus (waiting for server config)\n", 
+                   (MAX_HEARTBEAT_PERIOD / 1000) * HeartbeatMonitor::TIMEOUT_MULTIPLIER);
     }
 
     oledText[3] = MSG_CONNECTED;
@@ -823,10 +826,28 @@ void setup() {
   // Initialize HeartbeatMonitor but don't start it yet (will start after WiThrottle connection)
   // Register heartbeat timeout handler
   heartbeatMonitor.setOnTimeout([](){
-    debug_println("Heartbeat timeout - server not responding, disconnecting");
-    // Disconnect and attempt reconnection
-    systemStateManager.setState(SystemState::WifiConnected);
+    debug_println("Heartbeat timeout - server not responding");
+    
+    // Check if TCP connection is actually dead vs just no heartbeat response
+    if (!client.connected()) {
+      debug_println("TCP connection lost - genuine disconnect");
+    } else {
+      debug_println("TCP still connected - possible server issue or network latency");
+    }
+    
+    // Show disconnection message to user
+    clearOledArray();
+    oledText[0] = appName;
+    oledText[2] = MSG_DISCONNECTED;
+    oledText[3] = "Server timeout";
+    oledRenderer.renderArray(false, false, true, true);
+    
+    // Clean disconnect - don't try to release locos as connection may be dead
     wiThrottleProtocol.disconnect();
+    systemStateManager.setState(SystemState::WifiConnected);
+    witServerIpAndPortChanged = true;
+    
+    debug_println("Returning to server selection");
   });
   
   // Register period change handler
@@ -892,6 +913,22 @@ void loop() {
       
     case SystemState::Operating:
       // Normal operation - controlling locos
+      
+      // Check TCP connection health - detect WiFi/connection drops early
+      if (!client.connected()) {
+        debug_println("TCP connection lost during operation");
+        heartbeatMonitor.setEnabled(false); // Disable heartbeat immediately
+        clearOledArray();
+        oledText[0] = appName;
+        oledText[2] = MSG_DISCONNECTED;
+        oledText[3] = "Connection lost";
+        oledRenderer.renderArray(false, false, true, true);
+        wiThrottleProtocol.disconnect();
+        systemStateManager.setState(SystemState::WifiConnected);
+        witServerIpAndPortChanged = true;
+        break;
+      }
+      
       wiThrottleProtocol.check();    // parse incoming messages
       heartbeatMonitor.loop();       // check for heartbeat timeout (different from user inactivity)
       break;

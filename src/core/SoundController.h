@@ -21,8 +21,15 @@ struct SoundConfig {
     uint8_t throttleUpFunction = 6;      // F6 - diesel notch up sound
     uint8_t throttleDownFunction = 7;    // F7 - diesel notch down sound
     uint8_t brakeFunction = 9;           // F9 - brake sound
-    unsigned long pulseduration = 300;   // ms for momentary pulses (notch sounds)
-    unsigned long cooldownPeriod = 700;  // ms between function commands
+    
+    // Pulse timing: ON duration for momentary function press
+    // 150ms is enough for most sound decoders to register the trigger
+    unsigned long pulseduration = 150;
+    
+    // Cooldown: minimum time between triggering same function again
+    // This prevents re-triggering while a pulse is conceptually "active"
+    // Should be >= pulseduration + DCC round-trip margin (~100ms)
+    unsigned long cooldownPeriod = 100;
     
     // Note: We always bypass roster latching settings for sound simulation
     // Sound functions must be precisely timed ON/OFF regardless of roster config
@@ -51,6 +58,13 @@ public:
     void setEnabled(bool enabled) { config_.enabled = enabled; }
     bool isEnabled() const { return config_.enabled; }
     
+    // Check if sound is currently transitioning notches for a throttle
+    // Used by MomentumController to delay actual speed changes until sound leads
+    bool isNotching(int throttle) const;
+    
+    // Check if any throttle is notching
+    bool isAnyNotching() const;
+    
 private:
     static constexpr int SOUND_MAX_THROTTLES = 6;
     
@@ -67,7 +81,12 @@ private:
     int currentNotch_[SOUND_MAX_THROTTLES];
     int targetNotch_[SOUND_MAX_THROTTLES];
     unsigned long lastNotchTime_[SOUND_MAX_THROTTLES];
-    static constexpr unsigned long NOTCH_TRANSITION_MS = 1000;
+    
+    // Time between notch transitions (ms)
+    // Formula: pulseDuration + OFF-to-ON gap for decoder to register
+    // 150ms pulse + 250ms gap = 400ms total - safe for WiFi latency + DCC processing
+    // Going from idle to notch 8 takes 7 transitions × 400ms = 2.8 seconds
+    static constexpr unsigned long NOTCH_TRANSITION_MS = 400;
     
     // Reference to throttle manager for function calls
     ThrottleManager* throttleMgr_;

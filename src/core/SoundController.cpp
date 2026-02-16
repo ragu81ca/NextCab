@@ -214,3 +214,26 @@ void SoundController::updateNotchSounds(int throttle, unsigned long now) {
         Serial.println(")");
     }
 }
+
+// ============================================================================
+// Notching State Query (used by MomentumController for "sound leads movement")
+// ============================================================================
+
+bool SoundController::isNotching(int throttle) const {
+    if (!config_.enabled) return false;
+    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return false;
+    
+    // We're notching if current notch differs from target
+    return currentNotch_[throttle] != targetNotch_[throttle];
+}
+
+bool SoundController::isAnyNotching() const {
+    if (!config_.enabled) return false;
+    
+    for (int i = 0; i < SOUND_MAX_THROTTLES; i++) {
+        if (currentNotch_[i] != targetNotch_[i]) {
+            return true;
+        }
+    }
+    return false;
+}
