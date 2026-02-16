@@ -46,14 +46,6 @@ const String routePrefixes[maxSsids] = {"IO:AUTO:", "IO:AUTO:", "IO:AUTO:", "IO:
 
 // ********************************************************************************************
 
-// Autoconnect to first SSID in the list above (default, if not specified is false)
-// #define AUTO_CONNECT_TO_FIRST_DEFINED_SERVER true
-
-// Autoconnect to first found server (default, if not specified is true)
-// #define AUTO_CONNECT_TO_FIRST_WITHROTTLE_SERVER true
-
-// ********************************************************************************************
-
 // Minimum time spacing in milliseconds for commands sent.  
 // Default is 50 
 // uncomment and increase this value  if the command station is skipping some commands

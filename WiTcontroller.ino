@@ -167,8 +167,6 @@ IPAddress foundWitServersIPs[maxFoundWitServers];
 int foundWitServersPorts[maxFoundWitServers];
 String foundWitServersNames[maxFoundWitServers];
 int foundWitServersCount = 0;
-bool autoConnectToFirstDefinedServer = AUTO_CONNECT_TO_FIRST_DEFINED_SERVER;
-bool autoConnectToFirstWiThrottleServer = AUTO_CONNECT_TO_FIRST_WITHROTTLE_SERVER;
 int outboundCmdsMininumDelay = OUTBOUND_COMMANDS_MINIMUM_DELAY;
 bool commandsNeedLeadingCrLf = SEND_LEADING_CR_LF_FOR_COMMANDS;
 
@@ -527,8 +525,9 @@ void browseWitService() {
     }
   oledRenderer.renderArray(false, false);
 
-    if ( (foundWitServersCount == 1) && (autoConnectToFirstWiThrottleServer) ) {
-      debug_println("WiT Selection - only 1");
+    // Auto-connect: if exactly 1 WiThrottle server found, connect automatically
+    if (foundWitServersCount == 1) {
+      debug_println("Auto-connecting to only WiThrottle server found");
       selectedWitServerIP = foundWitServersIPs[0];
       selectedWitServerPort = foundWitServersPorts[0];
       selectedWitServerName = foundWitServersNames[0];

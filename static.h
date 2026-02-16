@@ -350,14 +350,6 @@ extern const char ssidPasswordBlankChar; // defined in static.cpp
 
 // *******************************************************************************************************************
 
-#ifndef AUTO_CONNECT_TO_FIRST_DEFINED_SERVER
-  #define AUTO_CONNECT_TO_FIRST_DEFINED_SERVER false
-#endif
-
-#ifndef AUTO_CONNECT_TO_FIRST_WITHROTTLE_SERVER
-  #define AUTO_CONNECT_TO_FIRST_WITHROTTLE_SERVER true
-#endif
-
 #ifndef OUTBOUND_COMMANDS_MINIMUM_DELAY
   #define OUTBOUND_COMMANDS_MINIMUM_DELAY 50
 #endif

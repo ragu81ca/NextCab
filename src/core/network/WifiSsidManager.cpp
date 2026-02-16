@@ -13,7 +13,6 @@
 extern InputManager inputManager;
 extern SystemStateManager systemStateManager;
 extern int ssidSelectionSource;
-extern bool autoConnectToFirstDefinedServer;
 extern String turnoutPrefix;
 extern String routePrefix;
 extern String foundSsids[];
@@ -134,14 +133,24 @@ void WifiSsidManager::browseSsids() {
         uiState.page = 0; // reset to first page
         oledRenderer.renderFoundSsids("");
         systemStateManager.setState(SystemState::WifiSelection);
-        if ((foundSsidsCount>0) && (autoConnectToFirstDefinedServer)) {
-            for (int i=0;i<foundSsidsCount;i++) {
-                if (foundSsids[i] == ssids[0]) {
-                    systemStateManager.setState(SystemState::WifiConnecting);
-                    selectedSsidStr = foundSsids[i];
-                    getSsidPasswordAndMetadataForFound();
+        
+        // Auto-connect: if exactly ONE scanned SSID matches a configured SSID, connect automatically
+        int matchCount = 0;
+        int matchIndex = -1;
+        for (int found = 0; found < foundSsidsCount; found++) {
+            for (int cfg = 0; cfg < maxSsids; cfg++) {
+                if (foundSsids[found] == ssids[cfg]) {
+                    matchCount++;
+                    matchIndex = found;
+                    break; // Don't double-count
                 }
             }
+        }
+        if (matchCount == 1 && matchIndex >= 0) {
+            debug_println("Auto-connecting to only matching known SSID");
+            systemStateManager.setState(SystemState::WifiConnecting);
+            selectedSsidStr = foundSsids[matchIndex];
+            getSsidPasswordAndMetadataForFound();
         }
     } else {
         clearOledArray();
