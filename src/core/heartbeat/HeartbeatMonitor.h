@@ -25,6 +25,7 @@ private:
     unsigned long lastServerResponseTime { 0 }; // seconds since boot
     bool heartbeatCheckEnabled { true };
     bool timeoutInProgress { false }; // Guard against multiple timeout firings
+    unsigned long lastWarningSecs_ { 0 }; // Rate-limit warning log to once per second
 
     void (*onTimeout)() { nullptr };   // invoked when timeout triggers
     void (*onPeriodChange)(unsigned long) { nullptr }; // invoked when period changes

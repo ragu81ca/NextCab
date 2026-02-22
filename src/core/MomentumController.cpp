@@ -32,25 +32,25 @@ void MomentumController::update() {
     
     for (int throttle = 0; throttle < MOMENTUM_MAX_THROTTLES; throttle++) {
         // Check if enough time has passed for this throttle
-        if (now - lastUpdate_[throttle] < updateInterval) {
+        unsigned long elapsed = now - lastUpdate_[throttle];
+        if (elapsed < updateInterval) {
             continue;
         }
-        
-        lastUpdate_[throttle] = now;
         
         int target = targetSpeed_[throttle];
         float actual = actualSpeed_[throttle];
         
         // Sound leads movement: If sound controller is still notching for this throttle,
         // delay the actual speed change so engine sound transitions complete first.
-        // This creates the realistic effect of the diesel engine revving up before the train moves,
-        // or revving down before the train slows.
+        // Don't reset lastUpdate_ here — elapsed time accumulates so that when
+        // notching finishes, the proportionally larger delta lets speed catch up
+        // smoothly instead of surging.
         if (soundCtrl_ && soundCtrl_->isNotching(throttle)) {
-            // Sound is still transitioning - don't change actual speed yet
-            // Debug: uncomment to trace waiting
-            // Serial.print(\"[Momentum] T\"); Serial.print(throttle); Serial.println(\" waiting for sound notching...\");
             continue;
         }
+        
+        // Mark this throttle as processed (after notching check so delays accumulate)
+        lastUpdate_[throttle] = now;
         
         // Already at target? Nothing to do
         if (abs(actual - target) < 0.5f) {
@@ -92,8 +92,10 @@ void MomentumController::update() {
             baseRate = getDecelRate(throttle);
         }
         
-        // Calculate delta for this update
-        float delta = baseRate * (UPDATE_INTERVAL_MS / 1000.0f); // Scale by time
+        // Calculate delta using actual elapsed time for physically accurate ramping.
+        // Cap at 1000ms to prevent huge jumps after long pauses (e.g., task preemption).
+        float elapsedSec = min(elapsed, (unsigned long)1000) / 1000.0f;
+        float delta = baseRate * elapsedSec;
         
         // Apply curve for natural feel
         if (accelerating) {

@@ -87,7 +87,11 @@ private:
 	
 	// Rate limiting for when momentum is disabled (prevents command station flooding)
 	unsigned long lastSpeedSetTime[WIT_MAX_THROTTLES] { 0 }; // Per-throttle rate limiting
-	static constexpr unsigned long SPEED_SET_RATE_LIMIT_MS = 100; // Max 10 updates/second when momentum disabled
+	// Rate limits tuned to outbound command buffer drain rate (50ms per command).
+	// Momentum ON:  100ms — smooth ramp, one command per drain cycle
+	// Momentum OFF:  50ms — snappy response, minimal pipeline latency
+	static constexpr unsigned long SPEED_RATE_LIMIT_MOMENTUM_MS = 100;
+	static constexpr unsigned long SPEED_RATE_LIMIT_DIRECT_MS = 50;
 	
 	// Per-throttle tracking for momentum system
 	int lastSpeedSentPerThrottle[WIT_MAX_THROTTLES] { 0 }; // Track last sent speed per throttle

@@ -107,5 +107,5 @@ private:
 	SoundController* soundCtrl_;
 	
     // Timing
-    static constexpr unsigned long UPDATE_INTERVAL_MS = 500; // Update every 500ms (2Hz) - reduces network traffic
+    static constexpr unsigned long UPDATE_INTERVAL_MS = 100; // Update every 100ms (10Hz) - smooth ramp with elapsed-time delta
 };

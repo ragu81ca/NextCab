@@ -28,10 +28,13 @@ void HeartbeatMonitor::loop() {
     unsigned long timeSinceLastActivity = nowSecs - lastServerResponseTime;
     unsigned long timeoutThreshold = heartbeatPeriod * TIMEOUT_MULTIPLIER;
     
-    // Log if we're getting close to timeout (within 15 seconds)
+    // Log once per second if we're getting close to timeout (within 15 seconds)
     if (timeSinceLastActivity > (timeoutThreshold - 15) && timeSinceLastActivity < timeoutThreshold) {
-        debug_printf("Heartbeat warning: %lus since last activity (timeout at %lus)\n", 
-                     timeSinceLastActivity, timeoutThreshold);
+        if (timeSinceLastActivity != lastWarningSecs_) {
+            lastWarningSecs_ = timeSinceLastActivity;
+            debug_printf("Heartbeat warning: %lus since last activity (timeout at %lus)\n", 
+                         timeSinceLastActivity, timeoutThreshold);
+        }
     }
     
     if (timeSinceLastActivity >= timeoutThreshold) {
@@ -65,8 +68,11 @@ void HeartbeatMonitor::setPeriod(unsigned long seconds) {
         debug_printf("Server sent unusually long heartbeat period %lu, capping at 300 seconds\n", seconds);
         seconds = 300;
     }
-    heartbeatPeriod = seconds;
-    if (onPeriodChange) onPeriodChange(seconds);
+    // Only log and notify when the period actually changes (server echoes it with every heartbeat)
+    if (seconds != heartbeatPeriod) {
+        heartbeatPeriod = seconds;
+        if (onPeriodChange) onPeriodChange(seconds);
+    }
 }
 
 void HeartbeatMonitor::setOnPeriodChange(void (*cb)(unsigned long)) {

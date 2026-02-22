@@ -314,7 +314,12 @@ void WifiSsidManager::connectSelectedInternal() {
     }
     debug_println("");
     if (WiFi.status() == WL_CONNECTED) {
+        // Disable WiFi modem sleep to prevent radio power-down from dropping TCP connections.
+        // Without this, the ESP32 periodically turns off the radio to save power,
+        // which causes random TCP disconnects with persistent connections like WiThrottle.
+        WiFi.setSleep(false);
         debug_print("Connected. IP address: "); debug_println(WiFi.localIP());
+        debug_println("WiFi modem sleep disabled for stable TCP");
         oledText[2] = MSG_CONNECTED;
         oledText[3] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
         oledRenderer.renderBattery();

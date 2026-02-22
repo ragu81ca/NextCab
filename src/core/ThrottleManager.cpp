@@ -104,8 +104,10 @@ void ThrottleManager::updateMomentum() {
 		
 		// Check if speed has changed since last send
 		if (actualSpeed != lastSpeedSentPerThrottle[throttle]) {
-			// Speed changed - apply rate limiting
-			if (now - lastSpeedSetTime[throttle] >= SPEED_SET_RATE_LIMIT_MS) {
+			// Speed changed — use tighter rate limit when momentum is off for snappier response
+			unsigned long rateLimit = momentum_.isActive(throttle)
+				? SPEED_RATE_LIMIT_MOMENTUM_MS : SPEED_RATE_LIMIT_DIRECT_MS;
+			if (now - lastSpeedSetTime[throttle] >= rateLimit) {
 				shouldSend = true;
 			}
 		}

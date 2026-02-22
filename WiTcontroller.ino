@@ -928,8 +928,16 @@ void loop() {
         break;
       }
       
-      wiThrottleProtocol.check();    // parse incoming messages
-      heartbeatMonitor.loop();       // check for heartbeat timeout (different from user inactivity)
+      wiThrottleProtocol.check();    // parse incoming messages, send keepalives
+      
+      // Note: DCC-EX doesn't send periodic responses during idle — the library
+      // sends keepalives every ~5s to keep the SERVER's timeout from firing,
+      // but the server doesn't echo anything back. So we note activity here
+      // (TCP is verified alive above) to prevent false heartbeat timeouts.
+      // Real disconnects are caught immediately by client.connected() above.
+      heartbeatMonitor.noteActivity(millis() / 1000, false);
+      
+      heartbeatMonitor.loop();       // backstop for truly stuck states
       break;
   }
   
