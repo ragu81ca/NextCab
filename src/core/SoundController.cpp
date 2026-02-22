@@ -12,6 +12,9 @@ SoundController::SoundController() : throttleMgr_(nullptr) {
         currentNotch_[i] = 1;     // Start at notch 1 (idle)
         targetNotch_[i] = 1;      // Start at notch 1 (idle)
         lastNotchTime_[i] = 0;
+        targetSpeed_[i] = 0;
+        actualSpeed_[i] = 0;
+        idleFlushRemaining_[i] = 0;
     }
 }
 
@@ -61,23 +64,53 @@ void SoundController::onBrakeStateChange(int throttle, bool braking) {
 
 void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
     if (!config_.enabled) return;
+    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return;
     
-    // Update target notch based on new speed
-    if (throttle >= 0 && throttle < SOUND_MAX_THROTTLES) {
-        int newTargetNotch = calculateNotchFromSpeed(newSpeed);
-        if (targetNotch_[throttle] != newTargetNotch) {
-            targetNotch_[throttle] = newTargetNotch;
-            
-            Serial.print("[SoundController] T");
-            Serial.print(throttle);
-            Serial.print(" Speed change ");
-            Serial.print(oldSpeed);
-            Serial.print(" -> ");
-            Serial.print(newSpeed);
-            Serial.print(" (target notch now ");
-            Serial.print(newTargetNotch);
-            Serial.println(")");
-        }
+    targetSpeed_[throttle] = newSpeed;
+    
+    // Enable idle flush when stopping - sends extra F7 pulses for decoder reliability
+    if (newSpeed == 0 && oldSpeed > 0) {
+        idleFlushRemaining_[throttle] = IDLE_FLUSH_COUNT;
+    }
+    
+    Serial.print("[SoundController] T");
+    Serial.print(throttle);
+    Serial.print(" Target speed change ");
+    Serial.print(oldSpeed);
+    Serial.print(" -> ");
+    Serial.print(newSpeed);
+    Serial.println();
+    
+    // Recalculate effort-based notch (accounts for overshoot during acceleration)
+    recalculateTargetNotch(throttle);
+}
+
+void SoundController::onActualSpeedUpdate(int throttle, int actualSpeed) {
+    if (!config_.enabled) return;
+    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return;
+    
+    actualSpeed_[throttle] = actualSpeed;
+    
+    // Recalculate effort notch - as actual speed catches up to target,
+    // the prime mover overshoot settles back to cruising notch
+    recalculateTargetNotch(throttle);
+}
+
+void SoundController::recalculateTargetNotch(int throttle) {
+    int newTargetNotch = calculateEffortNotch(targetSpeed_[throttle], actualSpeed_[throttle]);
+    if (newTargetNotch != targetNotch_[throttle]) {
+        Serial.print("[SoundController] T");
+        Serial.print(throttle);
+        Serial.print(" Effort notch: ");
+        Serial.print(targetNotch_[throttle]);
+        Serial.print(" -> ");
+        Serial.print(newTargetNotch);
+        Serial.print(" (target spd=");
+        Serial.print(targetSpeed_[throttle]);
+        Serial.print(", actual spd=");
+        Serial.print(actualSpeed_[throttle]);
+        Serial.println(")");
+        targetNotch_[throttle] = newTargetNotch;
     }
 }
 
@@ -162,7 +195,7 @@ void SoundController::debugPrint(int throttle, uint8_t funcNum, const char* acti
 // Convert speed (0-126) to notch (1-8) for diesel locomotive sound simulation
 // Diesel locomotives have 8 throttle notches representing engine power settings
 // Notch 1 = idle (0-15), Notches 2-8 = increasing power
-// Note: Steam locomotives would use completely different sound patterns (chuff rates, etc.)
+// This is the "cruising" notch - the steady-state power to maintain a given speed
 int SoundController::calculateNotchFromSpeed(int speed) const {
     if (speed >= 112) return 8;  // Notch 8: 112-126
     if (speed >= 96) return 7;   // Notch 7: 96-111
@@ -172,6 +205,33 @@ int SoundController::calculateNotchFromSpeed(int speed) const {
     if (speed >= 32) return 3;   // Notch 3: 32-47
     if (speed >= 16) return 2;   // Notch 2: 16-31
     return 1;                    // Notch 1: 0-15 (idle)
+}
+
+// Effort-based notch: prime mover overshoots during acceleration, then settles
+// Real diesel-electrics need MORE power to accelerate than to maintain speed.
+// The engineer notches up high, the prime mover revs, the train sluggishly
+// starts moving, and then the engineer notches back as speed is reached.
+// This creates the realistic "rev up before moving" effect.
+int SoundController::calculateEffortNotch(int targetSpeed, int actualSpeed) const {
+    if (targetSpeed == 0) return 1;  // Idle when stopped
+    
+    int cruisingNotch = calculateNotchFromSpeed(targetSpeed);
+    int speedDeficit = targetSpeed - actualSpeed;
+    
+    if (speedDeficit <= 0) {
+        // At or above target speed - cruising power only
+        return cruisingNotch;
+    }
+    
+    // Accelerating: engine needs extra power to overcome inertia
+    // Larger speed deficit = more throttle overshoot
+    int extraNotches;
+    if (speedDeficit > 64) extraNotches = 3;       // Heavy acceleration demand
+    else if (speedDeficit > 32) extraNotches = 2;  // Moderate demand  
+    else if (speedDeficit > 12) extraNotches = 1;  // Light demand
+    else extraNotches = 0;                          // Almost at target
+    
+    return min(8, cruisingNotch + extraNotches);
 }
 
 void SoundController::updateNotchSounds(int throttle, unsigned long now) {
@@ -212,6 +272,24 @@ void SoundController::updateNotchSounds(int throttle, unsigned long now) {
         Serial.print(" -> ");
         Serial.print(currentNotch_[throttle]);
         Serial.println(")");
+    }
+    
+    // Idle recovery: send extra throttle-down pulses after normal sequence completes
+    // This ensures Digitrax and other decoders that may have missed a packet
+    // still reach idle. Extra F7 pulses at idle are harmless (decoder ignores them).
+    if (currentNotch_[throttle] == 1 && targetNotch_[throttle] == 1 &&
+        idleFlushRemaining_[throttle] > 0 &&
+        (now - lastNotchTime_[throttle] >= NOTCH_TRANSITION_MS)) {
+        
+        triggerFunction(throttle, config_.throttleDownFunction, "idle flush");
+        idleFlushRemaining_[throttle]--;
+        lastNotchTime_[throttle] = now;
+        
+        Serial.print("[SoundController] T");
+        Serial.print(throttle);
+        Serial.print(" Idle flush pulse (");
+        Serial.print(idleFlushRemaining_[throttle]);
+        Serial.println(" remaining)");
     }
 }
 

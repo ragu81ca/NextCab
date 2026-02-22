@@ -76,9 +76,9 @@ private:
     float getDecelRate(int throttle) const;
     float getBrakeRate(int throttle) const;
     
-	// Logarithmic curve for natural feel
-	float applyAccelCurve(float delta, float distance) const;
-	float applyDecelCurve(float delta, float distance) const;
+	// Tractive effort / rolling resistance curves for natural feel
+	float applyAccelCurve(float delta, float actualSpeed) const;
+	float applyDecelCurve(float delta, float actualSpeed) const;
 	
 	// Use WIT_MAX_THROTTLES to avoid conflict with MAX_THROTTLES macro
 	static constexpr int MOMENTUM_MAX_THROTTLES = 6;

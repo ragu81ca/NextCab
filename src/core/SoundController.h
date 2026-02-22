@@ -23,8 +23,9 @@ struct SoundConfig {
     uint8_t brakeFunction = 9;           // F9 - brake sound
     
     // Pulse timing: ON duration for momentary function press
-    // 150ms is enough for most sound decoders to register the trigger
-    unsigned long pulseduration = 150;
+    // 300ms gives Digitrax and other decoders reliable time to register
+    // (150ms was too short — DCC packets may only repeat 1-2 times)
+    unsigned long pulseduration = 300;
     
     // Cooldown: minimum time between triggering same function again
     // This prevents re-triggering while a pulse is conceptually "active"
@@ -48,6 +49,7 @@ public:
     // Event handlers - called by other controllers when state changes
     void onBrakeStateChange(int throttle, bool braking);
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
+    void onActualSpeedUpdate(int throttle, int actualSpeed);
     void onDirectionChange(int throttle);
     
     // Configuration
@@ -82,11 +84,21 @@ private:
     int targetNotch_[SOUND_MAX_THROTTLES];
     unsigned long lastNotchTime_[SOUND_MAX_THROTTLES];
     
+    // Speed tracking for effort-based notch calculation (prime mover overshoot)
+    int targetSpeed_[SOUND_MAX_THROTTLES];
+    int actualSpeed_[SOUND_MAX_THROTTLES];
+    
+    // Idle recovery: extra throttle-down pulses to ensure decoder reaches idle
+    // Digitrax decoders can miss individual DCC function packets, so we send
+    // redundant F7 pulses after the normal notch-down sequence completes
+    int idleFlushRemaining_[SOUND_MAX_THROTTLES];
+    static constexpr int IDLE_FLUSH_COUNT = 3;
+    
     // Time between notch transitions (ms)
     // Formula: pulseDuration + OFF-to-ON gap for decoder to register
-    // 150ms pulse + 250ms gap = 400ms total - safe for WiFi latency + DCC processing
-    // Going from idle to notch 8 takes 7 transitions × 400ms = 2.8 seconds
-    static constexpr unsigned long NOTCH_TRANSITION_MS = 400;
+    // 300ms pulse + 400ms gap = 700ms total - reliable for Digitrax + WiFi latency
+    // Going from idle to notch 8 takes 7 transitions × 700ms = 4.9 seconds
+    static constexpr unsigned long NOTCH_TRANSITION_MS = 700;
     
     // Reference to throttle manager for function calls
     ThrottleManager* throttleMgr_;
@@ -98,6 +110,8 @@ private:
     
     // Internal notch simulation for sound effects only
     int calculateNotchFromSpeed(int speed) const;
+    int calculateEffortNotch(int targetSpeed, int actualSpeed) const;
+    void recalculateTargetNotch(int throttle);
     void updateNotchSounds(int throttle, unsigned long now);
     
     // Debug helpers

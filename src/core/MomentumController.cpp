@@ -78,8 +78,6 @@ void MomentumController::update() {
             continue;
         }
         
-        // Calculate distance to target
-        float distance = abs(target - actual);
         bool accelerating = (target > actual);
         
         // Get base rate based on momentum level and direction (per-throttle)
@@ -97,11 +95,11 @@ void MomentumController::update() {
         float elapsedSec = min(elapsed, (unsigned long)1000) / 1000.0f;
         float delta = baseRate * elapsedSec;
         
-        // Apply curve for natural feel
+        // Apply curve for natural feel (speed-dependent tractive effort / resistance)
         if (accelerating) {
-            delta = applyAccelCurve(delta, distance);
+            delta = applyAccelCurve(delta, actual);
         } else {
-            delta = applyDecelCurve(delta, distance);
+            delta = applyDecelCurve(delta, actual);
         }
         
         // Apply delta
@@ -128,6 +126,12 @@ void MomentumController::update() {
             Serial.print(", delta: ");
             Serial.print(delta, 1);
             Serial.println(")");
+            
+            // Notify SoundController of actual speed change so effort notch
+            // can recalculate (prime mover settles as train reaches speed)
+            if (soundCtrl_) {
+                soundCtrl_->onActualSpeedUpdate(throttle, (int)round(newSpeed));
+            }
         }
         
         actualSpeed_[throttle] = newSpeed;
@@ -298,16 +302,24 @@ float MomentumController::getBrakeRate(int throttle) const {
     }
 }
 
-// Acceleration curve - linear for predictable feel with 500ms updates
-float MomentumController::applyAccelCurve(float delta, float distance) const {
-    // Linear ramping - consistent speed increase
-    return delta;
+// Acceleration curve - diesel-electric tractive effort decreases at higher speeds
+// At low speed the motors have maximum torque; at high speed, back-EMF reduces
+// available current. This makes acceleration brisk at first, then tapering off.
+float MomentumController::applyAccelCurve(float delta, float actualSpeed) const {
+    float speedFraction = actualSpeed / 126.0f;
+    // Quadratic taper: 100% effort at speed 0, ~60% at speed 126
+    float factor = 1.0f - 0.4f * speedFraction * speedFraction;
+    return delta * factor;
 }
 
-// Deceleration curve - linear for predictable feel with 500ms updates  
-float MomentumController::applyDecelCurve(float delta, float distance) const {
-    // Linear ramping - consistent speed decrease
-    return delta;
+// Deceleration curve - rolling resistance + aerodynamic drag increase with speed
+// Trains coast much further at low speeds than high speeds.
+// At high speed: drag slows them faster; at low speed: they roll a long time.
+float MomentumController::applyDecelCurve(float delta, float actualSpeed) const {
+    float speedFraction = actualSpeed / 126.0f;
+    // Linear increase: 70% at low speed (long coast), 130% at high speed (more drag)
+    float factor = 0.7f + 0.6f * speedFraction;
+    return delta * factor;
 }
 
 void MomentumController::triggerBrakeSound(int throttle, bool enable) {
