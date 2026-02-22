@@ -1,9 +1,10 @@
+#include "config_buttons.h"  // must precede static.h so DISPLAY_SPEED_AS_PERCENT etc. are visible
 #include "static.h"
 
 // Centralized definitions to avoid multiple definition errors
-const String appVersion = "v1.93";
+const String appVersion = "v0.1.0";
 #ifndef CUSTOM_APPNAME
-const String appName = "WiTcontroller";
+const String appName = "NextCab";
 #else
 const String appName = CUSTOM_APPNAME;
 #endif
