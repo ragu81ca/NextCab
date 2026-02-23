@@ -17,7 +17,8 @@ extern BatteryMonitor batteryMonitor;
 extern HeartbeatMonitor heartbeatMonitor;
 // Global instance now defined in WiTcontroller.ino to avoid multiple definition.
 
-OledRenderer::OledRenderer(U8G2 &d) : display(d) {}
+OledRenderer::OledRenderer(DisplayDriver &d, const DisplayLayout &l, const FontSet &f)
+    : display(d), layout(l), fonts(f) {}
 
 void OledRenderer::renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
 	renderArrayInternal(isThreeColumns, isPassword, sendBuffer, drawTopLine);
@@ -92,31 +93,25 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
 	clearArray();
-		for (int i=0; i<5 && i<foundSsidsCount; i++) {
-			int globalIndex = (uiState.page*5)+i;
+		int itemsPerPage = layout.ssidItemsPerPage;
+		int nameMax = layout.ssidNameMaxLength;
+		for (int i=0; i<itemsPerPage && i<foundSsidsCount; i++) {
+			int globalIndex = (uiState.page*itemsPerPage)+i;
 			if (globalIndex < foundSsidsCount && foundSsids[globalIndex].length()>0) {
 				String ssid = foundSsids[globalIndex];
-				// int rssi = foundSsidRssis[globalIndex]; // not needed here; glyph resolved during draw
-				// Truncate SSID to keep line width stable
-				if (ssid.length()>13) ssid = ssid.substring(0,13);
-				// Store SSID line; glyph will be drawn inline later (we reserve last char position)
+				if (nameMax > 0 && (int)ssid.length()>nameMax) ssid = ssid.substring(0,nameMax);
 				oledText[i] = String(i+1) + ": " + ssid + " ";
-				// Append placeholder marker we can detect when rendering to draw glyph instead of text character
-				// Using '\x01' sentinel (non-printable) to signal glyph draw.
 				oledText[i] += '\x01';
-				// Overwrite sentinel mapping in uiState invert array if needed (not required now)
-				// Store glyph code in a lightweight side channel: reuse foundSsidsOpen boolean array unused during display for that entry.
-				// But simpler: keep a parallel array of glyphs; we will just re-derive on draw to avoid extra state.
 			}
 		}
-		int totalPages = (foundSsidsCount + 4) / 5; // ceil
+		int totalPages = (foundSsidsCount + itemsPerPage - 1) / itemsPerPage;
 		String baseMenu = menu_text[menu_select_ssids_from_found];
 		String pageIndicator = " p" + String(uiState.page+1) + "/" + String(totalPages);
-		int maxChars = 24; // conservative width for 128px with small font
-		if (baseMenu.length() > (maxChars - pageIndicator.length())) {
+		int maxChars = layout.maxCharsPerRow;
+		if ((int)baseMenu.length() > (maxChars - (int)pageIndicator.length())) {
 			baseMenu = baseMenu.substring(0, maxChars - pageIndicator.length());
 		}
-		oledText[5] = baseMenu + pageIndicator;
+		oledText[itemsPerPage] = baseMenu + pageIndicator;
 		renderArrayInternal(false,false,true,false);
 	}
 }
@@ -127,13 +122,17 @@ void OledRenderer::renderRoster(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
 	clearArray();
-		for (int i=0; i<5 && ((uiState.page*5)+i<rosterSize); i++) {
-			int index = rosterSortedIndex[(uiState.page*5)+i];
+		int itemsPerPage = layout.rosterItemsPerPage;
+		int nameMax = layout.rosterNameMaxLength;
+		for (int i=0; i<itemsPerPage && ((uiState.page*itemsPerPage)+i<rosterSize); i++) {
+			int index = rosterSortedIndex[(uiState.page*itemsPerPage)+i];
 			if (rosterAddress[index] != 0) {
-				oledText[i] = String(i) + ": " + rosterName[index] + " (" + rosterAddress[index] + ")" ;
+				String name = rosterName[index];
+				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
+				oledText[i] = String(i) + ": " + name + " (" + rosterAddress[index] + ")" ;
 			}
 		}
-		oledText[5] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_roster];
+		oledText[itemsPerPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_roster];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -144,14 +143,19 @@ void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) 
 	menuIsShowing = true;
 	if (soFar == "") {
 	clearArray();
+		int itemsPerPage = layout.turnoutItemsPerPage;
+		int nameMax = layout.turnoutNameMaxLength;
+		int halfPage = itemsPerPage / 2;
 		int j = 0;
-		for (int i=0; i<10 && i<turnoutListSize; i++) {
-			j = (i<5) ? i : i+1;
-			if (turnoutListUserName[(uiState.page*10)+i].length()>0) {
-				oledText[j] = String(turnoutListIndex[i]) + ": " + turnoutListUserName[(uiState.page*10)+i].substring(0,10);
+		for (int i=0; i<itemsPerPage && i<turnoutListSize; i++) {
+			j = (i<halfPage) ? i : i+1;
+			if (turnoutListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
+				String name = turnoutListUserName[(uiState.page*itemsPerPage)+i];
+				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
+				oledText[j] = String(turnoutListIndex[i]) + ": " + name;
 			}
 		}
-		oledText[5] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_turnout_list];
+		oledText[halfPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_turnout_list];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -162,14 +166,19 @@ void OledRenderer::renderRouteList(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
 	clearArray();
+		int itemsPerPage = layout.routeItemsPerPage;
+		int nameMax = layout.routeNameMaxLength;
+		int halfPage = itemsPerPage / 2;
 		int j = 0;
-		for (int i=0; i<10 && i<routeListSize; i++) {
-			j = (i<5) ? i : i+1;
-			if (routeListUserName[(uiState.page*10)+i].length()>0) {
-				oledText[j] = String(routeListIndex[i]) + ": " + routeListUserName[(uiState.page*10)+i].substring(0,10);
+		for (int i=0; i<itemsPerPage && i<routeListSize; i++) {
+			j = (i<halfPage) ? i : i+1;
+			if (routeListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
+				String name = routeListUserName[(uiState.page*itemsPerPage)+i];
+				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
+				oledText[j] = String(routeListIndex[i]) + ": " + name;
 			}
 		}
-		oledText[5] =  "(" + String(uiState.page+1) +  ") " + menu_text[menu_route_list];
+		oledText[halfPage] =  "(" + String(uiState.page+1) +  ") " + menu_text[menu_route_list];
 	renderArrayInternal(false,false,true,false);
 	}
 }
@@ -184,18 +193,23 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 		char currentChar = throttleManager.getCurrentThrottleChar();
 		int currentIdx = throttleManager.getCurrentThrottleIndex();
 		if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0 ) {
+			int itemsPerPage = layout.functionItemsPerPage;
+			int labelMax = layout.functionLabelMaxLength;
+			int halfPage = itemsPerPage / 2;
 			int j = 0; int k = 0;
-			for (int i=0; i<10; i++) {
-				k = (uiState.functionPage*10) + i;
+			for (int i=0; i<itemsPerPage; i++) {
+				k = (uiState.functionPage*itemsPerPage) + i;
 				if (k < MAX_FUNCTIONS) {
-					j = (i<5) ? i : i+1;
-					oledText[j] = String(i) + ": " + ((k<10) ? functionLabels[currentIdx][k].substring(0,10) : String(k) + "-" + functionLabels[currentIdx][k].substring(0,7));
+					j = (i<halfPage) ? i : i+1;
+					String label = functionLabels[currentIdx][k];
+					if (labelMax > 0 && (int)label.length() > labelMax) label = label.substring(0, labelMax);
+					oledText[j] = String(i) + ": " + ((k<10) ? label : String(k) + "-" + label);
 					if (functionStates[currentIdx][k]) {
 						oledTextInvert[j] = true;
 					}
 				}
 			}
-			oledText[5] = "(" + String(uiState.functionPage) +  ") " + menu_text[menu_function_list];
+			oledText[halfPage] = "(" + String(uiState.functionPage) +  ") " + menu_text[menu_function_list];
 		} else {
 			oledText[0] = MSG_NO_FUNCTIONS;
 			oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx+1);
@@ -219,7 +233,18 @@ void OledRenderer::renderEnterPassword() {
 void OledRenderer::renderFunctions() {
 	lastOledScreen = last_oled_screen_speed;
 	int currentIdx = throttleManager.getCurrentThrottleIndex();
-	for (int i=0; i < MAX_FUNCTIONS; i++) if (functionStates[currentIdx][i]) { display.drawRBox(i*4+12,12+1,5,7,2); display.setDrawColor(0); display.setFont(FONT_FUNCTION_INDICATORS); display.drawUTF8( i*4+1+12, 18+1, String( (i<10) ? i : ((i<20) ? i-10 : i-20)).c_str()); display.setDrawColor(1); }
+	int startX = layout.functionIndicatorStartX;
+	int y = layout.functionIndicatorY;
+	int boxW = layout.functionIndicatorBoxW;
+	int boxH = layout.functionIndicatorBoxH;
+	int spacing = layout.functionIndicatorSpacing;
+	for (int i=0; i < MAX_FUNCTIONS; i++) if (functionStates[currentIdx][i]) {
+		display.drawRBox(i*spacing+startX, y+1, boxW, boxH, 2);
+		display.setDrawColor(0);
+		display.setFont(fonts.functionIndicators);
+		display.drawUTF8(i*spacing+1+startX, y+6+1, String( (i<10) ? i : ((i<20) ? i-10 : i-20)).c_str());
+		display.setDrawColor(1);
+	}
 }
 
 // Helper: Check if we need to show S/L suffixes (only if there are duplicate addresses with different types)
@@ -261,11 +286,11 @@ void OledRenderer::renderEditConsist() {
 	lastOledScreen = last_oled_screen_edit_consist; 
 	menuIsShowing = false; 
 	clearArray(); 
-	renderAllLocos(false); // Show ALL locos including lead loco (was true, hiding lead)
+	renderAllLocos(false);
 	oledText[0] = "Edit Consist Facing"; 
 	oledText[5] = "no Chng Facing   * Close"; 
 	renderArrayInternal(false,false,false,false);
-	u8g2.sendBuffer();
+	display.sendBuffer();
 }
 
 void OledRenderer::renderDropLocoList() {
@@ -280,11 +305,12 @@ void OledRenderer::renderDropLocoList() {
 	
 	// Render the locos
 	if (numLocos > 0) {
-		// Display locos with 1-based numbering for user-friendliness
-		for (int index = 0; index < numLocos && index < 9; index++) {
+		int maxLocos = layout.maxLocosDisplayed;
+		int halfPage = maxLocos / 2;
+		for (int index = 0; index < numLocos && index < maxLocos; index++) {
 			String loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index);
-			int displayNum = index + 1;  // Convert to 1-based
-			int linePos = (index < 4) ? index : index + 2;  // Skip line 4 (instructions)
+			int displayNum = index + 1;
+			int linePos = (index < halfPage) ? index : index + 2;
 			
 			String displayLoco = formatLocoDisplay(loco, needSuffixes);
 			
@@ -302,7 +328,15 @@ void OledRenderer::renderDropLocoList() {
 
 
 void OledRenderer::renderHeartbeatCheck() {
-	menuIsShowing = false; RenderModel model; buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled()); for (int i=0;i<18;i++){ oledText[i] = model.lines[i]; oledTextInvert[i] = model.invert[i]; } renderArrayInternal(false,false,model.sendBuffer,model.drawTopLine);
+	menuIsShowing = false;
+	RenderModel model;
+	buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled());
+	int max = layout.twoColumnMax;
+	for (int i=0; i<max; i++) {
+		oledText[i] = model.lines[i];
+		oledTextInvert[i] = model.invert[i];
+	}
+	renderArrayInternal(false, false, model.sendBuffer, model.drawTopLine);
 }
 
 void OledRenderer::renderAllLocos(bool hideLeadLoco) {
@@ -314,14 +348,16 @@ void OledRenderer::renderAllLocos(bool hideLeadLoco) {
 	int i=0; 
 	char currentChar = throttleManager.getCurrentThrottleChar(); 
 	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
+	int maxLocos = layout.maxLocosDisplayed;
+	int halfPage = maxLocos / 2;
 	
 	// Check if we need to show S/L suffixes
 	bool needSuffixes = checkNeedSuffixes(currentChar, numLocos);
 	
 	// Render the locos
 	if (numLocos > 0) { 
-		for (int index=0; ((index < numLocos) && (i < 8)); index++) { 
-			j = (i<4) ? i : i+2; 
+		for (int index=0; ((index < numLocos) && (i < maxLocos)); index++) { 
+			j = (i<halfPage) ? i : i+2; 
 			loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index); 
 			
 			if (i>=startAt) {
@@ -339,65 +375,64 @@ void OledRenderer::renderAllLocos(bool hideLeadLoco) {
 void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
 	display.clearBuffer();
 	display.setDrawColor(1);
-	display.setFont(FONT_DEFAULT);
+	display.setFont(fonts.defaultFont);
 	int x = 0;
-	int y = 10;
-	int xInc = 64;
-	int max = 12;
-	if (isThreeColumns) { xInc = 42; max = 18; }
+	int y = layout.rowHeight;
+	int xInc = layout.columnWidth;
+	int max = layout.twoColumnMax;
+	if (isThreeColumns) { xInc = layout.threeColumnWidth; max = layout.threeColumnMax; }
+	int rowsPerColumn = max / (isThreeColumns ? 3 : 2);
 	for (int i=0; i < max; i++) {
 		String lineStr = oledText[i];
 		int sentinelPos = lineStr.indexOf('\x01');
 		bool hasWifiGlyph = (sentinelPos >= 0);
 		String textPart = hasWifiGlyph ? lineStr.substring(0, sentinelPos) : lineStr;
 		const char *cLine = textPart.c_str();
-		if (isPassword && i==2) display.setFont(FONT_PASSWORD);
+		if (isPassword && i==2) display.setFont(fonts.password);
 		if (oledTextInvert[i]) {
 			display.setDrawColor(1);
-			display.drawBox(x, y-8, 62, 10);
+			display.drawBox(x, y-8, xInc-2, layout.rowHeight);
 			display.setDrawColor(0);
 		}
 		// Draw base text
 		display.drawUTF8(x, y, cLine);
 		// Draw signal bars if sentinel present
 		if (hasWifiGlyph) {
-			// Determine signal strength from page-adjusted RSSI global index
-			int globalIndex = (uiState.page * 5) + i;
+			int itemsPerPage = layout.ssidItemsPerPage;
+			int globalIndex = (uiState.page * itemsPerPage) + i;
 			int rssi = (globalIndex < foundSsidsCount) ? foundSsidRssis[globalIndex] : -100;
-			int strength; // 0=weak, 1=low, 2=medium, 3=strong
+			int strength;
 			if (rssi >= -50) strength = 3;
 			else if (rssi >= -65) strength = 2;
 			else if (rssi >= -80) strength = 1;
 			else strength = 0;
 			
 			int16_t textWidth = display.getUTF8Width(cLine);
-			int barsX = x + textWidth + 2; // gap after text
+			int barsX = x + textWidth + 2;
 			
-			// Ensure proper draw color (1=black on white, or white on inverted background)
 			display.setDrawColor(1);
 			
-			// Draw Wi-Fi signal bars (4 bars, each 2px wide with 1px gap)
+			int barW = layout.wifiBarWidth;
+			int barGap = layout.wifiBarGap;
 			for (int bar = 0; bar < 4; bar++) {
-				int barX = barsX + (bar * 3); // 2px bar + 1px gap
-				int barHeight = (bar + 1) * 2; // heights: 2, 4, 6, 8 pixels
-				int barY = y - barHeight + 1; // align bottom to baseline
+				int barX = barsX + (bar * (barW + barGap));
+				int barHeight = (bar + 1) * (layout.wifiBarMaxHeight / 4);
+				int barY = y - barHeight + 1;
 				if (bar <= strength) {
-					// Filled bar for active strength
-					display.drawBox(barX, barY, 2, barHeight);
+					display.drawBox(barX, barY, barW, barHeight);
 				}
-				// Don't draw inactive bars - leave them blank for clarity on small monochrome displays
 			}
 		}
 		display.setDrawColor(1);
-		if (isPassword && i==2) display.setFont(FONT_DEFAULT);
-		y += 10;
-		if ((i==5) || (i==11)) { x += xInc; y = 10; }
+		if (isPassword && i==2) display.setFont(fonts.defaultFont);
+		y += layout.rowHeight;
+		if (((i+1) % rowsPerColumn) == 0) { x += xInc; y = layout.rowHeight; }
 	}
 	// Draw separator/top line if requested
-	if (drawTopLine) { display.drawHLine(0,11,128); renderBattery(); }
-	// Bottom menu/status bar: fixed y baseline at 51
+	if (drawTopLine) { display.drawHLine(0, layout.topBarHeight, layout.screenWidth); renderBattery(); }
+	// Bottom menu/status bar separator
 	display.setDrawColor(1);
-	display.drawHLine(0,51,128);
+	display.drawHLine(0, layout.statusBarY, layout.screenWidth);
 	if (sendBuffer) display.sendBuffer();
 }
 
@@ -407,38 +442,36 @@ void OledRenderer::renderDirectCommands() { lastOledScreen = last_oled_screen_di
 
 void OledRenderer::renderBattery() {
 	if (!(batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0))) return;
-	// We will right-align content but enforce a 1-pixel margin so glyphs never hit column 127 (avoid panel wrap quirk).
-	const uint8_t screenWidth = 128;
-	const uint8_t rightMargin = 2; // keep 2px clear at far right (avoid panel wrap on column 127)
+	const int screenWidth = layout.screenWidth;
+	const int rightMargin = layout.rightMargin;
 	int pctRaw = batteryMonitor.percent();
 	bool showPct = (batteryMonitor.displayMode()==ICON_AND_PERCENT);
 
 	// Measure components
-	display.setFont(FONT_GLYPHS);
+	display.setFont(fonts.glyphs);
 	const char *icon = "Z";
-	int iconWidth = display.getStrWidth(icon); // battery glyph width
+	int iconWidth = display.getStrWidth(icon);
 	String pctStr;
 	int pctWidth = 0;
 	if (showPct) {
-		display.setFont(FONT_FUNCTION_INDICATORS);
+		display.setFont(fonts.functionIndicators);
 		pctStr = (pctRaw < 5) ? "LOW" : (String(pctRaw) + "%");
 		pctWidth = display.getStrWidth(pctStr.c_str());
-		display.setFont(FONT_GLYPHS); // restore for icon draw
+		display.setFont(fonts.glyphs);
 	}
 	int spacing = showPct ? 2 : 0;
 	int totalWidth = iconWidth + spacing + pctWidth;
 	if (totalWidth > (screenWidth - rightMargin)) {
-		// Fallback: drop percent if it can't fit cleanly
 		showPct = false;
 		totalWidth = iconWidth;
 	}
-	int leftX = (int)screenWidth - (int)rightMargin - totalWidth; // start position ensuring right margin
-	if (leftX < 0) leftX = 0; // safety
-	int yIcon = 11;
+	int leftX = screenWidth - rightMargin - totalWidth;
+	if (leftX < layout.batteryMinX) leftX = layout.batteryMinX;
+	int yIcon = layout.topBarHeight;
 
 	// Draw icon
 	display.setDrawColor(1);
-	display.setFont(FONT_GLYPHS);
+	display.setFont(fonts.glyphs);
 	display.drawStr(leftX, yIcon, icon);
 	// Battery fill bars (keep within icon region)
 	if (pctRaw>10) display.drawLine(leftX+1,yIcon-6,leftX+1,yIcon-3);
@@ -449,25 +482,20 @@ void OledRenderer::renderBattery() {
 
 	// Draw percent if enabled and still fits
 	if (showPct) {
-		display.setFont(FONT_FUNCTION_INDICATORS);
+		display.setFont(fonts.functionIndicators);
 		int pctX = leftX + iconWidth + spacing;
-		int pctY = 10; // baseline alignment for small font
-		// Clamp percent start if rounding produced an out-of-range position
-	// Ensure percent text does not draw into last two columns
-	int maxRight = screenWidth - rightMargin - 1; // final drawable column for percent
-	if (pctX + pctWidth - 1 > maxRight) pctX = maxRight - pctWidth + 1;
-	if (pctX < leftX + iconWidth + spacing) pctX = leftX + iconWidth + spacing; // maintain spacing
+		int pctY = yIcon - 1;
+		int maxRight = screenWidth - rightMargin - 1;
+		if (pctX + pctWidth - 1 > maxRight) pctX = maxRight - pctWidth + 1;
+		if (pctX < leftX + iconWidth + spacing) pctX = leftX + iconWidth + spacing;
 		display.drawStr(pctX, pctY, pctStr.c_str());
 	}
 }
 
-void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(FONT_GLYPHS); display.drawGlyph(1,38,glyph_speed_step); display.setFont(FONT_DEFAULT); display.drawStr(9,37,String(throttleManager.getSpeedStep()).c_str()); } }
+void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(fonts.glyphs); display.drawGlyph(layout.speedStepGlyphX, layout.speedStepGlyphY, glyph_speed_step); display.setFont(fonts.defaultFont); display.drawStr(layout.speedStepTextX, layout.speedStepTextY, String(throttleManager.getSpeedStep()).c_str()); } }
 
 void OledRenderer::renderMomentumIndicator() {
-    // Show momentum indicator for the currently-selected throttle
     int currentIdx = throttleManager.getCurrentThrottleIndex();
-    
-    // Only show when momentum is active (not Off) for this throttle
     if (!throttleManager.momentum().isActive(currentIdx)) return;
     
     const char* levelChar = "";
@@ -475,44 +503,148 @@ void OledRenderer::renderMomentumIndicator() {
         case MomentumLevel::Low:    levelChar = "L"; break;
         case MomentumLevel::Medium: levelChar = "M"; break;
         case MomentumLevel::High:   levelChar = "H"; break;
-        default: return; // Off - already checked above
+        default: return;
     }
     
     display.setDrawColor(1);
-    display.setFont(FONT_DEFAULT);
-    display.drawStr(13, 38, levelChar);
+    display.setFont(fonts.defaultFont);
+    display.drawStr(layout.momentumTextX, layout.momentumTextY, levelChar);
 }
 
 void OledRenderer::renderBrakeIndicator() {
-    // Show "B" when braking, up arrow when accelerating, down arrow when decelerating
     int currentIdx = throttleManager.getCurrentThrottleIndex();
     
-    // Priority 1: Show "B" if actively braking
     if (throttleManager.momentum().isBraking(currentIdx)) {
         display.setDrawColor(1);
-        display.setFont(FONT_DEFAULT);
-        display.drawStr(22, 38, "B");
+        display.setFont(fonts.defaultFont);
+        display.drawStr(layout.brakeTextX, layout.brakeTextY, "B");
         return;
     }
     
-    // Priority 2: Show acceleration/deceleration indicators
     int targetSpeed = throttleManager.momentum().getTargetSpeed(currentIdx);
     int actualSpeed = throttleManager.momentum().getActualSpeed(currentIdx);
     
-    // Only show arrows if there's a significant difference (more than 1 speed step)
     if (targetSpeed > actualSpeed + 1) {
-        // Accelerating - show up arrow glyph
         display.setDrawColor(1);
-        display.setFont(FONT_GLYPHS);
-        display.drawGlyph(22, 38, glyph_arrow_up);
+        display.setFont(fonts.glyphs);
+        display.drawGlyph(layout.brakeTextX, layout.brakeTextY, glyph_arrow_up);
     } else if (targetSpeed + 1 < actualSpeed) {
-        // Decelerating - show down arrow glyph
         display.setDrawColor(1);
-        display.setFont(FONT_GLYPHS);
-        display.drawGlyph(22, 38, glyph_arrow_down);
+        display.setFont(fonts.glyphs);
+        display.drawGlyph(layout.brakeTextX, layout.brakeTextY, glyph_arrow_down);
     }
 }
 
 void OledRenderer::renderSpeed() {
-	lastOledScreen = last_oled_screen_speed; menuIsShowing = false; String sLocos=""; String sSpeed=""; String sDirection=""; String sep=" "; bool foundNext=false; String nextNo=""; String nextSpeedDir=""; clearArray(); bool drawTop=false; int currentIdx = throttleManager.getCurrentThrottleIndex(); char currentChar = throttleManager.getCurrentThrottleChar(); if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) { for (int i=0;i<wiThrottleProtocol.getNumberOfLocomotives(currentChar); i++) { sLocos += sep + getDisplayLocoString(currentIdx,i); sep = CONSIST_SPACE_BETWEEN_LOCOS; } sSpeed = String(throttleManager.getDisplaySpeed(currentIdx)); Direction dir = throttleManager.directions()[currentIdx]; sDirection = (dir==Forward)? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT; if (throttleManager.getMaxThrottles()>1) { int nextIdx = currentIdx+1; for (int i=nextIdx;i<throttleManager.getMaxThrottles();i++) if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i))>0) { foundNext=true; nextIdx=i; break; } if (!foundNext && currentIdx>0) { for (int i=0;i<currentIdx;i++) if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i))>0) { foundNext=true; nextIdx=i; break; } } if (foundNext) { nextNo = String(nextIdx+1); int sp = throttleManager.getDisplaySpeed(nextIdx); nextSpeedDir = String(sp); Direction nextDir = throttleManager.directions()[nextIdx]; if (nextDir==Forward) nextSpeedDir += DIRECTION_FORWARD_TEXT_SHORT; else nextSpeedDir = DIRECTION_REVERSE_TEXT_SHORT + nextSpeedDir; nextSpeedDir = String("     ") + nextSpeedDir; nextSpeedDir = nextSpeedDir.substring(nextSpeedDir.length()-5); } } oledText[0] = "   " + sLocos; drawTop=true; } else { setAppnameForOled(); oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx+1); oledText[3] = MSG_NO_LOCO_SELECTED; drawTop=true; } if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu); else setMenuTextForOled(menu_menu_hash_is_functions); renderArrayInternal(false,false,false,drawTop); if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) { renderFunctions(); display.setDrawColor(0); display.drawBox(0,0,12,16); display.setDrawColor(1); display.setFont(FONT_THROTTLE_NUMBER); display.drawStr(2,15,String(currentIdx+1).c_str()); } renderBattery(); renderSpeedStepMultiplier(); if (trackPower==PowerOn) { display.drawRBox(0,40,9,9,1); display.setDrawColor(0); } display.setFont(FONT_GLYPHS); display.drawGlyph(1,48,glyph_track_power); display.setDrawColor(1); if (!heartbeatMonitor.enabled()) { display.setFont(FONT_GLYPHS); display.drawGlyph(13,49,glyph_heartbeat_off); display.setDrawColor(2); display.drawLine(13,48,20,41); display.setDrawColor(1); } renderMomentumIndicator(); renderBrakeIndicator(); display.setFont(FONT_DIRECTION); display.drawStr(79,36,sDirection.c_str()); const char *cSpeed = sSpeed.c_str(); display.setFont(FONT_SPEED); int width = display.getStrWidth(cSpeed); display.drawStr(22+(55-width),45,cSpeed); if (throttleManager.getMaxThrottles()>1 && foundNext) { display.setFont(FONT_NEXT_THROTTLE); display.drawStr(85+34,38,nextNo.c_str()); display.drawStr(85+12,48,nextSpeedDir.c_str()); } display.sendBuffer(); }
+	lastOledScreen = last_oled_screen_speed;
+	menuIsShowing = false;
+	String sLocos = "";
+	String sSpeed = "";
+	String sDirection = "";
+	String sep = " ";
+	bool foundNext = false;
+	String nextNo = "";
+	String nextSpeedDir = "";
+	clearArray();
+	bool drawTop = false;
+	int currentIdx = throttleManager.getCurrentThrottleIndex();
+	char currentChar = throttleManager.getCurrentThrottleChar();
+
+	if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
+		for (int i = 0; i < wiThrottleProtocol.getNumberOfLocomotives(currentChar); i++) {
+			sLocos += sep + getDisplayLocoString(currentIdx, i);
+			sep = CONSIST_SPACE_BETWEEN_LOCOS;
+		}
+		sSpeed = String(throttleManager.getDisplaySpeed(currentIdx));
+		Direction dir = throttleManager.directions()[currentIdx];
+		sDirection = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
+
+		if (throttleManager.getMaxThrottles() > 1) {
+			int nextIdx = currentIdx + 1;
+			for (int i = nextIdx; i < throttleManager.getMaxThrottles(); i++)
+				if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { foundNext = true; nextIdx = i; break; }
+			if (!foundNext && currentIdx > 0) {
+				for (int i = 0; i < currentIdx; i++)
+					if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { foundNext = true; nextIdx = i; break; }
+			}
+			if (foundNext) {
+				nextNo = String(nextIdx + 1);
+				int sp = throttleManager.getDisplaySpeed(nextIdx);
+				nextSpeedDir = String(sp);
+				Direction nextDir = throttleManager.directions()[nextIdx];
+				if (nextDir == Forward) nextSpeedDir += DIRECTION_FORWARD_TEXT_SHORT;
+				else nextSpeedDir = DIRECTION_REVERSE_TEXT_SHORT + nextSpeedDir;
+				nextSpeedDir = String("     ") + nextSpeedDir;
+				nextSpeedDir = nextSpeedDir.substring(nextSpeedDir.length() - 5);
+			}
+		}
+		oledText[0] = "   " + sLocos;
+		drawTop = true;
+	} else {
+		setAppnameForOled();
+		oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx + 1);
+		oledText[3] = MSG_NO_LOCO_SELECTED;
+		drawTop = true;
+	}
+
+	if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu);
+	else setMenuTextForOled(menu_menu_hash_is_functions);
+
+	renderArrayInternal(false, false, false, drawTop);
+
+	if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
+		renderFunctions();
+		display.setDrawColor(0);
+		display.drawBox(0, 0, layout.throttleNumberBoxW, layout.throttleNumberBoxH);
+		display.setDrawColor(1);
+		display.setFont(fonts.throttleNumber);
+		display.drawStr(layout.throttleNumberX, layout.throttleNumberY, String(currentIdx + 1).c_str());
+	}
+
+	renderBattery();
+	renderSpeedStepMultiplier();
+
+	// Track power indicator
+	if (trackPower == PowerOn) {
+		display.drawRBox(layout.trackPowerBoxX, layout.trackPowerBoxY,
+		                 layout.trackPowerBoxW, layout.trackPowerBoxH, 1);
+		display.setDrawColor(0);
+	}
+	display.setFont(fonts.glyphs);
+	display.drawGlyph(layout.trackPowerGlyphX, layout.trackPowerGlyphY, glyph_track_power);
+	display.setDrawColor(1);
+
+	// Heartbeat disabled indicator
+	if (!heartbeatMonitor.enabled()) {
+		display.setFont(fonts.glyphs);
+		display.drawGlyph(layout.heartbeatGlyphX, layout.heartbeatGlyphY, glyph_heartbeat_off);
+		display.setDrawColor(2);
+		display.drawLine(layout.heartbeatStrikeX1, layout.heartbeatStrikeY1,
+		                 layout.heartbeatStrikeX2, layout.heartbeatStrikeY2);
+		display.setDrawColor(1);
+	}
+
+	renderMomentumIndicator();
+	renderBrakeIndicator();
+
+	// Direction and speed
+	display.setFont(fonts.direction);
+	display.drawStr(layout.directionX, layout.directionY, sDirection.c_str());
+
+	const char *cSpeed = sSpeed.c_str();
+	display.setFont(fonts.speed);
+	int width = display.getStrWidth(cSpeed);
+	// Center speed text in the speed area
+	int speedAreaWidth = layout.directionX - layout.speedX;
+	display.drawStr(layout.speedX + (speedAreaWidth - width), layout.speedY, cSpeed);
+
+	// Next throttle info
+	if (throttleManager.getMaxThrottles() > 1 && foundNext) {
+		display.setFont(fonts.nextThrottle);
+		display.drawStr(layout.nextThrottleNumberX, layout.nextThrottleNumberY, nextNo.c_str());
+		display.drawStr(layout.nextThrottleSpeedX, layout.nextThrottleSpeedY, nextSpeedDir.c_str());
+	}
+
+	display.sendBuffer();
+}
 

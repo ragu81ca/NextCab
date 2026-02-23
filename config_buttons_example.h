@@ -162,6 +162,16 @@
 // #define CUSTOM_COMMAND_7 ""
 
 // ********************************************************************************************
+// Display Profile Selection
+//
+// Uncomment ONE of the following to select your display profile.
+// This controls layout, fonts, content capacity (items per page, name lengths), and driver.
+// Default is 128×64 monochrome OLED if nothing is defined.
+//
+// #define DISPLAY_PROFILE_128x64    // 128×64 monochrome OLED (default)
+// #define DISPLAY_PROFILE_320x240   // 320×240 color TFT
+
+// ********************************************************************************************
 // oLED definition
 
 // Uncomment and/or correct one (only) of the #define lines below if you need to override.

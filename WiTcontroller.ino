@@ -44,6 +44,7 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 #include "src/core/ThrottleManager.h"
 #include "src/core/network/WifiSsidManager.h"
 #include "src/core/OledRenderer.h"
+#include "src/core/DisplayConfig.h"
 #include "src/core/input/OperationModeHandler.h"
 #include "src/core/input/PasswordEntryModeHandler.h"
 #include "src/core/input/WifiSelectionHandler.h"
@@ -62,7 +63,7 @@ BatteryMonitor batteryMonitor; // encapsulates previous battery globals
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
 WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
-OledRenderer oledRenderer(u8g2); // OLED renderer instance (requires U8G2 reference)
+OledRenderer oledRenderer(displayDriver, activeLayout, activeFonts); // display-agnostic renderer
 MenuSystem menuSystem;           // New table-driven menu system
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
@@ -617,7 +618,7 @@ void connectWitServer() {
     }
   oledRenderer.renderArray(false, false, true, true);
   oledRenderer.renderBattery();
-    u8g2.sendBuffer();
+    displayDriver.sendBuffer();
 
     doStartupCommands();
   }
@@ -772,8 +773,8 @@ void setup() {
   Serial.begin(115200);
   // u8g2.setI2CAddress(0x3C * 2);
   // u8g2.setBusClock(100000);
-  u8g2.begin();
-  u8g2.firstPage();
+  displayDriver.begin();
+  displayDriver.firstPage();
 
   delay(1000);
   debug_println("Start"); 
@@ -1687,6 +1688,6 @@ void deepSleepStart(int shutdownReason) {
   oledRenderer.renderArray(false, false, true, true);
   delay(delayPeriod);
 
-  u8g2.setPowerSave(1);
+  displayDriver.setPowerSave(true);
   esp_deep_sleep_start();
 }

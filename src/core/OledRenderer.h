@@ -1,12 +1,14 @@
 // OledRenderer.h - relocated to src/core
 #pragma once
 #include <Arduino.h>
-#include <U8g2lib.h>
 #include <WiThrottleProtocol.h> // for TurnoutAction
+#include "DisplayDriver.h"
+#include "DisplayLayout.h"
+#include "FontSet.h"
 
 class OledRenderer {
 public:
-    explicit OledRenderer(U8G2 &display);
+    OledRenderer(DisplayDriver &driver, const DisplayLayout &layout, const FontSet &fonts);
 
     // Public rendering entry points used by application code
     void renderFoundSsids(const String &soFar);
@@ -30,6 +32,9 @@ public:
     // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
     void renderAllLocosScreen(bool hideLeadLoco);
 
+    // Access layout for code that needs content capacity values
+    const DisplayLayout& getLayout() const { return layout; }
+
 private:
     void renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine);
     void renderFunctions();
@@ -38,7 +43,8 @@ private:
     // Helper functions for unified loco list rendering
     bool checkNeedSuffixes(char throttleChar, int numLocos);
     String formatLocoDisplay(const String &loco, bool needSuffixes);
-    // (kept declaration moved to public)
 
-    U8G2 &display;
+    DisplayDriver &display;
+    const DisplayLayout &layout;
+    const FontSet &fonts;
 };
