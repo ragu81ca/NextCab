@@ -1,6 +1,6 @@
 #include "TurnoutSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
@@ -8,7 +8,7 @@
 extern InputManager inputManager;
 extern UIState uiState;
 
-TurnoutSelectionHandler::TurnoutSelectionHandler(OledRenderer &renderer)
+TurnoutSelectionHandler::TurnoutSelectionHandler(Renderer &renderer)
     : renderer_(renderer), page_(0), action_(TurnoutThrow) {}
 
 void TurnoutSelectionHandler::onEnter() {

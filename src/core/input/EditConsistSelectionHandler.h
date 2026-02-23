@@ -2,15 +2,15 @@
 #include "IModeHandler.h"
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 
 class EditConsistSelectionHandler : public IModeHandler {
 public:
-    explicit EditConsistSelectionHandler(OledRenderer &renderer);
+    explicit EditConsistSelectionHandler(Renderer &renderer);
     void onEnter() override;
     void onExit() override;
     bool handle(const InputEvent &ev) override;
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
 };

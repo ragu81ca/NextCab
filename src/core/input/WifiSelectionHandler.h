@@ -2,7 +2,7 @@
 #include "IModeHandler.h"
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 class WifiSsidManager;
 
 enum class WifiSelectionSource {
@@ -12,7 +12,7 @@ enum class WifiSelectionSource {
 
 class WifiSelectionHandler : public IModeHandler {
 public:
-    explicit WifiSelectionHandler(OledRenderer &renderer, WifiSsidManager &wifiManager);
+    explicit WifiSelectionHandler(Renderer &renderer, WifiSsidManager &wifiManager);
     
     bool handle(const InputEvent &ev) override;
     void onEnter() override;
@@ -23,7 +23,7 @@ public:
     WifiSelectionSource getSource() const { return source_; }
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
     WifiSsidManager &wifiManager_;
     WifiSelectionSource source_;
     int page_;

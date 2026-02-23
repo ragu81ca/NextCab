@@ -28,7 +28,7 @@ Planned (✔ = started):
 | Hardware | `Input::EncoderHandler` | Rotary encoder + button semantics | Pending |
 | Hardware | `Input::AdditionalButtons` | Optional external buttons | Pending |
 | Protocol | `WiThrottleClient` | Thin wrapper around WiThrottleProtocol delegate & callbacks | Pending |
-| UI | `OledRenderer` | All drawing logic (currently many `writeOled*` funcs) | Pending |
+| UI | `Renderer` | All drawing logic (currently many `writeOled*` funcs) | Pending |
 | UI | `MenuSystem` | Menu state machine & command parsing | Pending |
 | Utils | `ActionDispatcher` | Mapping high-level actions (enum) -> operations | Pending |
 | Utils | `EventBus` | Lightweight pub/sub for decoupling (optional future) | Planned |
@@ -55,12 +55,12 @@ Refactor:
 
 1. WiThrottleClient: wrap protocol delegate, surface high-level events (acquire/release/speed/direction/function changes).
 2. MenuSystem + ActionDispatcher: centralize command interpretation & reduce conditional complexity in the root loop.
-3. OledRenderer: unify drawing operations; introduce a small render model (struct of current view state) to minimize flicker & repeated calculations.
+3. Renderer: unify drawing operations; introduce a small render model (struct of current view state) to minimize flicker & repeated calculations.
 4. WifiManager + ServerDiscovery separation: distinct responsibilities for network vs service discovery; enable retry/backoff policies.
 5. Input Handlers (Keypad/Encoder/Buttons): emit semantic Actions to dispatcher (decouple physical inputs from operations).
 6. RosterManager: encapsulate roster/turnout/route collections, sorting and filtering.
 7. CoreController: orchestrate setup/loop and mediate between managers (final pass to slim `.ino`).
-8. Optional: EventBus introduction once at least three modules would benefit from decoupled notifications (likely after MenuSystem & OledRenderer extraction).
+8. Optional: EventBus introduction once at least three modules would benefit from decoupled notifications (likely after MenuSystem & Renderer extraction).
 
 ## ThrottleManager Summary (Phase 1 Completed)
 

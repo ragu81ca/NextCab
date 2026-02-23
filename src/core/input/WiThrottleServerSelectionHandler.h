@@ -2,7 +2,7 @@
 #include "IModeHandler.h"
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 
 enum class WiThrottleServerSource {
     Discovered,  // Selecting from discovered servers
@@ -11,7 +11,7 @@ enum class WiThrottleServerSource {
 
 class WiThrottleServerSelectionHandler : public IModeHandler {
 public:
-    explicit WiThrottleServerSelectionHandler(OledRenderer &renderer);
+    explicit WiThrottleServerSelectionHandler(Renderer &renderer);
     
     bool handle(const InputEvent &ev) override;
     void onEnter() override;
@@ -21,6 +21,6 @@ public:
     WiThrottleServerSource getSource() const { return source_; }
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
     WiThrottleServerSource source_;
 };

@@ -3,7 +3,7 @@
 #include <ESPmDNS.h>
 #include "../../../static.h" // macro constants
 #include "../../../WiTcontroller.h" // size-related macros (maxFoundSsids etc.)
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros
 #include "../input/InputManager.h"
@@ -34,7 +34,7 @@ extern void setAppnameForOled();
 extern void clearOledArray();
 extern void buildWitEntry();
 // Use renderer instance directly instead of indirect extern wrappers
-extern OledRenderer oledRenderer;
+extern renderer renderer;
 extern void setMenuTextForOled(int);
 
 // getDots helper defined in sketch; forward declare only
@@ -98,8 +98,8 @@ void WifiSsidManager::browseSsids() {
     clearOledArray();
     setAppnameForOled();
     oledText[2] = MSG_BROWSING_FOR_SSIDS;
-    oledRenderer.renderBattery();
-    oledRenderer.renderArray(false,false,true,true);
+    renderer.renderBattery();
+    renderer.renderArray(false,false,true,true);
 
     // Ensure in station mode and not connected before scanning
     WiFi.mode(WIFI_STA);
@@ -129,9 +129,9 @@ void WifiSsidManager::browseSsids() {
             }
         }
         for (int i=0;i<foundSsidsCount;i++) { debug_println(foundSsids[i]); }
-        // Use unified rendering path: delegate to OledRenderer::renderFoundSsids
+        // Use unified rendering path: delegate to renderer::renderFoundSsids
         uiState.page = 0; // reset to first page
-        oledRenderer.renderFoundSsids("");
+        renderer.renderFoundSsids("");
         systemStateManager.setState(SystemState::WifiSelection);
         
         // Auto-connect: if exactly ONE scanned SSID matches a configured SSID, connect automatically
@@ -155,7 +155,7 @@ void WifiSsidManager::browseSsids() {
     } else {
         clearOledArray();
         oledText[1] = MSG_NO_SSIDS_FOUND;
-        oledRenderer.renderArray(false,false,true,true);
+        renderer.renderArray(false,false,true,true);
         debug_println("No SSIDs found in scan");
     }
 }
@@ -164,12 +164,12 @@ void WifiSsidManager::showConfiguredList() {
     debug_println("WifiSsidManager::showConfiguredList()");
     clearOledArray();
     setAppnameForOled();
-    oledRenderer.renderBattery();
-    oledRenderer.renderArray(false,false);
+    renderer.renderBattery();
+    renderer.renderArray(false,false);
     if (maxSsids == 0) {
         oledText[1] = MSG_NO_SSIDS_FOUND;
-    oledRenderer.renderBattery();
-    oledRenderer.renderArray(false,false,true,true);
+    renderer.renderBattery();
+    renderer.renderArray(false,false,true,true);
         debug_println(oledText[1]);
         return;
     }
@@ -186,7 +186,7 @@ void WifiSsidManager::showConfiguredList() {
     if (maxSsids > 0) {
     setMenuTextForOled(menu_select_ssids);
     }
-    oledRenderer.renderArray(false,false);
+    renderer.renderArray(false,false);
     if (maxSsids == 1) {
     selectedSsidStr = ssids[0];
     selectedSsidPasswordStr = passwords[0];
@@ -275,8 +275,8 @@ void WifiSsidManager::connectSelectedInternal() {
     clearOledArray();
     setAppnameForOled();
     oledText[1] = selectedSsidStr; oledText[2] = String("connecting...");
-    oledRenderer.renderBattery();
-    oledRenderer.renderArray(false,false,true,true);
+    renderer.renderBattery();
+    renderer.renderArray(false,false,true,true);
 
     double startTime = millis();
     double nowTime = startTime;
@@ -289,8 +289,8 @@ void WifiSsidManager::connectSelectedInternal() {
     setAppnameForOled();
     for (int i=0; i<3; ++i) {
         oledText[1] = selectedSsidStr; oledText[2] =  String(MSG_TRYING_TO_CONNECT) + " (" + String(i + 1) + " of 3)";
-        oledRenderer.renderBattery();
-        oledRenderer.renderArray(false,false,true,true);
+        renderer.renderBattery();
+        renderer.renderArray(false,false,true,true);
         nowTime = startTime;
         debug_print("hostname "); debug_println(WiFi.getHostname());
         WiFi.begin(cSsid, cPassword);
@@ -299,8 +299,8 @@ void WifiSsidManager::connectSelectedInternal() {
         while ((WiFi.status() != WL_CONNECTED) && ((nowTime-startTime) <= SSID_CONNECTION_TIMEOUT)) {
             if (millis() > tempTimer + 250) {
                 oledText[3] = getDots(j);
-                oledRenderer.renderBattery();
-                oledRenderer.renderArray(false,false,true,true);
+                renderer.renderBattery();
+                renderer.renderArray(false,false,true,true);
                 j++; debug_print("."); tempTimer = millis();
             }
             nowTime = millis();
@@ -322,15 +322,15 @@ void WifiSsidManager::connectSelectedInternal() {
         debug_println("WiFi modem sleep disabled for stable TCP");
         oledText[2] = MSG_CONNECTED;
         oledText[3] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
-        oledRenderer.renderBattery();
-        oledRenderer.renderArray(false,false,true,true);
+        renderer.renderBattery();
+        renderer.renderArray(false,false,true,true);
         systemStateManager.setState(SystemState::WifiConnected);
         // Mode will be set by systemStateManager
         if (!MDNS.begin(wifiHostname.c_str())) {
             debug_println("Error setting up MDNS responder!");
             oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
-            oledRenderer.renderBattery();
-            oledRenderer.renderArray(false,false,true,true);
+            renderer.renderBattery();
+            renderer.renderArray(false,false,true,true);
             delay(2000);
             systemStateManager.setState(SystemState::Boot);
         } else {
@@ -339,8 +339,8 @@ void WifiSsidManager::connectSelectedInternal() {
     } else {
         debug_println(MSG_CONNECTION_FAILED);
         oledText[2] = MSG_CONNECTION_FAILED;
-        oledRenderer.renderBattery();
-        oledRenderer.renderArray(false,false,true,true);
+        renderer.renderBattery();
+        renderer.renderArray(false,false,true,true);
         delay(2000);
         WiFi.disconnect();
         systemStateManager.setState(SystemState::Boot);

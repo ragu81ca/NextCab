@@ -1,6 +1,6 @@
 #include "RosterSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
@@ -8,7 +8,7 @@
 extern InputManager inputManager;
 extern UIState uiState;
 
-RosterSelectionHandler::RosterSelectionHandler(OledRenderer &renderer)
+RosterSelectionHandler::RosterSelectionHandler(Renderer &renderer)
     : renderer_(renderer), page_(0) {}
 
 void RosterSelectionHandler::onEnter() {

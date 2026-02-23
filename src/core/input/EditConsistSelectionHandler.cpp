@@ -1,6 +1,6 @@
 #include "EditConsistSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../ThrottleManager.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
@@ -9,7 +9,7 @@ extern InputManager inputManager;
 extern ThrottleManager throttleManager;
 extern WiThrottleProtocol wiThrottleProtocol;
 
-EditConsistSelectionHandler::EditConsistSelectionHandler(OledRenderer &renderer)
+EditConsistSelectionHandler::EditConsistSelectionHandler(Renderer &renderer)
     : renderer_(renderer) {}
 
 void EditConsistSelectionHandler::onEnter() {

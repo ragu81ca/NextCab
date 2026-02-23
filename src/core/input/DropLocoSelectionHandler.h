@@ -2,16 +2,16 @@
 #include "IModeHandler.h"
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 
 class DropLocoSelectionHandler : public IModeHandler {
 public:
-    explicit DropLocoSelectionHandler(OledRenderer &renderer);
+    explicit DropLocoSelectionHandler(Renderer &renderer);
     
     bool handle(const InputEvent &ev) override;
     void onEnter() override;
     void onExit() override;
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
 };

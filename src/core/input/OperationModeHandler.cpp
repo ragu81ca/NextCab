@@ -1,15 +1,15 @@
 #include "OperationModeHandler.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../ThrottleManager.h"
 #include "../../../actions.h" // for SPEED_STOP_THEN_TOGGLE_DIRECTION / DIRECTION_TOGGLE constants
 #include "../../../static.h"
 
 extern ThrottleManager throttleManager; // provided by sketch
-extern OledRenderer oledRenderer; // global renderer
+extern Renderer renderer; // global renderer
 
 void OperationModeHandler::onEnter() {
     // Render speed screen when entering operation mode
-    oledRenderer.renderSpeed();
+    renderer.renderSpeed();
 }
 
 void OperationModeHandler::onExit() {
@@ -71,7 +71,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // Double-click cycles momentum levels for the CURRENT throttle: Off -> Low -> Med -> High -> Off
             int idx = throttleManager.getCurrentThrottleIndex();
             throttleManager.momentum().cycleMomentumLevel(idx);
-            oledRenderer.renderSpeed(); // Update display to show new momentum indicator
+            renderer.renderSpeed(); // Update display to show new momentum indicator
             #if INPUT_DEBUG
             Serial.println("[OperationModeHandler] EncoderDoubleClick: momentum level cycled");
             #endif
@@ -82,7 +82,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
                 throttleManager.momentum().setBraking(idx, true);
-                oledRenderer.renderSpeed(); // Update display to show brake indicator
+                renderer.renderSpeed(); // Update display to show brake indicator
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHold: braking activated");
                 #endif
@@ -94,7 +94,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
                 throttleManager.momentum().setBraking(idx, false);
-                oledRenderer.renderSpeed(); // Update display to hide brake indicator
+                renderer.renderSpeed(); // Update display to hide brake indicator
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHoldRelease: braking deactivated");
                 #endif

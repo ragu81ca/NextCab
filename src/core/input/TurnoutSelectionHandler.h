@@ -3,11 +3,11 @@
 #include <WiThrottleProtocol.h>
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 
 class TurnoutSelectionHandler : public IModeHandler {
 public:
-    explicit TurnoutSelectionHandler(OledRenderer &renderer);
+    explicit TurnoutSelectionHandler(Renderer &renderer);
     
     bool handle(const InputEvent &ev) override;
     void onEnter() override;
@@ -17,7 +17,7 @@ public:
     TurnoutAction getAction() const { return action_; }
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
     int page_;
     TurnoutAction action_;
 };

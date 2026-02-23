@@ -1,6 +1,6 @@
 #include "RouteSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 #include "../UIState.h"
@@ -8,7 +8,7 @@
 extern InputManager inputManager;
 extern UIState uiState;
 
-RouteSelectionHandler::RouteSelectionHandler(OledRenderer &renderer)
+RouteSelectionHandler::RouteSelectionHandler(Renderer &renderer)
     : renderer_(renderer), page_(0) {}
 
 void RouteSelectionHandler::onEnter() {

@@ -1,4 +1,4 @@
-// OledRenderer.h - relocated to src/core
+// Renderer.h - display-agnostic renderer (renamed from OledRenderer.h)
 #pragma once
 #include <Arduino.h>
 #include <WiThrottleProtocol.h> // for TurnoutAction
@@ -6,9 +6,9 @@
 #include "DisplayLayout.h"
 #include "FontSet.h"
 
-class OledRenderer {
+class Renderer {
 public:
-    OledRenderer(DisplayDriver &driver, const DisplayLayout &layout, const FontSet &fonts);
+    Renderer(DisplayDriver &driver, const DisplayLayout &layout, const FontSet &fonts);
 
     // Public rendering entry points used by application code
     void renderFoundSsids(const String &soFar);

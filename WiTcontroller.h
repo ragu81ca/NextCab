@@ -7,19 +7,19 @@
 
 // Forward declarations to break cyclic dependency (definitions in respective headers)
 class ThrottleManager;
-class OledRenderer;
+class Renderer;
 
 extern ThrottleManager throttleManager;
-extern OledRenderer oledRenderer;
+extern Renderer renderer;
 //
 // DO NOT alter this file
 // 
 
 #define maxFoundWitServers 5     // must be 5 for the moment
-#define maxFoundSsids 60     // must be a multiple of 5
-#define maxRoster 70     // must be a multiple of 10
-#define maxTurnoutList 60     // must be a multiple of 10
-#define maxRouteList 60     // must be a multiple of 10
+#define maxFoundSsids 60     // must be a multiple of ssidItemsPerPage (both 5 and 10)
+#define maxRoster 70     // must be a multiple of rosterItemsPerPage (both 5 and 10)
+#define maxTurnoutList 60     // must be a multiple of turnoutItemsPerPage
+#define maxRouteList 60     // must be a multiple of routeItemsPerPage
 
 
 extern bool menuCommandStarted;
@@ -105,7 +105,7 @@ extern int additionalButtonActions[];
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 
 extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
-// Additional globals used by OledRenderer (migrated rendering logic)
+// Additional globals used by Renderer (migrated rendering logic)
 extern bool oledDirectCommandsAreBeingDisplayed;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
 String getDisplayLocoString(int multiThrottleIndex, int index); // helper for speed screen
@@ -184,7 +184,7 @@ void setAppnameForOled(void);
 void receivingServerInfoOled(int, int);
 void setMenuTextForOled(int);
 void refreshOled();
-// Legacy OLED menu/all-locos helpers migrated into OledRenderer (renderMenu, renderAllLocos)
+// Legacy OLED menu/all-locos helpers migrated into Renderer (renderMenu, renderAllLocos)
 
 void deepSleepStart();
 void deepSleepStart(int);

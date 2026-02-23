@@ -1,6 +1,6 @@
 #include "FunctionSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
@@ -8,7 +8,7 @@
 extern InputManager inputManager;
 extern UIState uiState;
 
-FunctionSelectionHandler::FunctionSelectionHandler(OledRenderer &renderer)
+FunctionSelectionHandler::FunctionSelectionHandler(Renderer &renderer)
     : renderer_(renderer), functionPage_(0) {}
 
 void FunctionSelectionHandler::onEnter() {

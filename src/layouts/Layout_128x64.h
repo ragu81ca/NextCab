@@ -1,5 +1,5 @@
 // Layout_128x64.h - Layout profile for 128×64 monochrome OLED
-// All values extracted from the existing hardcoded OledRenderer.cpp
+// All values extracted from the existing hardcoded Renderer.cpp
 #pragma once
 #include "../core/DisplayLayout.h"
 

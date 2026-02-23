@@ -1,6 +1,6 @@
 #include "DropLocoSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../ThrottleManager.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
@@ -9,7 +9,7 @@ extern InputManager inputManager;
 extern ThrottleManager throttleManager;
 extern WiThrottleProtocol wiThrottleProtocol;
 
-DropLocoSelectionHandler::DropLocoSelectionHandler(OledRenderer &renderer)
+DropLocoSelectionHandler::DropLocoSelectionHandler(Renderer &renderer)
     : renderer_(renderer) {}
 
 void DropLocoSelectionHandler::onEnter() {

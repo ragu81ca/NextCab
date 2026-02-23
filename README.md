@@ -959,7 +959,7 @@ If you are interested, please contact me directly for instructions.
 
 The project has begun an incremental refactor to separate newly introduced classes from the original monolithic sketch.  All new code that encapsulates specific responsibilities now lives under `src/core`:
 
-* `OledRenderer.*` – centralised all display rendering logic (menus, speed screen, lists, heartbeat).
+* `Renderer.*` – centralised all display rendering logic (menus, speed screen, lists, heartbeat).
 * `UIState.*` – holds transient UI line buffers and flags (replaces many former global arrays / booleans with a struct).
 * `ThrottleManager.*` – consolidates speed, direction and multi‑throttle selection logic.
 * `BatteryMonitor.*` – encapsulates battery percentage / icon handling and low‑battery checks.
@@ -980,7 +980,7 @@ Previously duplicated root `*.cpp` files (e.g. `ThrottleManager.cpp` at the proj
 
 #### Next refactor steps (not yet done)
 
-* Migrate remaining rendering helpers into `OledRenderer` or additional presenters.
+* Migrate remaining rendering helpers into `Renderer` or additional presenters.
 * Reduce macro bridging in `WiTcontroller.h` by moving more state directly into `UIState`.
 * Make `renderAllLocos` private again once external legacy calls are redirected.
 * Add unit tests (where practical) for `ThrottleManager` and `BatteryMonitor` behavior.

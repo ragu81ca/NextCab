@@ -2,17 +2,17 @@
 #include "IModeHandler.h"
 
 // Forward declarations
-class OledRenderer;
+class Renderer;
 
 class FunctionSelectionHandler : public IModeHandler {
 public:
-    explicit FunctionSelectionHandler(OledRenderer &renderer);
+    explicit FunctionSelectionHandler(Renderer &renderer);
     
     bool handle(const InputEvent &ev) override;
     void onEnter() override;
     void onExit() override;
 
 private:
-    OledRenderer &renderer_;
+    Renderer &renderer_;
     int functionPage_;
 };

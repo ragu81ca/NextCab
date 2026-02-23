@@ -1,6 +1,6 @@
 #include "WiThrottleServerSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 #include "../SystemState.h"
@@ -10,7 +10,7 @@ extern SystemStateManager systemStateManager;
 extern String witServerIpAndPortEntered;
 extern bool witServerIpAndPortChanged;
 
-WiThrottleServerSelectionHandler::WiThrottleServerSelectionHandler(OledRenderer &renderer)
+WiThrottleServerSelectionHandler::WiThrottleServerSelectionHandler(Renderer &renderer)
     : renderer_(renderer), source_(WiThrottleServerSource::Discovered) {}
 
 void WiThrottleServerSelectionHandler::onEnter() {

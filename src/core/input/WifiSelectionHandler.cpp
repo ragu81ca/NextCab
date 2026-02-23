@@ -1,6 +1,6 @@
 #include "WifiSelectionHandler.h"
 #include "InputManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../network/WifiSsidManager.h"
 #include "../../../static.h"
@@ -10,7 +10,7 @@ extern InputManager inputManager;
 extern UIState uiState;
 extern int foundSsidsCount;
 
-WifiSelectionHandler::WifiSelectionHandler(OledRenderer &renderer, WifiSsidManager &wifiManager)
+WifiSelectionHandler::WifiSelectionHandler(Renderer &renderer, WifiSsidManager &wifiManager)
     : renderer_(renderer), wifiManager_(wifiManager), source_(WifiSelectionSource::Configured), page_(0) {}
 
 void WifiSelectionHandler::onEnter() {

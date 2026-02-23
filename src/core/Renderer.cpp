@@ -1,5 +1,5 @@
-// OledRenderer.cpp relocated to src/core
-#include "OledRenderer.h"
+// Renderer.cpp - display-agnostic renderer (renamed from OledRenderer.cpp)
+#include "Renderer.h"
 #include "UIState.h"
 #include "RenderModel.h"
 #include "BatteryMonitor.h"
@@ -17,15 +17,15 @@ extern BatteryMonitor batteryMonitor;
 extern HeartbeatMonitor heartbeatMonitor;
 // Global instance now defined in WiTcontroller.ino to avoid multiple definition.
 
-OledRenderer::OledRenderer(DisplayDriver &d, const DisplayLayout &l, const FontSet &f)
+Renderer::Renderer(DisplayDriver &d, const DisplayLayout &l, const FontSet &f)
     : display(d), layout(l), fonts(f) {}
 
-void OledRenderer::renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
+void Renderer::renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
 	renderArrayInternal(isThreeColumns, isPassword, sendBuffer, drawTopLine);
 }
 
 // New wrapper for menu rendering (replaces previous inline logic from sketch)
-void OledRenderer::renderNewMenu(MenuSystem& menuSys) {
+void Renderer::renderNewMenu(MenuSystem& menuSys) {
 	menuIsShowing = true;
 	clearArray();
 	
@@ -80,7 +80,7 @@ void OledRenderer::renderNewMenu(MenuSystem& menuSys) {
 }
 
 // Public wrapper that records state then calls private renderAllLocos
-void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
+void Renderer::renderAllLocosScreen(bool hideLeadLoco) {
 	clearArray();
 	renderAllLocos(hideLeadLoco);
 	// Provide a header/menu line for consist editing or loco overview
@@ -89,7 +89,7 @@ void OledRenderer::renderAllLocosScreen(bool hideLeadLoco) {
 	renderArrayInternal(false,false,true,false);
 }
 
-void OledRenderer::renderFoundSsids(const String &soFar) {
+void Renderer::renderFoundSsids(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
 	clearArray();
@@ -116,7 +116,7 @@ void OledRenderer::renderFoundSsids(const String &soFar) {
 	}
 }
 
-void OledRenderer::renderRoster(const String &soFar) {
+void Renderer::renderRoster(const String &soFar) {
 	lastOledScreen = last_oled_screen_roster;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
@@ -137,7 +137,7 @@ void OledRenderer::renderRoster(const String &soFar) {
 	}
 }
 
-void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) {
+void Renderer::renderTurnoutList(const String &soFar, TurnoutAction action) {
 	lastOledScreen = last_oled_screen_turnout_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
@@ -160,7 +160,7 @@ void OledRenderer::renderTurnoutList(const String &soFar, TurnoutAction action) 
 	}
 }
 
-void OledRenderer::renderRouteList(const String &soFar) {
+void Renderer::renderRouteList(const String &soFar) {
 	lastOledScreen = last_oled_screen_route_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
@@ -183,7 +183,7 @@ void OledRenderer::renderRouteList(const String &soFar) {
 	}
 }
 
-void OledRenderer::renderFunctionList(const String &soFar) {
+void Renderer::renderFunctionList(const String &soFar) {
 	lastOledScreen = last_oled_screen_function_list;
 	lastOledStringParameter = soFar;
 	menuIsShowing = true;
@@ -220,7 +220,7 @@ void OledRenderer::renderFunctionList(const String &soFar) {
 	}
 }
 
-void OledRenderer::renderEnterPassword() {
+void Renderer::renderEnterPassword() {
 	clearArray();
 	String temp = ssidPasswordEntered+ssidPasswordCurrentChar;
 	if (temp.length()>12) { temp = "\253"+temp.substring(temp.length()-12); } else { temp = " "+temp; }
@@ -230,7 +230,7 @@ void OledRenderer::renderEnterPassword() {
 	renderArrayInternal(false,true,true,false);
 }
 
-void OledRenderer::renderFunctions() {
+void Renderer::renderFunctions() {
 	lastOledScreen = last_oled_screen_speed;
 	int currentIdx = throttleManager.getCurrentThrottleIndex();
 	int startX = layout.functionIndicatorStartX;
@@ -248,7 +248,7 @@ void OledRenderer::renderFunctions() {
 }
 
 // Helper: Check if we need to show S/L suffixes (only if there are duplicate addresses with different types)
-bool OledRenderer::checkNeedSuffixes(char throttleChar, int numLocos) {
+bool Renderer::checkNeedSuffixes(char throttleChar, int numLocos) {
 	if (numLocos <= 1) return false;
 	
 	for (int idx1 = 0; idx1 < numLocos; idx1++) {
@@ -270,7 +270,7 @@ bool OledRenderer::checkNeedSuffixes(char throttleChar, int numLocos) {
 }
 
 // Helper: Format locomotive display string (strip S/L prefix, optionally add suffix)
-String OledRenderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
+String Renderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
 	String displayLoco = loco;
 	if (displayLoco.length() > 0 && (displayLoco.charAt(0) == 'S' || displayLoco.charAt(0) == 'L')) {
 		char prefix = displayLoco.charAt(0);
@@ -282,7 +282,7 @@ String OledRenderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
 	return displayLoco;
 }
 
-void OledRenderer::renderEditConsist() {
+void Renderer::renderEditConsist() {
 	lastOledScreen = last_oled_screen_edit_consist; 
 	menuIsShowing = false; 
 	clearArray(); 
@@ -293,7 +293,7 @@ void OledRenderer::renderEditConsist() {
 	display.sendBuffer();
 }
 
-void OledRenderer::renderDropLocoList() {
+void Renderer::renderDropLocoList() {
 	menuIsShowing = true;
 	clearArray();
 	
@@ -327,7 +327,7 @@ void OledRenderer::renderDropLocoList() {
 }
 
 
-void OledRenderer::renderHeartbeatCheck() {
+void Renderer::renderHeartbeatCheck() {
 	menuIsShowing = false;
 	RenderModel model;
 	buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled());
@@ -339,7 +339,7 @@ void OledRenderer::renderHeartbeatCheck() {
 	renderArrayInternal(false, false, model.sendBuffer, model.drawTopLine);
 }
 
-void OledRenderer::renderAllLocos(bool hideLeadLoco) {
+void Renderer::renderAllLocos(bool hideLeadLoco) {
 	lastOledScreen = last_oled_screen_all_locos; 
 	lastOledBoolParameter = hideLeadLoco; 
 	int startAt = (hideLeadLoco) ? 1 : 0; 
@@ -372,7 +372,7 @@ void OledRenderer::renderAllLocos(bool hideLeadLoco) {
 	}
 }
 // Internal unified array renderer
-void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
+void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
 	display.clearBuffer();
 	display.setDrawColor(1);
 	display.setFont(fonts.defaultFont);
@@ -436,11 +436,11 @@ void OledRenderer::renderArrayInternal(bool isThreeColumns, bool isPassword, boo
 	if (sendBuffer) display.sendBuffer();
 }
 
-void OledRenderer::clearArray() { uiState.clearLines(); }
+void Renderer::clearArray() { uiState.clearLines(); }
 
-void OledRenderer::renderDirectCommands() { lastOledScreen = last_oled_screen_direct_commands; oledDirectCommandsAreBeingDisplayed = true; clearArray(); oledText[0] = DIRECT_COMMAND_LIST; for (int i=0; i<4; i++) oledText[i+1] = directCommandText[i][0]; int j=0; for (int i=6; i<10; i++) { oledText[i+1] = directCommandText[j][1]; j++; } j=0; for (int i=12; i<16; i++) { oledText[i+1] = directCommandText[j][2]; j++; } renderArray(true,false); menuCommandStarted = false; }
+void Renderer::renderDirectCommands() { lastOledScreen = last_oled_screen_direct_commands; oledDirectCommandsAreBeingDisplayed = true; clearArray(); oledText[0] = DIRECT_COMMAND_LIST; for (int i=0; i<4; i++) oledText[i+1] = directCommandText[i][0]; int j=0; for (int i=6; i<10; i++) { oledText[i+1] = directCommandText[j][1]; j++; } j=0; for (int i=12; i<16; i++) { oledText[i+1] = directCommandText[j][2]; j++; } renderArray(true,false); menuCommandStarted = false; }
 
-void OledRenderer::renderBattery() {
+void Renderer::renderBattery() {
 	if (!(batteryMonitor.enabled() && (batteryMonitor.displayMode()!=NONE) && (batteryMonitor.lastCheckMillis()>0))) return;
 	const int screenWidth = layout.screenWidth;
 	const int rightMargin = layout.rightMargin;
@@ -492,9 +492,9 @@ void OledRenderer::renderBattery() {
 	}
 }
 
-void OledRenderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(fonts.glyphs); display.drawGlyph(layout.speedStepGlyphX, layout.speedStepGlyphY, glyph_speed_step); display.setFont(fonts.defaultFont); display.drawStr(layout.speedStepTextX, layout.speedStepTextY, String(throttleManager.getSpeedStep()).c_str()); } }
+void Renderer::renderSpeedStepMultiplier() { if (speedStep != throttleManager.getSpeedStep()) { display.setDrawColor(1); display.setFont(fonts.glyphs); display.drawGlyph(layout.speedStepGlyphX, layout.speedStepGlyphY, glyph_speed_step); display.setFont(fonts.defaultFont); display.drawStr(layout.speedStepTextX, layout.speedStepTextY, String(throttleManager.getSpeedStep()).c_str()); } }
 
-void OledRenderer::renderMomentumIndicator() {
+void Renderer::renderMomentumIndicator() {
     int currentIdx = throttleManager.getCurrentThrottleIndex();
     if (!throttleManager.momentum().isActive(currentIdx)) return;
     
@@ -511,7 +511,7 @@ void OledRenderer::renderMomentumIndicator() {
     display.drawStr(layout.momentumTextX, layout.momentumTextY, levelChar);
 }
 
-void OledRenderer::renderBrakeIndicator() {
+void Renderer::renderBrakeIndicator() {
     int currentIdx = throttleManager.getCurrentThrottleIndex();
     
     if (throttleManager.momentum().isBraking(currentIdx)) {
@@ -535,7 +535,7 @@ void OledRenderer::renderBrakeIndicator() {
     }
 }
 
-void OledRenderer::renderSpeed() {
+void Renderer::renderSpeed() {
 	lastOledScreen = last_oled_screen_speed;
 	menuIsShowing = false;
 	String sLocos = "";
@@ -647,4 +647,3 @@ void OledRenderer::renderSpeed() {
 
 	display.sendBuffer();
 }
-
