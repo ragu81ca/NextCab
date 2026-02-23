@@ -1,52 +1,89 @@
-# WiTcontroller
+# NextCab
 
-A WiTcontroller is a simple DIY, handheld controller that talks to a WiThrottle Server (JMRI, DCC-EX EX-CommandStation, Digitrax LnWi and many others) using the WiThrottle protocol to control DCC model trains. 
+NextCab is a modular, software-first fork of WiTcontroller.
 
-> [See full change log/ version history](change_log.md)
+It began as a personal exploration: what happens if a DCC throttle is treated as evolving software rather than fixed firmware?
+
+Traditional throttles have remained largely unchanged for decades. WiTcontroller was an excellent starting point, but its architecture was originally built around a monolithic sketch. NextCab refactors that foundation into modular components and expands the interaction model with richer input behaviors and experimental control features.
+
+This project is not commercial and has no fixed roadmap. It exists to explore what a modern, extensible, software-defined throttle can become.
 
 ---
 
-**Why WiTcontroller?**
+## Origins
 
-There are a number of excellent DIY DCC controllers available but most require a lot of components and a lot of soldering.  I wanted to create the simplest possible controller so that it would be as easy (as possible) to make one.
+NextCab is forked from WiTcontroller by Peter Akers (flash62au).
 
-In its basic form, the WiTcontroller uses only four components plus a battery.  You can even put it together without soldering, though I don't recommend that for long term use.
+WiTcontroller remains an excellent DIY WiThrottle-compatible controller. NextCab builds on that work while introducing architectural refactoring and new control capabilities.
 
-While the basic from is simple, the design is flexible and you can add several additional components if you wish.
-
-<img src="images/petegsx_version.png" width="250"></img>
-
-[See a video of it in use here.](https://youtu.be/RKnhfBCP_SQ)  
-[and another...](https://www.youtube.com/watch?v=1w7H2OvP8Jg) (from GingeAngles)
-[and another...](https://youtu.be/69rTwZ4NM7E?si=bjXsFOhbpBvZsjaS) (from Sumner)
-
-**The name**
-
-*WiTcontroller* is a contraction of 'WiThrottle Controller' as it uses the WiThrottle Protocol for communications with the server.  I pronounce it as 'Wit Controller', but you can pronounce it however you like.😊
-
-**Notes:**
-
-* 'WiThrottle' is a trademark owned by Brett Hoffman. It is also an iOS app developed by Brett Hoffman.
-  
-* The 'WiThrottle protocol' is a communications protocol developed by Brett Hoffman.  It is used by **WiTcontroller**, JMRI, Engine Driver, the WiThrottle app plus a number of other apps and DCC Command Stations. References in this document to a 'WiThrottle Server', refer to any server that can communicate using the 'WiThrottle protocol'.
- 
 ---
 
-**Index:**
+## What’s New in NextCab
 
-* [Prerequisites](#prerequisites)
-* [Building](#building)
-* [Loading the Code](#loading-the-code)
-* [Using WiTController](#using-witcontroller)
-* [Allowed Actions](#allowed-assignments-for-the-0-9-keys-andor-additional-buttons)
-* [Options and Extras](#options-and-extras)
-* [Contact Me](#contact-me) <br/> <br/>
-* [Modifying the code](#modifying-the-code)
-* [Change Log](#change-log)
-* [Architecture Summary](#architecture-summary)
+### Architectural Refactor
+- Gradual separation of responsibilities into modular components (`src/core`)
+- Input abstraction layer (`IInputDevice`)
+- Centralized input event dispatch system
+- Cleaner separation of hardware vs application logic
+- Removal of legacy intermediary input manager
 
-<br/>
-<hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
+### Extended Input Behaviors
+- Double-click detection
+- Press-and-hold detection
+- Canonical press/release event model
+- Per-button state machines for additional hardware buttons
+
+### New Control Features
+- On-the-fly momentum selection (via double-click throttle interaction)
+- Dedicated brake behavior (press-and-hold throttle)
+- Experimental throttle-driven sound control (decoupled from speed)
+- Foundation for future modifier layers ("shift" concepts)
+
+### On-the-Fly Momentum
+
+Traditional DCC momentum is often configured directly in the decoder. While realistic, this makes it effectively permanent unless reprogrammed.
+
+NextCab approaches momentum differently.
+
+Momentum can be enabled, adjusted, or disabled dynamically from the throttle itself (via double-click on the encoder). This allows:
+
+- Experienced operators to enjoy realistic acceleration and braking
+- Younger or casual operators to run trains without delay
+- Mixed skill levels to coexist on the same layout
+
+Momentum is treated as an interaction mode, not a decoder constraint.
+
+This keeps realism optional — and reversible — without requiring CV changes.
+
+---
+
+## Physical Design Philosophy
+
+NextCab was developed with a specific physical form factor in mind:
+
+https://www.thingiverse.com/thing:7029069
+
+This case design features a large rotary encoder positioned as the primary interaction point. The software intentionally leverages that physical affordance.
+
+Rather than treating the encoder as a simple speed dial, NextCab expands it into a richer control surface:
+
+- Single rotation → speed control  
+- Double-click → on-the-fly momentum selection  
+- Press-and-hold → brake behavior  
+
+The goal is to make the encoder feel less like a knob and more like a dynamic control interface.
+
+While NextCab will run on other hardware configurations, its interaction model was designed around this larger encoder layout.
+
+---
+
+## Versioning
+
+NextCab uses independent semantic versioning starting from:
+
+v0.1.0
+
+Although forked from WiTcontroller, version numbers are not continued from the original project due to architectural divergence.
 
 ## Prerequisites
 
