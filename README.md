@@ -4,6 +4,15 @@ NextCab is a modular, software-first fork of WiTcontroller.
 
 It began as a personal exploration: what happens if a DCC throttle is treated as evolving software rather than fixed firmware?
 
+> **Experimental prerequisites (sound + momentum)**
+>
+> NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder is assumed to be configured as follows:
+>
+> 1. Automatic notching is **disabled**.
+> 2. **F6** = sound throttle down, **F7** = sound throttle up.
+> 3. **F9** is the brake sound.
+> 4. Decoder momentum is **disabled** (momentum is controlled by software).
+
 Traditional throttles have remained largely unchanged for decades. WiTcontroller was an excellent starting point, but its architecture was originally built around a monolithic sketch. NextCab refactors that foundation into modular components and expands the interaction model with richer input behaviors and experimental control features.
 
 This project is not commercial and has no fixed roadmap. It exists to explore what a modern, extensible, software-defined throttle can become.
@@ -54,6 +63,16 @@ Momentum can be enabled, adjusted, or disabled dynamically from the throttle its
 Momentum is treated as an interaction mode, not a decoder constraint.
 
 This keeps realism optional — and reversible — without requiring CV changes.
+
+---
+
+## Compatibility
+
+NextCab retains compatibility with WiThrottle-compatible servers (JMRI, DCC-EX, etc.) and supports the same core hardware configurations as WiTcontroller unless otherwise noted.
+
+Most existing WiTcontroller build instructions and hardware layouts remain valid.
+
+However, internal architecture and input handling have diverged significantly.
 
 ---
 
@@ -267,68 +286,9 @@ correctly identified and adjusted as needed.
 
 ---
 
-### Case
-
-<img src="images/witcontroller1.jpg" width="300;"></img> <img src="images/witcontroller2.jpg" width="300;"></img>
-
-My case was 3D Printed for me by peteGSX (See the [Thingiverse.](https://www.thingiverse.com/thing:5440351) )
-
-* The 3x4 keypad petGSX designed the case for came from Jaycar and is slightly narrower than the one you see in the 'deconstructed' view in the video above.
-* The case requires about a dozen M2x4mm screws
-
----
-
-### Variations
-
-<img src="images/sumner_version.png" width="300;"></img> <br/>
-See [*sumner* version](https://1fatgmc.com/RailRoad/DCC/WiTcontroller-Index.html).
-
-<img src="images/syurev_case.png" width="300;"></img> <br/>
-syurev version. See [Thingiverse](https://www.thingiverse.com/thing:6541187).
-
-<img src="images/railsnail_case.png" width="300;"></img> <br/>
-Railsnail version. See [RMweb](https://www.rmweb.co.uk/forums/topic/186297-project-a-witcontroller-wireless-throttle-to-control-my-dcc-ex-commandstation/).
-
-<img src="images/kees_case.png" width="300;"></img> <br/>
-kees version. See [printables](https://www.printables.com/model/907658-dccexcontroller-witcontroller).
-
-<img src="images/case_uknown.png" width="300;"></img> <br/>
-Unknown author. See [Thingiverse](https://makerworld.com/en/models/819825).
-
-<img src="images/gingerangles_version.png" width="300;"></img> <br/>
-*gingerangles* version with 2.4 inch screen...
-gingerangels can be contacted on the DCC-EX Discord server.
-[Discord Invite](https://discord.gg/8ghsjsBup8) - 
-[specific message](https://discord.com/channels/713189617066836079/735156882511102033/1316646832297742380)
-
-<img src="images/rdbnogueira_version.png" width="300;"></img> <br/> 
-rdbnogueira version. See [Thingiverse](https://www.thingiverse.com/thing:6956982)
-
-<img src="https://github.com/dvirgo62/Printed-case-for-witcontroller/blob/main/PXL_20250910_022436424.jpg?raw=true" width="300;"></img> <br/>
-David Virgo's version using the EC11 encoder. See [GitHub](https://github.com/dvirgo62/Printed-case-for-witcontroller?fbclid=IwY2xjawMyNLNleHRuA2FlbQIxMABicmlkETFTZ3RWbmRYck9MRENISVczAR7I770O70-brr0UWQ1O463MGa91Kf7WoZwbx85NPC72q69bG04gduhkIRDuFg_aem_znuhLVk6PxQxmlZntuLdAA)
-
-<img src="images/markwtech_case.jpg" width="300;"></img> <br/> 
-markwtech version. See [Thingiverse](https://www.thingiverse.com/thing:7029069)
-
-
----
-
-Some videos:
-
-* https://youtu.be/RKnhfBCP_SQ
-* https://www.youtube.com/shorts/1w7H2OvP8Jg
-
----
-
-And for a very different take on what is possible by extending the design, have a look at: https://1fatgmc.com/RailRoad/DCC/HandCab-Index.html
-
-
-<br/>
-<hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
-
 ## Loading the code
 
-The instructions below are for using the **Arduino IDE** and **GitHub Desktop**. 
+_(This area of documentation is still a work-in-progress. The original version of WitController could be build through the Ardunio IDE, but I believe Visual Studio Code is required now because of the file structure.)_ The instructions below are for using the **Arduino IDE** and **GitHub Desktop**. 
 
 **Visual Studio Code (VSC)** can be used instead of the Arduino IDE, and is actually my preferred IDE, but no instructions are included here.  Contact me if you need assistance with VSC.
 
@@ -399,6 +359,8 @@ The instructions below are for using the **Arduino IDE** and **GitHub Desktop**.
 
 ### Version Notes
 
+> Note: The version history below refers to the original WiTcontroller lineage. NextCab version numbers are independent and begin at v0.1.0.
+
 <details>
 
 <summary>Click to expand</summary>
@@ -430,7 +392,7 @@ The instructions below are for using the **Arduino IDE** and **GitHub Desktop**.
 <br/>
 <hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
 
-## Using WiTController
+## Using NextCab
 
 ### Be aware of...
 
@@ -483,16 +445,16 @@ Using 2.4gHz Wifi channels beyond 10 (11-13) is problematic. I have added an exp
 
 ## Definitions and Explanations
 
-*WiTcontroller* is deliberately described as a "controller" not a "throttle".  
+NextCab (like WiTcontroller before it) is deliberately described as a "controller" rather than a "throttle".
 
 A "Throttle" can control only one train, which may be one loco, or more than one loco in consist/MU.
 
-*WiTcontroller*, as a "controller", **contains up to six (6) "throttles"**. Each of which can control any number of locos in consist/MU. You can swap between throttles at will (``keypad 5``) to select which locos/consists/MUs you you are manipulating at a given time. While you can only manipulate one loco/consist/MU at at time, the others continue running at the setting you last gave it.
+*NextCab*, as a "controller", **contains up to six (6) "throttles"**. Each of which can control any number of locos in consist/MU. You can swap between throttles at will (``keypad 5``) to select which locos/consists/MUs you you are manipulating at a given time. While you can only manipulate one loco/consist/MU at at time, the others continue running at the setting you last gave it.
 
 ### Features
 
 **Currently functioning:**
-WiTcontroller:
+NextCab:
 - Provides a list of discovered SSIDs with the ability to choose one. When you select one:
   - If it is one in your specified list (in the sketch), it will use that specified password 
   - If it is a DCC-EX EX-CommandStation in Access Point (AP) mode, it will guess the password
@@ -1062,12 +1024,3 @@ If you plan to modify the code to make you own version, it is recommended that y
 
 <hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
 
-## Contact Me
-
-I can be contacted by:
-
-a) Via email  ``akersp62 @ gmail.com``   *(remove the spaces)*
-
-b) On the 'wifi-throttle' Channel on the **DCC-EX Discord** server https://discord.gg/8ghsjsBup8.  My handle is ``flash62au (Peter A)``
-
-c) By creating an 'Issue' here on GitHub.  (Not recommended, but I will respond.)
