@@ -34,7 +34,7 @@ extern void setAppnameForOled();
 extern void clearOledArray();
 extern void buildWitEntry();
 // Use renderer instance directly instead of indirect extern wrappers
-extern renderer renderer;
+extern Renderer renderer;
 extern void setMenuTextForOled(int);
 
 // getDots helper defined in sketch; forward declare only

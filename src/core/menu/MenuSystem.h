@@ -25,7 +25,7 @@ public:
     void exitMenu();
     void exitToSpeed();  // Return to normal operation screen
     
-    // Rendering helpers (called by OledRenderer)
+    // Rendering helpers (called by Renderer)
     const MenuItem* getCurrentMenu() const;
     uint8_t getCurrentMenuSize() const;
     const MenuItem* getCurrentItem() const;

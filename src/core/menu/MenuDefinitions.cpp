@@ -3,7 +3,7 @@
 #include "MenuSystem.h"
 #include "../../../WiTcontroller.h"
 #include "../../../static.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../ThrottleManager.h"
 #include "../heartbeat/HeartbeatMonitor.h"
 #include "../input/InputManager.h"
@@ -13,7 +13,7 @@
 // External dependencies
 extern WiThrottleProtocol wiThrottleProtocol;
 extern ThrottleManager throttleManager;
-extern OledRenderer oledRenderer;
+extern Renderer renderer;
 extern InputManager inputManager;
 extern TurnoutSelectionHandler turnoutSelectionHandler;
 extern String turnoutPrefix;
@@ -145,7 +145,7 @@ namespace MenuHandlers {
     void handleHeartbeatToggle(MenuContext& ctx) {
         heartbeatMonitor.toggleEnabled();
         wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled());
-        oledRenderer.renderHeartbeatCheck();
+        renderer.renderHeartbeatCheck();
     }
     
     void handleMomentumToggle(MenuContext& ctx) {

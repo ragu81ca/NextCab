@@ -2,12 +2,12 @@
 #include "MenuSystem.h"
 #include "../../../WiTcontroller.h"
 #include "../ThrottleManager.h"
-#include "../OledRenderer.h"
+#include "../Renderer.h"
 #include "../input/InputManager.h"
 #include "../../../static.h"
 
 extern InputManager inputManager;
-extern OledRenderer oledRenderer;
+extern Renderer renderer;
 extern ThrottleManager throttleManager;
 
 MenuSystem::MenuSystem() : _stackDepth(0), _active(false) {}
@@ -29,7 +29,7 @@ void MenuSystem::handleKey(char key) {
         // Cancel - go back one level or exit
         if (_stackDepth > 0) {
             popMenu();
-            oledRenderer.renderNewMenu(*this);
+            renderer.renderNewMenu(*this);
         } else {
             exitMenu();
         }
@@ -51,7 +51,7 @@ void MenuSystem::handleKey(char key) {
         if (_stackDepth > 0 && current && current->type == MenuItemType::TEXT_INPUT) {
             // We're in a TEXT_INPUT context - accumulate digits
             _inputBuffer += key;
-            oledRenderer.renderNewMenu(*this);
+            renderer.renderNewMenu(*this);
             return;
         }
         
@@ -94,7 +94,7 @@ void MenuSystem::selectItem(uint8_t index) {
             _inputBuffer = "";
             // Push single item as array with selectedIndex=0
             pushMenu(&item, 1, 0, false);
-            oledRenderer.renderNewMenu(*this);
+            renderer.renderNewMenu(*this);
             break;
             
         case MenuItemType::LIST:
@@ -113,7 +113,7 @@ void MenuSystem::selectItem(uint8_t index) {
             // Push submenu onto stack
             if (item.submenuItems && item.submenuCount > 0) {
                 pushMenu(item.submenuItems, item.submenuCount, index, true);
-                oledRenderer.renderNewMenu(*this);
+                renderer.renderNewMenu(*this);
             }
             break;
     }
@@ -136,7 +136,7 @@ void MenuSystem::executeCurrentItem() {
         _stackDepth = 0;
         // If handler didn't change mode (e.g., didn't show roster), return to speed
         if (inputManager.isInOperationMode()) {
-            oledRenderer.renderSpeed();
+            renderer.renderSpeed();
         }
     }
 }
@@ -162,7 +162,7 @@ void MenuSystem::showMainMenu() {
     extern String menuCommand;
     menuCommandStarted = false;
     menuCommand = "";
-    oledRenderer.renderNewMenu(*this);
+    renderer.renderNewMenu(*this);
 }
 
 void MenuSystem::exitMenu() {
@@ -175,7 +175,7 @@ void MenuSystem::exitMenu() {
 void MenuSystem::exitToSpeed() {
     _active = false;
     inputManager.setMode(InputMode::Operation);
-    oledRenderer.renderSpeed();
+    renderer.renderSpeed();
 }
 
 const MenuItem* MenuSystem::getCurrentMenu() const {

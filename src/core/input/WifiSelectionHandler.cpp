@@ -68,23 +68,32 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
         // Selecting from scanned networks (1-based for users, convert to 0-based indices)
         switch (key) {
             case '1': case '2': case '3': case '4': case '5':
-                wifiManager_.selectFound((key - '1') + (page_ * 5));
+            case '6': case '7': case '8': case '9': {
+                int itemsPerPage = renderer_.getLayout().ssidItemsPerPage;
+                int index = (key - '1');
+                if (index < itemsPerPage) {
+                    wifiManager_.selectFound(index + (page_ * itemsPerPage));
+                }
                 // Manager will transition to password entry or WiThrottle selection
                 return true;
+            }
                 
             case '#':  // Next page
-                if (foundSsidsCount > 5) {
-                    if ((page_ + 1) * 5 < foundSsidsCount) {
-                        page_++;
-                    } else {
-                        page_ = 0;
+                {
+                    int itemsPerPage = renderer_.getLayout().ssidItemsPerPage;
+                    if (foundSsidsCount > itemsPerPage) {
+                        if ((page_ + 1) * itemsPerPage < foundSsidsCount) {
+                            page_++;
+                        } else {
+                            page_ = 0;
+                        }
+                        uiState.page = page_;
+                        renderer_.renderFoundSsids("");
                     }
-                    uiState.page = page_;
-                    renderer_.renderFoundSsids("");
                 }
                 return true;
                 
-            case '9':  // Rescan
+            case '0':  // Rescan
                 page_ = 0;
                 uiState.page = 0;
                 wifiManager_.browseSsids();

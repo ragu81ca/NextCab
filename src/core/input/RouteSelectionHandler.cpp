@@ -33,19 +33,25 @@ bool RouteSelectionHandler::handle(const InputEvent &ev) {
     
     switch (key) {
         case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9':
-            selectRouteList((key - '0') + (page_ * 10));
+        case '5': case '6': case '7': case '8': case '9': {
+            int itemsPerPage = renderer_.getLayout().routeItemsPerPage;
+            int index = ((key == '0') ? 9 : (key - '1')) + (page_ * itemsPerPage);
+            selectRouteList(index);
             return true;
+        }
             
         case '#':  // next page
-            if (routeListSize > 10) {
-                if ((page_ + 1) * 10 < routeListSize) {
-                    page_++;
-                } else {
-                    page_ = 0;
+            {
+                int itemsPerPage = renderer_.getLayout().routeItemsPerPage;
+                if (routeListSize > itemsPerPage) {
+                    if ((page_ + 1) * itemsPerPage < routeListSize) {
+                        page_++;
+                    } else {
+                        page_ = 0;
+                    }
+                    uiState.page = page_;  // Sync with global state for renderer
+                    renderer_.renderRouteList("");
                 }
-                uiState.page = page_;  // Sync with global state for renderer
-                renderer_.renderRouteList("");
             }
             return true;
             

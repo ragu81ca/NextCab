@@ -33,19 +33,25 @@ bool RosterSelectionHandler::handle(const InputEvent &ev) {
     
     switch (key) {
         case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9':
-            selectRoster((key - '0') + (page_ * 5));
+        case '5': case '6': case '7': case '8': case '9': {
+            int itemsPerPage = renderer_.getLayout().rosterItemsPerPage;
+            int index = ((key == '0') ? 9 : (key - '1')) + (page_ * itemsPerPage);
+            selectRoster(index);
             return true;
+        }
             
         case '#':  // next page
-            if (rosterSize > 5) {
-                if ((page_ + 1) * 5 < rosterSize) {
-                    page_++;
-                } else {
-                    page_ = 0;
+            {
+                int itemsPerPage = renderer_.getLayout().rosterItemsPerPage;
+                if (rosterSize > itemsPerPage) {
+                    if ((page_ + 1) * itemsPerPage < rosterSize) {
+                        page_++;
+                    } else {
+                        page_ = 0;
+                    }
+                    uiState.page = page_;  // Sync with global state for renderer
+                    renderer_.renderRoster("");
                 }
-                uiState.page = page_;  // Sync with global state for renderer
-                renderer_.renderRoster("");
             }
             return true;
             

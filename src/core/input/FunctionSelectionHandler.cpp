@@ -33,22 +33,28 @@ bool FunctionSelectionHandler::handle(const InputEvent &ev) {
     
     switch (key) {
         case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9':
-            selectFunctionList((key - '0') + (functionPage_ * 10));
+        case '5': case '6': case '7': case '8': case '9': {
+            int itemsPerPage = renderer_.getLayout().functionItemsPerPage;
+            int index = ((key == '0') ? 9 : (key - '1')) + (functionPage_ * itemsPerPage);
+            selectFunctionList(index);
             // Return to operation mode so encoder can control speed
             inputManager.setMode(InputMode::Operation);
             return true;
+        }
             
         case '#':  // next page
-            if ((functionPage_ + 1) * 10 < MAX_FUNCTIONS) {
-                functionPage_++;
-                uiState.functionPage = functionPage_;  // Sync with global state for renderer
-                renderer_.renderFunctionList("");
-            } else {
-                // Wrap back to first page
-                functionPage_ = 0;
-                uiState.functionPage = 0;
-                renderer_.renderFunctionList("");
+            {
+                int itemsPerPage = renderer_.getLayout().functionItemsPerPage;
+                if ((functionPage_ + 1) * itemsPerPage < MAX_FUNCTIONS) {
+                    functionPage_++;
+                    uiState.functionPage = functionPage_;  // Sync with global state for renderer
+                    renderer_.renderFunctionList("");
+                } else {
+                    // Wrap back to first page
+                    functionPage_ = 0;
+                    uiState.functionPage = 0;
+                    renderer_.renderFunctionList("");
+                }
             }
             return true;
             

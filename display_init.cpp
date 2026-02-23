@@ -13,7 +13,7 @@ OLED_TYPE // user macro expands to concrete declaration with name u8g2
 
 // ── Display abstraction layer instances ──
 // These are the global instances referenced via extern in DisplayConfig.h.
-// OledRenderer and all other code should use these rather than u8g2 directly.
+// Renderer and all other code should use these rather than u8g2 directly.
 static DisplayDriver_U8g2 _displayDriverInstance(u8g2);
 
 const DisplayLayout& activeLayout = ACTIVE_LAYOUT;

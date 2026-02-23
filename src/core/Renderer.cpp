@@ -129,7 +129,7 @@ void Renderer::renderRoster(const String &soFar) {
 			if (rosterAddress[index] != 0) {
 				String name = rosterName[index];
 				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[i] = String(i) + ": " + name + " (" + rosterAddress[index] + ")" ;
+				oledText[i] = String((i+1) % 10) + ": " + name + " (" + rosterAddress[index] + ")" ;
 			}
 		}
 		oledText[itemsPerPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_roster];
@@ -152,7 +152,7 @@ void Renderer::renderTurnoutList(const String &soFar, TurnoutAction action) {
 			if (turnoutListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
 				String name = turnoutListUserName[(uiState.page*itemsPerPage)+i];
 				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[j] = String(turnoutListIndex[i]) + ": " + name;
+				oledText[j] = String((i+1) % 10) + ": " + name;
 			}
 		}
 		oledText[halfPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_turnout_list];
@@ -175,7 +175,7 @@ void Renderer::renderRouteList(const String &soFar) {
 			if (routeListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
 				String name = routeListUserName[(uiState.page*itemsPerPage)+i];
 				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[j] = String(routeListIndex[i]) + ": " + name;
+				oledText[j] = String((i+1) % 10) + ": " + name;
 			}
 		}
 		oledText[halfPage] =  "(" + String(uiState.page+1) +  ") " + menu_text[menu_route_list];
@@ -203,7 +203,7 @@ void Renderer::renderFunctionList(const String &soFar) {
 					j = (i<halfPage) ? i : i+1;
 					String label = functionLabels[currentIdx][k];
 					if (labelMax > 0 && (int)label.length() > labelMax) label = label.substring(0, labelMax);
-					oledText[j] = String(i) + ": " + ((k<10) ? label : String(k) + "-" + label);
+					oledText[j] = String((i+1) % 10) + ": " + ((k<10) ? label : String(k) + "-" + label);
 					if (functionStates[currentIdx][k]) {
 						oledTextInvert[j] = true;
 					}
@@ -363,7 +363,7 @@ void Renderer::renderAllLocos(bool hideLeadLoco) {
 			if (i>=startAt) {
 				String displayLoco = formatLocoDisplay(loco, needSuffixes);
 				
-				oledText[j+1] = String(i) + ": " + displayLoco; 
+				oledText[j+1] = String((i+1) % 10) + ": " + displayLoco; 
 				if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) 
 					oledTextInvert[j+1] = true; 
 			} 

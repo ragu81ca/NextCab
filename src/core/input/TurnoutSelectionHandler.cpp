@@ -33,19 +33,25 @@ bool TurnoutSelectionHandler::handle(const InputEvent &ev) {
     
     switch (key) {
         case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9':
-            selectTurnoutList((key - '0') + (page_ * 10), action_);
+        case '5': case '6': case '7': case '8': case '9': {
+            int itemsPerPage = renderer_.getLayout().turnoutItemsPerPage;
+            int index = ((key == '0') ? 9 : (key - '1')) + (page_ * itemsPerPage);
+            selectTurnoutList(index, action_);
             return true;
+        }
             
         case '#':  // next page
-            if (turnoutListSize > 10) {
-                if ((page_ + 1) * 10 < turnoutListSize) {
-                    page_++;
-                } else {
-                    page_ = 0;
+            {
+                int itemsPerPage = renderer_.getLayout().turnoutItemsPerPage;
+                if (turnoutListSize > itemsPerPage) {
+                    if ((page_ + 1) * itemsPerPage < turnoutListSize) {
+                        page_++;
+                    } else {
+                        page_ = 0;
+                    }
+                    uiState.page = page_;  // Sync with global state for renderer
+                    renderer_.renderTurnoutList("", action_);
                 }
-                uiState.page = page_;  // Sync with global state for renderer
-                renderer_.renderTurnoutList("", action_);
             }
             return true;
             
