@@ -89,21 +89,34 @@ void Renderer::renderAllLocosScreen(bool hideLeadLoco) {
 	renderArrayInternal(false,false,true,false);
 }
 
+// ── Model-based paginated list renderer (domain-free) ──────────────────────
+void Renderer::renderPagedList(const PagedListModel &model) {
+	clearArray();
+	// Use page capacity for layout; fall back to itemCount when capacity not set
+	int capacity = (model.pageCapacity > 0) ? model.pageCapacity : model.itemCount;
+	int halfPage = capacity / 2;
+	// Optional header in row 0 — shifts item rows down by 1
+	int rowOffset = (model.headerText.length() > 0) ? 1 : 0;
+	if (rowOffset) oledText[0] = model.headerText;
+	for (int i = 0; i < model.itemCount; i++) {
+		const auto &item = model.items[i];
+		if (item.label.length() > 0) {
+			int row = model.halfPageSplit ? ((i < halfPage) ? i : i + 1) : i;
+			row += rowOffset;
+			oledText[row] = String((i + 1) % 10) + ": " + item.label;
+			if (item.invert) oledTextInvert[row] = true;
+		}
+	}
+	int footerRow = (model.halfPageSplit ? halfPage : capacity) + rowOffset;
+	oledText[footerRow] = model.footerText;
+	renderArrayInternal(false, false, true, false);
+}
+
 void Renderer::renderFoundSsids(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
-	clearArray();
 		int itemsPerPage = layout.ssidItemsPerPage;
 		int nameMax = layout.ssidNameMaxLength;
-		for (int i=0; i<itemsPerPage && i<foundSsidsCount; i++) {
-			int globalIndex = (uiState.page*itemsPerPage)+i;
-			if (globalIndex < foundSsidsCount && foundSsids[globalIndex].length()>0) {
-				String ssid = foundSsids[globalIndex];
-				if (nameMax > 0 && (int)ssid.length()>nameMax) ssid = ssid.substring(0,nameMax);
-				oledText[i] = String(i+1) + ": " + ssid + " ";
-				oledText[i] += '\x01';
-			}
-		}
 		int totalPages = (foundSsidsCount + itemsPerPage - 1) / itemsPerPage;
 		String baseMenu = menu_text[menu_select_ssids_from_found];
 		String pageIndicator = " p" + String(uiState.page+1) + "/" + String(totalPages);
@@ -111,112 +124,22 @@ void Renderer::renderFoundSsids(const String &soFar) {
 		if ((int)baseMenu.length() > (maxChars - (int)pageIndicator.length())) {
 			baseMenu = baseMenu.substring(0, maxChars - pageIndicator.length());
 		}
-		oledText[itemsPerPage] = baseMenu + pageIndicator;
-		renderArrayInternal(false,false,true,false);
-	}
-}
-
-void Renderer::renderRoster(const String &soFar) {
-	lastOledScreen = last_oled_screen_roster;
-	lastOledStringParameter = soFar;
-	menuIsShowing = true;
-	if (soFar == "") {
-	clearArray();
-		int itemsPerPage = layout.rosterItemsPerPage;
-		int nameMax = layout.rosterNameMaxLength;
-		for (int i=0; i<itemsPerPage && ((uiState.page*itemsPerPage)+i<rosterSize); i++) {
-			int index = rosterSortedIndex[(uiState.page*itemsPerPage)+i];
-			if (rosterAddress[index] != 0) {
-				String name = rosterName[index];
-				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[i] = String((i+1) % 10) + ": " + name + " (" + rosterAddress[index] + ")" ;
+		PagedListModel model;
+		model.halfPageSplit = false;
+		model.pageCapacity  = itemsPerPage;
+		model.footerText = baseMenu + pageIndicator;
+		for (int i = 0; i < itemsPerPage; i++) {
+			int gi = uiState.page * itemsPerPage + i;
+			if (gi >= foundSsidsCount) break;
+			if (foundSsids[gi].length() > 0) {
+				String ssid = foundSsids[gi];
+				if (nameMax > 0 && (int)ssid.length() > nameMax) ssid = ssid.substring(0, nameMax);
+				model.addItem(ssid + " \x01");
+			} else {
+				model.addItem("");
 			}
 		}
-		oledText[itemsPerPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_roster];
-	renderArrayInternal(false,false,true,false);
-	}
-}
-
-void Renderer::renderTurnoutList(const String &soFar, TurnoutAction action) {
-	lastOledScreen = last_oled_screen_turnout_list;
-	lastOledStringParameter = soFar;
-	menuIsShowing = true;
-	if (soFar == "") {
-	clearArray();
-		int itemsPerPage = layout.turnoutItemsPerPage;
-		int nameMax = layout.turnoutNameMaxLength;
-		int halfPage = itemsPerPage / 2;
-		int j = 0;
-		for (int i=0; i<itemsPerPage && i<turnoutListSize; i++) {
-			j = (i<halfPage) ? i : i+1;
-			if (turnoutListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
-				String name = turnoutListUserName[(uiState.page*itemsPerPage)+i];
-				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[j] = String((i+1) % 10) + ": " + name;
-			}
-		}
-		oledText[halfPage] = "(" + String(uiState.page+1) +  ") " + menu_text[menu_turnout_list];
-	renderArrayInternal(false,false,true,false);
-	}
-}
-
-void Renderer::renderRouteList(const String &soFar) {
-	lastOledScreen = last_oled_screen_route_list;
-	lastOledStringParameter = soFar;
-	menuIsShowing = true;
-	if (soFar == "") {
-	clearArray();
-		int itemsPerPage = layout.routeItemsPerPage;
-		int nameMax = layout.routeNameMaxLength;
-		int halfPage = itemsPerPage / 2;
-		int j = 0;
-		for (int i=0; i<itemsPerPage && i<routeListSize; i++) {
-			j = (i<halfPage) ? i : i+1;
-			if (routeListUserName[(uiState.page*itemsPerPage)+i].length()>0) {
-				String name = routeListUserName[(uiState.page*itemsPerPage)+i];
-				if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-				oledText[j] = String((i+1) % 10) + ": " + name;
-			}
-		}
-		oledText[halfPage] =  "(" + String(uiState.page+1) +  ") " + menu_text[menu_route_list];
-	renderArrayInternal(false,false,true,false);
-	}
-}
-
-void Renderer::renderFunctionList(const String &soFar) {
-	lastOledScreen = last_oled_screen_function_list;
-	lastOledStringParameter = soFar;
-	menuIsShowing = true;
-	uiState.functionHasBeenSelected = false;
-	if (soFar == "") {
-		clearArray();
-		char currentChar = throttleManager.getCurrentThrottleChar();
-		int currentIdx = throttleManager.getCurrentThrottleIndex();
-		if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0 ) {
-			int itemsPerPage = layout.functionItemsPerPage;
-			int labelMax = layout.functionLabelMaxLength;
-			int halfPage = itemsPerPage / 2;
-			int j = 0; int k = 0;
-			for (int i=0; i<itemsPerPage; i++) {
-				k = (uiState.functionPage*itemsPerPage) + i;
-				if (k < MAX_FUNCTIONS) {
-					j = (i<halfPage) ? i : i+1;
-					String label = functionLabels[currentIdx][k];
-					if (labelMax > 0 && (int)label.length() > labelMax) label = label.substring(0, labelMax);
-					oledText[j] = String((i+1) % 10) + ": " + ((k<10) ? label : String(k) + "-" + label);
-					if (functionStates[currentIdx][k]) {
-						oledTextInvert[j] = true;
-					}
-				}
-			}
-			oledText[halfPage] = "(" + String(uiState.functionPage) +  ") " + menu_text[menu_function_list];
-		} else {
-			oledText[0] = MSG_NO_FUNCTIONS;
-			oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx+1);
-			oledText[3] = MSG_NO_LOCO_SELECTED;
-			setMenuTextForOled(menu_cancel);
-		}
-		renderArrayInternal(false,false,true,false);
+		renderPagedList(model);
 	}
 }
 
@@ -280,17 +203,6 @@ String Renderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
 		}
 	}
 	return displayLoco;
-}
-
-void Renderer::renderEditConsist() {
-	lastOledScreen = last_oled_screen_edit_consist; 
-	menuIsShowing = false; 
-	clearArray(); 
-	renderAllLocos(false);
-	oledText[0] = "Edit Consist Facing"; 
-	oledText[5] = "no Chng Facing   * Close"; 
-	renderArrayInternal(false,false,false,false);
-	display.sendBuffer();
 }
 
 void Renderer::renderDropLocoList() {

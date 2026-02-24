@@ -5,6 +5,7 @@
 #include "DisplayDriver.h"
 #include "DisplayLayout.h"
 #include "FontSet.h"
+#include "PagedListModel.h"
 
 class Renderer {
 public:
@@ -12,12 +13,7 @@ public:
 
     // Public rendering entry points used by application code
     void renderFoundSsids(const String &soFar);
-    void renderRoster(const String &soFar);
-    void renderTurnoutList(const String &soFar, TurnoutAction action);
-    void renderRouteList(const String &soFar);
-    void renderFunctionList(const String &soFar);
     void renderEnterPassword();
-    void renderEditConsist();
     void renderHeartbeatCheck();
     void renderDropLocoList();  // Show current locos for dropping (1-based display)
     void renderNewMenu(class MenuSystem& menuSystem);  // New table-driven menu system rendering
@@ -31,6 +27,10 @@ public:
     void clearArray();
     // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
     void renderAllLocosScreen(bool hideLeadLoco);
+
+    /// Draw a paginated list from a pre-built model. Domain-free — the handler
+    /// builds the items, the Renderer just draws them.
+    void renderPagedList(const PagedListModel &model);
 
     // Access layout for code that needs content capacity values
     const DisplayLayout& getLayout() const { return layout; }

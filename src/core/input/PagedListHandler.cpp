@@ -1,5 +1,6 @@
 #include "PagedListHandler.h"
 #include "InputManager.h"
+#include "../Renderer.h"
 #include "../UIState.h"
 #include "../../../WiTcontroller.h"
 
@@ -8,6 +9,30 @@ extern UIState uiState;
 
 PagedListHandler::PagedListHandler(Renderer &renderer)
     : renderer_(renderer) {}
+
+// ── Template method: builds model and delegates to Renderer ────────────
+
+void PagedListHandler::renderCurrentPage() {
+    onBeforeRender();
+
+    PagedListModel model;
+    model.halfPageSplit = useHalfPageSplit();
+    model.headerText    = getHeaderText();
+    model.footerText    = getFooterText();
+
+    int perPage = getItemsPerPage();
+    model.pageCapacity  = perPage;
+    int count   = getItemCount();
+    for (int i = 0; i < perPage; i++) {
+        int gi = page_ * perPage + i;
+        if (gi >= count) break;
+        bool invert = false;
+        String label = getItemLabel(gi, invert);
+        model.addItem(label, invert);
+    }
+
+    renderer_.renderPagedList(model);
+}
 
 // ── IModeHandler defaults ──────────────────────────────────────────────
 

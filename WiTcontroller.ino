@@ -1630,14 +1630,13 @@ void refreshOled() {
     case last_oled_screen_speed:
   renderer.renderSpeed();
       break;
+    case last_oled_screen_roster:
     case last_oled_screen_turnout_list:
-  renderer.renderTurnoutList(lastOledStringParameter, lastOledTurnoutParameter);
-      break;
     case last_oled_screen_route_list:
-  renderer.renderRouteList(lastOledStringParameter);
-      break;
     case last_oled_screen_function_list:
-  renderer.renderFunctionList(lastOledStringParameter);
+    case last_oled_screen_edit_consist:
+      // List screens are now rendered by their handlers — re-enter current mode
+      inputManager.forceMode(inputManager.getMode());
       break;
     case last_oled_screen_menu:
     case last_oled_screen_extra_submenu:
@@ -1646,9 +1645,6 @@ void refreshOled() {
       break;
     case last_oled_screen_all_locos:
   renderer.renderAllLocosScreen(lastOledBoolParameter);
-      break;
-    case last_oled_screen_edit_consist:
-      writeOledEditConsist();
       break;
     case last_oled_screen_direct_commands:
   renderer.renderDirectCommands();
@@ -1661,10 +1657,7 @@ void refreshOled() {
 
 // Thin wrappers retained temporarily for in-progress migration paths
 inline void clearOledArray() { renderer.clearArray(); }
-// inline void writeOledBattery() { renderer.renderBattery(); } // deprecated
-// inline void writeOledDirectCommands() { renderer.renderDirectCommands(); } // deprecated
 inline void writeHeartbeatCheck() { renderer.renderHeartbeatCheck(); }
-inline void writeOledEditConsist() { renderer.renderEditConsist(); }
 
 // *********************************************************************************
 
