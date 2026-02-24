@@ -1,18 +1,13 @@
 #pragma once
-#include "IModeHandler.h"
+#include "PagedListHandler.h"
 
-// Forward declarations
-class Renderer;
-
-class RosterSelectionHandler : public IModeHandler {
+class RosterSelectionHandler : public PagedListHandler {
 public:
     explicit RosterSelectionHandler(Renderer &renderer);
-    
-    bool handle(const InputEvent &ev) override;
-    void onEnter() override;
-    void onExit() override;
 
-private:
-    Renderer &renderer_;
-    int page_;
+protected:
+    int  getItemCount() const override;
+    int  getItemsPerPage() const override;
+    void renderCurrentPage() override;
+    void onItemSelected(int index) override;
 };

@@ -9,61 +9,26 @@ extern InputManager inputManager;
 extern UIState uiState;
 
 FunctionSelectionHandler::FunctionSelectionHandler(Renderer &renderer)
-    : renderer_(renderer), functionPage_(0) {}
+    : PagedListHandler(renderer) {}
 
-void FunctionSelectionHandler::onEnter() {
-    functionPage_ = 0;
-    uiState.functionPage = 0;  // Sync with global state for renderer
+int FunctionSelectionHandler::getItemCount() const {
+    return MAX_FUNCTIONS;
+}
+
+int FunctionSelectionHandler::getItemsPerPage() const {
+    return renderer_.getLayout().functionItemsPerPage;
+}
+
+void FunctionSelectionHandler::renderCurrentPage() {
     renderer_.renderFunctionList("");
 }
 
-void FunctionSelectionHandler::onExit() {
-    functionPage_ = 0;
-    menuCommandStarted = false;
-    // Don't render here - let the next mode's onEnter handle rendering
+void FunctionSelectionHandler::onItemSelected(int index) {
+    selectFunctionList(index);
+    // Return to operation mode so encoder can control speed
+    inputManager.setMode(InputMode::Operation);
 }
 
-bool FunctionSelectionHandler::handle(const InputEvent &ev) {
-    // Only handle key press events
-    if (ev.type != InputEventType::KeypadChar && ev.type != InputEventType::KeypadSpecial) {
-        return false;
-    }
-
-    char key = ev.cvalue;
-    
-    switch (key) {
-        case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9': {
-            int itemsPerPage = renderer_.getLayout().functionItemsPerPage;
-            int index = ((key == '0') ? 9 : (key - '1')) + (functionPage_ * itemsPerPage);
-            selectFunctionList(index);
-            // Return to operation mode so encoder can control speed
-            inputManager.setMode(InputMode::Operation);
-            return true;
-        }
-            
-        case '#':  // next page
-            {
-                int itemsPerPage = renderer_.getLayout().functionItemsPerPage;
-                if ((functionPage_ + 1) * itemsPerPage < MAX_FUNCTIONS) {
-                    functionPage_++;
-                    uiState.functionPage = functionPage_;  // Sync with global state for renderer
-                    renderer_.renderFunctionList("");
-                } else {
-                    // Wrap back to first page
-                    functionPage_ = 0;
-                    uiState.functionPage = 0;
-                    renderer_.renderFunctionList("");
-                }
-            }
-            return true;
-            
-        case '*':  // cancel
-            // Return to operation mode - onEnter will render speed
-            inputManager.setMode(InputMode::Operation);
-            return true;
-            
-        default:
-            return false;
-    }
+void FunctionSelectionHandler::syncPageState(int page) {
+    uiState.functionPage = page;
 }

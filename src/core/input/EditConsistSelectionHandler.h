@@ -1,16 +1,16 @@
 #pragma once
-#include "IModeHandler.h"
+#include "PagedListHandler.h"
 
 // Forward declarations
-class Renderer;
+class ThrottleManager;
 
-class EditConsistSelectionHandler : public IModeHandler {
+class EditConsistSelectionHandler : public PagedListHandler {
 public:
     explicit EditConsistSelectionHandler(Renderer &renderer);
-    void onEnter() override;
-    void onExit() override;
-    bool handle(const InputEvent &ev) override;
 
-private:
-    Renderer &renderer_;
+protected:
+    int  getItemCount() const override;
+    int  getItemsPerPage() const override;
+    void renderCurrentPage() override;
+    void onItemSelected(int index) override;
 };

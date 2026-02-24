@@ -1,23 +1,20 @@
 #pragma once
-#include "IModeHandler.h"
+#include "PagedListHandler.h"
 #include <WiThrottleProtocol.h>
 
-// Forward declarations
-class Renderer;
-
-class TurnoutSelectionHandler : public IModeHandler {
+class TurnoutSelectionHandler : public PagedListHandler {
 public:
     explicit TurnoutSelectionHandler(Renderer &renderer);
-    
-    bool handle(const InputEvent &ev) override;
-    void onEnter() override;
-    void onExit() override;
-    
+
     void setAction(TurnoutAction action) { action_ = action; }
     TurnoutAction getAction() const { return action_; }
 
+protected:
+    int  getItemCount() const override;
+    int  getItemsPerPage() const override;
+    void renderCurrentPage() override;
+    void onItemSelected(int index) override;
+
 private:
-    Renderer &renderer_;
-    int page_;
     TurnoutAction action_;
 };
