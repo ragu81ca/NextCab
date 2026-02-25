@@ -46,7 +46,7 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 		// Showing input prompt for TEXT_INPUT item
 		oledText[0] = currentItem->title;
 		oledText[2] = input + "_";  // Show cursor
-		oledText[5] = currentItem->instructions;
+		oledText[layout.menuTextRow] = currentItem->instructions;
 	} else {
 		// Display menu items (main menu or submenu)
 		// Layout: Items 1-5 in lines 0-4, items 6-9 in lines 6-9, item 0 (10th) in line 10
@@ -72,8 +72,8 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 			String line = itemNum + ": " + currentMenu[i].title;
 			oledText[displayLine] = line;
 		}
-		// Bottom instruction at line 5
-		oledText[5] = "* Cancel  # Select";
+		// Bottom instruction at menu text row
+		oledText[layout.menuTextRow] = "* Cancel  # Select";
 	}
 	
 	renderArrayInternal(false,false,true,false);
@@ -85,7 +85,7 @@ void Renderer::renderAllLocosScreen(bool hideLeadLoco) {
 	renderAllLocos(hideLeadLoco);
 	// Provide a header/menu line for consist editing or loco overview
 	oledText[0] = "Add Loco";
-	oledText[5] = "addr+# Add  * Cancel  # Roster";
+	oledText[layout.menuTextRow] = "addr+# Add  * Cancel  # Roster";
 	renderArrayInternal(false,false,true,false);
 }
 
@@ -234,7 +234,7 @@ void Renderer::renderDropLocoList() {
 	}
 	
 	oledText[0] = "Drop Loco";
-	oledText[5] = "1-9 Select 0 All * Cancel";
+	oledText[layout.menuTextRow] = "1-9 Select 0 All * Cancel";
 	renderArrayInternal(false, false, true, false);
 }
 
@@ -457,6 +457,8 @@ void Renderer::renderSpeed() {
 	bool foundNext = false;
 	String nextNo = "";
 	String nextSpeedDir = "";
+	String noLocoMsg1 = "";
+	String noLocoMsg2 = "";
 	clearArray();
 	bool drawTop = false;
 	int currentIdx = throttleManager.getCurrentThrottleIndex();
@@ -494,8 +496,10 @@ void Renderer::renderSpeed() {
 		drawTop = true;
 	} else {
 		setAppnameForOled();
-		oledText[2] = MSG_THROTTLE_NUMBER + String(currentIdx + 1);
-		oledText[3] = MSG_NO_LOCO_SELECTED;
+		// "Throttle #N" and "No Loco Selected" are drawn centered after
+		// renderArrayInternal to handle both narrow and wide displays.
+		noLocoMsg1 = MSG_THROTTLE_NUMBER + String(currentIdx + 1);
+		noLocoMsg2 = MSG_NO_LOCO_SELECTED;
 		drawTop = true;
 	}
 
@@ -503,6 +507,22 @@ void Renderer::renderSpeed() {
 	else setMenuTextForOled(menu_menu_hash_is_functions);
 
 	renderArrayInternal(false, false, false, drawTop);
+
+	// Draw centered "Throttle #N" / "No Loco Selected" when idle
+	if (noLocoMsg1.length() > 0) {
+		display.setFont(fonts.defaultFont);
+		int contentTop = layout.topBarHeight + 4;
+		int contentBottom = layout.statusBarY - 4;
+		int areaHeight = contentBottom - contentTop;
+		int lineSpacing = layout.rowHeight + 4;
+		int blockHeight = lineSpacing;  // two lines, one gap
+		int startY = contentTop + (areaHeight - blockHeight) / 2;
+
+		int w1 = display.getUTF8Width(noLocoMsg1.c_str());
+		display.drawUTF8((layout.screenWidth - w1) / 2, startY, noLocoMsg1.c_str());
+		int w2 = display.getUTF8Width(noLocoMsg2.c_str());
+		display.drawUTF8((layout.screenWidth - w2) / 2, startY + lineSpacing, noLocoMsg2.c_str());
+	}
 
 	if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
 		renderFunctions();

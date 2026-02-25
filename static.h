@@ -512,6 +512,9 @@ extern const char ssidPasswordBlankChar; // defined in static.cpp
 // *******************************************************************************************************************
 // OLED
 
+// Extern declaration for global display instance created in display_init.cpp
+#ifndef USE_TFT_ESPI
+// U8g2 / OLED path — declare the concrete U8G2 type so legacy code can reference u8g2
 #ifdef U8X8_HAVE_HW_SPI
     #include <SPI.h>                       // add to include path [Arduino install]\hardware\arduino\avr\libraries\SPI\src
 #endif
@@ -520,7 +523,6 @@ extern const char ssidPasswordBlankChar; // defined in static.cpp
 #endif
 #include <U8g2lib.h>
 
-// Extern declaration for global display instance created in display_init.cpp
 #ifdef OLED_TYPE
 // NOTE: This assumes the configured OLED_TYPE in config_buttons.h corresponds to U8G2_SSD1309_128X64_NONAME2_F_HW_I2C; adjust if you change OLED_TYPE.
 extern U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2;
@@ -532,6 +534,8 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 // you can overide this in config_buttons.h     DO NOT CHANGE IT HERE
 // Display object defined in display_init.cpp (concrete type chosen via OLED_TYPE macro or default).
 // Intentionally no extern declaration here to avoid type conflicts with user-specified constructor macro.
+
+#endif // !USE_TFT_ESPI
 
 // *******************************************************************************************************************
 // additional / optional commands
@@ -734,8 +738,6 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 
 #if USE_NEW_ADDITIONAL_BUTTONS_FORMAT
    #ifndef NEW_MAX_ADDITIONAL_BUTTONS
-
-      #define USE_NEW_ADDITIONAL_BUTTONS_FORMAT true
 
       #define NEW_MAX_ADDITIONAL_BUTTONS 0
 

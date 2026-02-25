@@ -2,7 +2,11 @@
 // Include this header to get the active DisplayLayout, FontSet, and DisplayDriver type.
 //
 // Users select their display by defining DISPLAY_PROFILE_128x64 or DISPLAY_PROFILE_320x240
-// in config_buttons.h. If nothing is defined, defaults to 128×64.
+// in config_buttons.h (or via build_flags in platformio.ini).
+// If nothing is defined, defaults to 128×64.
+//
+// When USE_TFT_ESPI is defined (typically via platformio.ini build_flags for TFT boards),
+// the 320×240 profile will use TFT_eSPI + U8g2_for_TFT_eSPI instead of U8g2.
 #pragma once
 
 // Default to 128×64 if no profile is selected
@@ -28,12 +32,17 @@
 
   #include "../layouts/Layout_320x240.h"
   #include "../fonts/FontSet_320x240.h"
-  // For now, still use U8g2 driver — a TFT_eSPI driver can be added later
-  #include "../drivers/DisplayDriver_U8g2.h"
+
+  #ifdef USE_TFT_ESPI
+    // TFT_eSPI driver for SPI-connected color TFT (ILI9341, ST7789, etc.)
+    #include "../drivers/DisplayDriver_TFT_eSPI.h"
+  #else
+    // Fallback: use U8g2 driver (e.g. for large U8g2-compatible panels)
+    #include "../drivers/DisplayDriver_U8g2.h"
+  #endif
 
   #define ACTIVE_LAYOUT    LAYOUT_320x240
   #define ACTIVE_FONTS     FONTS_320x240
-  // DisplayDriver type: DisplayDriver_U8g2 (or DisplayDriver_TFT when implemented)
 
 #endif
 

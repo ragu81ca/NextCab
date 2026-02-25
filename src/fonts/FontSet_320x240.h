@@ -1,10 +1,27 @@
 // FontSet_320x240.h - Font profile for 320×240 color TFT display
 // Uses larger U8g2 fonts to take advantage of the higher resolution.
-// When a TFT-native driver is added, these would be replaced with TFT font mappings.
-// For now these are placeholder U8g2 fonts that would work if U8g2 is used on TFT.
+// When USE_TFT_ESPI is defined, we provide manual extern declarations for the font
+// byte arrays to avoid including full U8g2lib.h (which would conflict with
+// U8g2_for_TFT_eSPI.h's own internal struct definitions).
 #pragma once
 #include "../core/FontSet.h"
-#include <U8g2lib.h>
+
+#ifdef USE_TFT_ESPI
+  // Font data arrays are compiled from the U8g2 library sources; we only need
+  // extern declarations here (no U8g2lib.h header, which would clash with
+  // U8g2_for_TFT_eSPI.h).
+  extern "C" {
+    extern const uint8_t u8g2_font_helvR12_te[];
+    extern const uint8_t u8g2_font_logisoso42_tr[];
+    extern const uint8_t u8g2_font_helvB14_tr[];
+    extern const uint8_t u8g2_font_courR14_tf[];
+    extern const uint8_t u8g2_font_helvR08_tr[];
+    extern const uint8_t u8g2_font_open_iconic_all_2x_t[];
+    extern const uint8_t u8g2_font_helvR10_tr[];
+  }
+#else
+  #include <U8g2lib.h>
+#endif
 
 // Larger fonts that better suit a 320×240 display
 // These can be refined once the physical display is available for testing.

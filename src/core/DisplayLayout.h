@@ -41,6 +41,10 @@ struct DisplayLayout {
     int statusBarY;               // y of the bottom status/menu separator
     int rightMargin;              // pixels to keep clear at right edge
 
+    // ── Logical row indices in the oledText[] array ──
+    int menuTextRow;              // row index for bottom menu/status text (5 on 128×64, 11 on 320×240)
+    int secondColumnStartRow;     // first row index of the second column (6 on 128×64, 12 on 320×240)
+
     // ── Speed screen zones ──
     int speedX;                   // x of speed text
     int speedY;                   // baseline y of speed text

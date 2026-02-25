@@ -40,6 +40,8 @@ constexpr DisplayLayout LAYOUT_320x240 = {
     .topBarHeight = 22,
     .statusBarY   = 218,  // near bottom of 240
     .rightMargin  = 4,
+    .menuTextRow  = 11,  // last row of first column (12 rows per col)
+    .secondColumnStartRow = 12,  // first row of second column
 
     // ── Speed screen zones ── (scaled proportionally)
     .speedX           = 70,

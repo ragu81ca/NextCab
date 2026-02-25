@@ -39,6 +39,8 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     .topBarHeight = 11,  // separator line y and top-bar content baseline
     .statusBarY   = 51,  // bottom separator y
     .rightMargin  = 2,   // 2px right margin (battery rendering)
+    .menuTextRow  = 5,   // last row of first column (6 rows per col)
+    .secondColumnStartRow = 6,  // first row of second column
 
     // ── Speed screen zones ──
     .speedX           = 22,   // drawStr(22+(55-width), 45, ...)

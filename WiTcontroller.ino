@@ -20,7 +20,9 @@
 
 // use the Arduino IDE 'Library' Manager to get these libraries
 #include <Keypad.h>               // https://www.arduinolibraries.info/libraries/keypad                        GPL 3.0
-#include <U8g2lib.h>              // https://github.com/olikraus/u8g2  (Just get "U8g2" via the Arduino IDE Library Manager)   new-bsd
+#ifndef USE_TFT_ESPI
+  #include <U8g2lib.h>            // https://github.com/olikraus/u8g2  (Just get "U8g2" via the Arduino IDE Library Manager)   new-bsd
+#endif
 #include <WiThrottleProtocol.h>   // https://github.com/flash62au/WiThrottleProtocol                           Creative Commons 4.0  Attribution-ShareAlike
 
 // Pangodream_18650_CL.h now only needed inside BatteryMonitor implementation
@@ -97,11 +99,22 @@ int throttlePotNotchSpeeds[8] = {0,20,40,60,80,100,120,127};
     {'*','0','#'}
   };
 #endif
-#ifndef KEYPAD_ROW_PINS
-  static byte KEYPAD_ROW_PINS[ROW_NUM] = {19,18,17,16};
-#endif
-#ifndef KEYPAD_COLUMN_PINS
-  static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {4,0,2};
+#ifdef USE_TFT_ESPI
+  // ESP32-S3 safe GPIO defaults — avoid TFT SPI (10-14), USB (19-20),
+  // flash/PSRAM (26-37), UART0 (43-44), and strapping (0) pins.
+  #ifndef KEYPAD_ROW_PINS
+    static byte KEYPAD_ROW_PINS[ROW_NUM] = {38, 39, 40, 41};
+  #endif
+  #ifndef KEYPAD_COLUMN_PINS
+    static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {42, 2, 4};
+  #endif
+#else
+  #ifndef KEYPAD_ROW_PINS
+    static byte KEYPAD_ROW_PINS[ROW_NUM] = {19,18,17,16};
+  #endif
+  #ifndef KEYPAD_COLUMN_PINS
+    static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {4,0,2};
+  #endif
 #endif
 #ifndef KEYPAD_DEBOUNCE_TIME
   #define KEYPAD_DEBOUNCE_TIME 10
@@ -440,7 +453,7 @@ void browseWitService() {
 
   debug_printf("Browsing for service _%s._%s.local. on %s ... ", service, proto, selectedSsid.c_str());
   clearOledArray(); 
-  oledText[0] = appName; oledText[6] = appVersion; 
+  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
   oledText[1] = selectedSsid;   oledText[2] = MSG_BROWSING_FOR_SERVICE;
   renderer.renderBattery();
   renderer.renderArray(false, false, true, true);
@@ -771,9 +784,15 @@ void initialiseAdditionalButtons() {
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+  Serial.println("[BOOT] Serial up");
+#ifndef USE_TFT_ESPI
   // u8g2.setI2CAddress(0x3C * 2);
   // u8g2.setBusClock(100000);
+#endif
+  Serial.println("[BOOT] Calling displayDriver.begin()...");
   displayDriver.begin();
+  Serial.println("[BOOT] displayDriver.begin() done");
   displayDriver.firstPage();
 
   delay(1000);
@@ -785,7 +804,7 @@ void setup() {
   batteryMonitor.loop();
   if (batteryMonitor.shouldSleepForLowBattery()) { deepSleepStart(SLEEP_REASON_BATTERY); }
 
-  clearOledArray(); oledText[0] = appName; oledText[6] = appVersion; oledText[2] = MSG_START;
+  clearOledArray(); oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; oledText[2] = MSG_START;
   renderer.renderBattery();
   renderer.renderArray(false, false, true, true);
 
@@ -795,7 +814,12 @@ void setup() {
   keypad.setDebounceTime(KEYPAD_DEBOUNCE_TIME);
   keypad.setHoldTime(KEYPAD_HOLD_TIME);
 
+#ifdef USE_TFT_ESPI
+  // GPIO 13 is used for TFT_DC on ESP32-S3 TFT builds — skip ext0 wakeup
+  // TODO: assign a different wakeup pin for ESP32-S3 builds if deep-sleep wake is needed
+#else
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_13,0); //1 = High, 0 = Low
+#endif
 
   ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST; // Start with configured networks list
 
@@ -1445,7 +1469,7 @@ void stopThenToggleDirection() {
 
 void reconnect() {
   clearOledArray(); 
-  oledText[0] = appName; oledText[6] = appVersion; 
+  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
   oledText[2] = MSG_DISCONNECTED;
   renderer.renderArray(false, false);
   delay(5000);
@@ -1581,7 +1605,7 @@ void selectEditConsistList(int selection) {
 // *********************************************************************************
 
 void setAppnameForOled() {
-  oledText[0] = appName; oledText[6] = appVersion; 
+  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
 }
 
 void receivingServerInfoOled(int index, int maxExpected) {
@@ -1612,10 +1636,10 @@ void receivingServerInfoOled(int index, int maxExpected) {
 void setMenuTextForOled(int menuTextIndex) {
   debug_print("setMenuTextForOled(): ");
   debug_println(menuTextIndex);
-  oledText[5] = menu_text[menuTextIndex];
+  oledText[activeLayout.menuTextRow] = menu_text[menuTextIndex];
   if (broadcastMessageText != "") {
     if (millis()-broadcastMessageTime < 10000) {
-      oledText[5] = broadcastMessageText;
+      oledText[activeLayout.menuTextRow] = broadcastMessageText;
     } else {
       broadcastMessageText = "";
       broadcastMessageTime = 0;

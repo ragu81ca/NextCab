@@ -170,6 +170,11 @@
 //
 // #define DISPLAY_PROFILE_128x64    // 128×64 monochrome OLED (default)
 // #define DISPLAY_PROFILE_320x240   // 320×240 color TFT
+//
+// For ESP32-S3 + ILI9341 TFT builds:
+//   DISPLAY_PROFILE_320x240 and USE_TFT_ESPI are set automatically via build_flags
+//   in the [env:esp32s3_ili9341] section of platformio.ini — no need to define them here.
+//   SPI pin mapping (TFT_MOSI, TFT_SCLK, TFT_CS, TFT_DC, TFT_RST) is also in platformio.ini.
 
 // ********************************************************************************************
 // oLED definition
