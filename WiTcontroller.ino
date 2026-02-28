@@ -32,14 +32,23 @@
 #include "config_buttons.h"      // keypad buttons assignments
 #include "WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
 
-// Battery monitoring moved to BatteryMonitor class (core/BatteryMonitor.*)
+// Battery monitoring — compile-time type alias selects concrete implementation
 #include "src/core/BatteryMonitor.h"
-BatteryMonitor batteryMonitor; // encapsulates previous battery globals
+BatteryMonitor batteryMonitor;
 // Core managers & devices
 #include "src/core/input/InputManager.h"
 #include "src/core/SystemState.h"
-#include "src/core/input/KeypadInput.h"
+#ifdef USE_QWIIC_KEYPAD
+  #include "src/core/input/QwiicKeypadInput.h"
+#elif defined(USE_KEYPAD_4X4)
+  #include "src/core/input/MatrixKeypad4x4Input.h"
+#else
+  #include "src/core/input/MatrixKeypad3x4Input.h"
+#endif
 #include "src/core/input/RotaryEncoderInput.h"
+#ifdef USE_MODULINO_KNOB
+  #include "src/core/input/ModulinoKnobInput.h"
+#endif
 #include "src/core/input/PotThrottleInput.h"
 #include "src/core/input/AdditionalButtonsInput.h"
 #include "src/core/input/InputEvents.h"
@@ -84,51 +93,10 @@ bool throttlePotUseNotches = false;
 int throttlePotNotchValues[8] = {0,200,400,600,800,1000,2000,4000};
 int throttlePotNotchSpeeds[8] = {0,20,40,60,80,100,120,127};
 
-// ----------------- Keypad defaults (if not overridden in config_buttons.h) -----------------
-#ifndef ROW_NUM
-  #define ROW_NUM 4
-#endif
-#ifndef COLUMN_NUM
-  #define COLUMN_NUM 3
-#endif
-#ifndef KEYPAD_KEYS
-  static char KEYPAD_KEYS[ROW_NUM][COLUMN_NUM] = {
-    {'1','2','3'},
-    {'4','5','6'},
-    {'7','8','9'},
-    {'*','0','#'}
-  };
-#endif
-#ifdef USE_TFT_ESPI
-  // ESP32-S3 safe GPIO defaults — avoid TFT SPI (10-14), USB (19-20),
-  // flash/PSRAM (26-37), UART0 (43-44), and strapping (0) pins.
-  #ifndef KEYPAD_ROW_PINS
-    static byte KEYPAD_ROW_PINS[ROW_NUM] = {38, 39, 40, 41};
-  #endif
-  #ifndef KEYPAD_COLUMN_PINS
-    static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {42, 2, 4};
-  #endif
-#else
-  #ifndef KEYPAD_ROW_PINS
-    static byte KEYPAD_ROW_PINS[ROW_NUM] = {19,18,17,16};
-  #endif
-  #ifndef KEYPAD_COLUMN_PINS
-    static byte KEYPAD_COLUMN_PINS[COLUMN_NUM] = {4,0,2};
-  #endif
-#endif
-#ifndef KEYPAD_DEBOUNCE_TIME
-  #define KEYPAD_DEBOUNCE_TIME 10
-#endif
-#ifndef KEYPAD_HOLD_TIME
-  #define KEYPAD_HOLD_TIME 200
-#endif
-static Keypad keypad(makeKeymap((char*)KEYPAD_KEYS), KEYPAD_ROW_PINS, KEYPAD_COLUMN_PINS, ROW_NUM, COLUMN_NUM);
-
 // ----------------- Rotary / Pot selection flag -----------------
 #ifndef USE_ROTARY_ENCODER_FOR_THROTTLE
   #define USE_ROTARY_ENCODER_FOR_THROTTLE true
 #endif
-bool useRotaryEncoderForThrottle = USE_ROTARY_ENCODER_FOR_THROTTLE;
 
 // ----------------- Startup commands stub -----------------
 String startupCommands[4] = {"","","",""};
@@ -810,10 +778,6 @@ void setup() {
 
   // Rotary initialization now handled by RotaryEncoderInput begin() if rotary selected.
 
-  // Keypad event listener removed; KeypadInput now polls press/release states
-  keypad.setDebounceTime(KEYPAD_DEBOUNCE_TIME);
-  keypad.setHoldTime(KEYPAD_HOLD_TIME);
-
 #ifdef USE_TFT_ESPI
   // GPIO 13 is used for TFT_DC on ESP32-S3 TFT builds — skip ext0 wakeup
   // TODO: assign a different wakeup pin for ESP32-S3 builds if deep-sleep wake is needed
@@ -878,18 +842,37 @@ void setup() {
   heartbeatMonitor.setOnPeriodChange([](unsigned long p){
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
-  // Register rotary or pot device depending on configuration
-  if (useRotaryEncoderForThrottle) {
-    static RotaryEncoderInput rotaryDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
-    inputManager.registerDevice(&rotaryDev);
-    rotaryDev.begin();
-  } else {
-    static PotThrottleInput potDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
-    inputManager.registerDevice(&potDev);
-    potDev.begin();
-  }
-  // Register keypad device wrapper
-  static KeypadInput keypadDev(keypad, [&](const InputEvent &ev){ inputManager.dispatch(ev); });
+  // ── Initialise I2C bus early, before any Qwiic/I2C device begin() calls ──
+#if defined(USE_QWIIC_KEYPAD) || defined(USE_MODULINO_KNOB)
+  #ifdef PIN_I2C_POWER
+    pinMode(PIN_I2C_POWER, OUTPUT);
+    digitalWrite(PIN_I2C_POWER, HIGH);
+    delay(100); // let Qwiic bus power stabilise
+    Serial.printf("[I2C] Power pin %d set HIGH\n", PIN_I2C_POWER);
+  #endif
+  Wire.begin();
+  delay(50); // let bus settle
+  Serial.println("[I2C] Bus initialised");
+#endif
+
+  // Register throttle input device — compile-time selection
+#ifdef USE_MODULINO_KNOB
+  static ModulinoKnobInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#elif USE_ROTARY_ENCODER_FOR_THROTTLE
+  static RotaryEncoderInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#else
+  static PotThrottleInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#endif
+  inputManager.registerDevice(&throttleDev);
+  throttleDev.begin();
+  // Register keypad device — compile-time selection
+#ifdef USE_QWIIC_KEYPAD
+  static QwiicKeypadInput keypadDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#elif defined(USE_KEYPAD_4X4)
+  static MatrixKeypad4x4Input keypadDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#else
+  static MatrixKeypad3x4Input keypadDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#endif
   inputManager.registerDevice(&keypadDev);
   keypadDev.begin();
 

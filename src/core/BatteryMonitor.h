@@ -1,37 +1,23 @@
-// BatteryMonitor.h - relocated and cleaned
-// Ensure user configuration macros (e.g. USE_BATTERY_TEST) are visible in this translation unit.
+// BatteryMonitor.h — Compile-time type alias that selects the concrete battery
+// monitoring implementation based on build flags.
+//
+// Priority:
+//   1. MAX17048BatteryMonitor  (if USE_MAX17048 is true)
+//   2. AnalogBatteryMonitor    (if USE_BATTERY_TEST is true)
+//   3. NullBatteryMonitor      (no-op fallback)
+//
+// All callers use `BatteryMonitor` as the type — the concrete class is
+// selected at compile time with no facade, no heap allocation, no vtable.
 #pragma once
-#include <Arduino.h>
-// Pull in user config first so any overrides apply before static defaults.
-#include "../../config_buttons.h"
-#include "../../static.h"
-#include "../../Pangodream_18650_CL.h"
 
-class BatteryMonitor {
-public:
-	BatteryMonitor();
-	void begin();
-	void loop();
-	bool enabled() const { return useBatteryTest; }
-	// Raw percent (unsmoothed) used for critical decisions like sleep threshold
-	int percentRaw() const { return lastBatteryTestValue; }
-	// Display percent (smoothed if enabled)
-	int percent() const { return (BATTERY_SMOOTHING_ENABLED ? smoothedBatteryPercent : lastBatteryTestValue); }
-	int lastAnalogRaw() const { return lastBatteryAnalogReadValue; }
-	double lastCheckMillis() const { return lastBatteryCheckTime; }
-	ShowBattery displayMode() const { return showBatteryTest; }
-	void toggleDisplayMode();
-	bool shouldSleepForLowBattery() const;
-private:
-	void initialSample();
-	bool useBatteryTest;
-	bool useBatteryPercentAsWellAsIcon;
-	ShowBattery showBatteryTest;
-	int lastBatteryTestValue;
-	int lastBatteryAnalogReadValue;
-	double lastBatteryCheckTime;
-	int smoothedBatteryPercent; // EMA output
-#if USE_BATTERY_TEST
-	Pangodream_18650_CL battery;
+#include "NullBatteryMonitor.h"
+
+#if USE_MAX17048
+  #include "MAX17048BatteryMonitor.h"
+  using BatteryMonitor = MAX17048BatteryMonitor;
+#elif USE_BATTERY_TEST
+  #include "AnalogBatteryMonitor.h"
+  using BatteryMonitor = AnalogBatteryMonitor;
+#else
+  using BatteryMonitor = NullBatteryMonitor;
 #endif
-};

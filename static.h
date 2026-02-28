@@ -783,6 +783,9 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 #ifndef USE_BATTERY_TEST
    #define USE_BATTERY_TEST false
 #endif
+#ifndef USE_MAX17048
+   #define USE_MAX17048 0
+#endif
 #ifndef BATTERY_TEST_PIN
    #define BATTERY_TEST_PIN 34
 #endif
