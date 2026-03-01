@@ -12,61 +12,53 @@ extern WiThrottleProtocol wiThrottleProtocol;
 EditConsistSelectionHandler::EditConsistSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
 
-int EditConsistSelectionHandler::getItemCount() const {
-    return wiThrottleProtocol.getNumberOfLocomotives(
-        throttleManager.getCurrentThrottleChar());
-}
-
-int EditConsistSelectionHandler::getItemsPerPage() const {
-    return renderer_.getLayout().maxLocosDisplayed;
-}
-
-String EditConsistSelectionHandler::getItemLabel(int gi, bool &invert) const {
+void EditConsistSelectionHandler::configureScreen() {
+    auto &s = screen();
     char tc = throttleManager.getCurrentThrottleChar();
-    String loco = wiThrottleProtocol.getLocomotiveAtPosition(tc, gi);
-    // Strip S/L prefix, show as suffix only if duplicates exist with different types
-    String display = loco;
-    if (display.length() > 0 && (display.charAt(0) == 'S' || display.charAt(0) == 'L')) {
-        char prefix = display.charAt(0);
-        display = display.substring(1);
-        // Check for duplicate addresses with different types
-        int numLocos = getItemCount();
-        for (int j = 0; j < numLocos; j++) {
-            if (j == gi) continue;
-            String other = wiThrottleProtocol.getLocomotiveAtPosition(tc, j);
-            if (other.length() > 1 && other.substring(1) == display &&
-                other.charAt(0) != prefix) {
-                display += " (" + String(prefix) + ")";
-                break;
+    s.totalItems     = wiThrottleProtocol.getNumberOfLocomotives(tc);
+    s.visibleRows    = renderer_.getLayout().maxLocosDisplayed;
+    s.halfPageSplit  = true;
+    s.headerText     = "Edit Consist Facing";
+    s.footerTemplate = "no Chng Facing   * Close";
+
+    s.itemLabel = [this](int gi, bool &invert) -> String {
+        char tc = throttleManager.getCurrentThrottleChar();
+        String loco = wiThrottleProtocol.getLocomotiveAtPosition(tc, gi);
+        // Strip S/L prefix, show as suffix only if duplicates exist with different types
+        String display = loco;
+        if (display.length() > 0 && (display.charAt(0) == 'S' || display.charAt(0) == 'L')) {
+            char prefix = display.charAt(0);
+            display = display.substring(1);
+            int numLocos = wiThrottleProtocol.getNumberOfLocomotives(tc);
+            for (int j = 0; j < numLocos; j++) {
+                if (j == gi) continue;
+                String other = wiThrottleProtocol.getLocomotiveAtPosition(tc, j);
+                if (other.length() > 1 && other.substring(1) == display &&
+                    other.charAt(0) != prefix) {
+                    display += " (" + String(prefix) + ")";
+                    break;
+                }
             }
         }
-    }
-    if (wiThrottleProtocol.getDirection(tc, loco) == Reverse) {
-        invert = true;
-    }
-    return display;
-}
+        if (wiThrottleProtocol.getDirection(tc, loco) == Reverse) {
+            invert = true;
+        }
+        return display;
+    };
 
-String EditConsistSelectionHandler::getFooterText() const {
-    return "no Chng Facing   * Close";
-}
+    s.onSelect = [this](int index) {
+        int numLocos = wiThrottleProtocol.getNumberOfLocomotives(
+            throttleManager.getCurrentThrottleChar());
+        if (index < numLocos && numLocos > 1) {
+            String loco = wiThrottleProtocol.getLocomotiveAtPosition(
+                throttleManager.getCurrentThrottleChar(), index);
+            toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
+        }
+        inputManager.setMode(InputMode::Operation);
+    };
 
-String EditConsistSelectionHandler::getHeaderText() const {
-    return "Edit Consist Facing";
-}
-
-void EditConsistSelectionHandler::onBeforeRender() {
-    lastOledScreen = last_oled_screen_edit_consist;
-    menuIsShowing = false;
-}
-
-void EditConsistSelectionHandler::onItemSelected(int index) {
-    int numLocos = getItemCount();
-    if (index < numLocos && numLocos > 1) {
-        String loco = wiThrottleProtocol.getLocomotiveAtPosition(
-            throttleManager.getCurrentThrottleChar(), index);
-        toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
-    }
-    // Always return to operation mode
-    inputManager.setMode(InputMode::Operation);
+    s.onBeforeRender = []() {
+        lastOledScreen = last_oled_screen_edit_consist;
+        menuIsShowing = false;
+    };
 }

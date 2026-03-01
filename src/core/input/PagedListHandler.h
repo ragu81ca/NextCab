@@ -1,6 +1,6 @@
 #pragma once
 #include "IModeHandler.h"
-#include "../PagedListModel.h"
+#include "../ui/ListSelectionScreen.h"
 
 // Forward declarations
 class Renderer;
@@ -12,19 +12,11 @@ class Renderer;
 /// '#' advances to the next page (wraps around).
 /// '*' cancels (returns to Operation mode by default).
 ///
-/// Subclasses must implement:
-///   getItemCount()     — total items in the list
-///   getItemsPerPage()  — how many items fit on one page (from DisplayLayout)
-///   getItemLabel()     — return the display label for one global index
-///   getFooterText()    — return the footer / navigation hint string
-///   onItemSelected()   — act on the chosen absolute index
+/// Subclasses implement configureScreen() to populate the ListSelectionScreen
+/// with a data source, action callbacks, and display hints.
 ///
 /// Subclasses may override:
-///   onCancel()         — default sets InputMode::Operation
 ///   handleExtraKey()   — intercept keys before standard digit/page/cancel handling
-///   syncPageState()    — default writes to uiState.page
-///   useHalfPageSplit() — default false; true puts footer at halfPage row
-///   onBeforeRender()   — set screen-tracking globals (lastOledScreen, menuIsShowing, etc.)
 class PagedListHandler : public IModeHandler {
 public:
     explicit PagedListHandler(Renderer &renderer);
@@ -35,40 +27,20 @@ public:
     void onExit() override;
 
 protected:
-    // ── Required overrides ──────────────────────────────────────────────
-    virtual int    getItemCount() const = 0;
-    virtual int    getItemsPerPage() const = 0;
-    virtual String getItemLabel(int globalIndex, bool &invert) const = 0;
-    virtual String getFooterText() const = 0;
-    virtual void   onItemSelected(int index) = 0;
-
-    // ── Optional overrides ──────────────────────────────────────────────
-    /// Called on '*'; default sets mode to Operation.
-    virtual void onCancel();
+    /// Subclasses populate screen_ with data source, callbacks, and hints.
+    /// Called from onEnter() after screen_ is reset to defaults.
+    virtual void configureScreen() = 0;
 
     /// Called before standard key handling.  Return true if the key was consumed.
     virtual bool handleExtraKey(char key);
 
-    /// Called after a page change.  Default sets uiState.page = page_.
-    virtual void syncPageState(int page);
-
-    /// Optional header text displayed above items (e.g. "Edit Consist Facing").
-    virtual String getHeaderText() const { return ""; }
-
-    /// Whether to use the half-page split layout (footer in middle row).
-    virtual bool useHalfPageSplit() const { return false; }
-
-    /// Called before rendering.  Set lastOledScreen, menuIsShowing, etc.
-    virtual void onBeforeRender() {}
-
     // ── Accessors ───────────────────────────────────────────────────────
-    int  getPage() const { return page_; }
-    void setPage(int p)  { page_ = p; }
+    ListSelectionScreen& screen()  { return screen_; }
+    const ListSelectionScreen& screen() const { return screen_; }
 
     Renderer &renderer_;
-    int page_ = 0;
+    ListSelectionScreen screen_;
 
-private:
-    /// Template method: builds model from getItemLabel, calls renderer_.renderPagedList.
+    /// Renders the current page via the Renderer.
     void renderCurrentPage();
 };

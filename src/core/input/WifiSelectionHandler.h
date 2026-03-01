@@ -1,5 +1,6 @@
 #pragma once
 #include "IModeHandler.h"
+#include "../ui/ListSelectionScreen.h"
 
 // Forward declarations
 class Renderer;
@@ -23,8 +24,11 @@ public:
     WifiSelectionSource getSource() const { return source_; }
 
 private:
+    void buildConfiguredScreen();
+
     Renderer &renderer_;
     WifiSsidManager &wifiManager_;
     WifiSelectionSource source_;
+    ListSelectionScreen configuredScreen_;
     int page_;
 };

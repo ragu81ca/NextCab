@@ -1,17 +1,11 @@
 #pragma once
-#include "IModeHandler.h"
+#include "PagedListHandler.h"
 
-// Forward declarations
-class Renderer;
-
-class DropLocoSelectionHandler : public IModeHandler {
+class DropLocoSelectionHandler : public PagedListHandler {
 public:
     explicit DropLocoSelectionHandler(Renderer &renderer);
-    
-    bool handle(const InputEvent &ev) override;
-    void onEnter() override;
-    void onExit() override;
 
-private:
-    Renderer &renderer_;
+protected:
+    void configureScreen() override;
+    bool handleExtraKey(char key) override;
 };

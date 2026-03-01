@@ -10,49 +10,50 @@ extern ThrottleManager throttleManager;
 extern WiThrottleProtocol wiThrottleProtocol;
 
 DropLocoSelectionHandler::DropLocoSelectionHandler(Renderer &renderer)
-    : renderer_(renderer) {}
+    : PagedListHandler(renderer) {}
 
-void DropLocoSelectionHandler::onEnter() {
-    renderer_.renderDropLocoList();
+void DropLocoSelectionHandler::configureScreen() {
+    auto &s = screen();
+    char tc = throttleManager.getCurrentThrottleChar();
+    int numLocos = wiThrottleProtocol.getNumberOfLocomotives(tc);
+    bool needSuffixes = renderer_.checkNeedSuffixes(tc, numLocos);
+
+    s.totalItems     = numLocos;
+    s.visibleRows    = renderer_.getLayout().maxLocosDisplayed;
+    s.halfPageSplit  = true;
+    s.headerText     = "Drop Loco";
+    s.footerTemplate = "1-9 Select 0 All * Cancel";
+
+    s.itemLabel = [this, needSuffixes](int gi, bool &invert) -> String {
+        char tc = throttleManager.getCurrentThrottleChar();
+        String loco = wiThrottleProtocol.getLocomotiveAtPosition(tc, gi);
+        if (wiThrottleProtocol.getDirection(tc, loco) == Reverse) {
+            invert = true;
+        }
+        return renderer_.formatLocoDisplay(loco, needSuffixes);
+    };
+
+    s.onSelect = [](int index) {
+        char tc = throttleManager.getCurrentThrottleChar();
+        int numLocos = wiThrottleProtocol.getNumberOfLocomotives(tc);
+        if (index < numLocos) {
+            releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), index);
+        }
+        extern InputManager inputManager;
+        inputManager.setMode(InputMode::Operation);
+    };
+
+    s.onBeforeRender = []() {
+        lastOledScreen = last_oled_screen_all_locos;
+        menuIsShowing = true;
+    };
 }
 
-void DropLocoSelectionHandler::onExit() {
-    // Clean up state when exiting this mode
-    menuCommandStarted = false;
-    // Don't render here - let the next mode's onEnter handle rendering
-}
-
-bool DropLocoSelectionHandler::handle(const InputEvent &ev) {
-    // Only handle key press events
-    if (ev.type != InputEventType::KeypadChar && ev.type != InputEventType::KeypadSpecial) {
-        return false;
+bool DropLocoSelectionHandler::handleExtraKey(char key) {
+    if (key == '0') {
+        releaseAllLocos(throttleManager.getCurrentThrottleIndex());
+        inputManager.setMode(InputMode::Operation);
+        return true;
     }
-
-    char key = ev.cvalue;
-    
-    switch (key) {
-        case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9':
-            // Convert 1-based display to 0-based index
-            if ((key-'0') <= wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())) {
-                releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), key - '0' - 1);
-                // Return to operation mode - onEnter will render speed
-                inputManager.setMode(InputMode::Operation);
-            }
-            return true;
-            
-        case '0':  // Drop all locos
-            releaseAllLocos(throttleManager.getCurrentThrottleIndex());
-            // Return to operation mode - onEnter will render speed
-            inputManager.setMode(InputMode::Operation);
-            return true;
-            
-        case '*':  // cancel
-            // Return to operation mode - onEnter will render speed
-            inputManager.setMode(InputMode::Operation);
-            return true;
-            
-        default:
-            return false;
-    }
+    return false;
 }

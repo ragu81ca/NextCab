@@ -13,9 +13,39 @@ extern WiThrottleConnectionManager connectionManager;
 WiThrottleServerSelectionHandler::WiThrottleServerSelectionHandler(Renderer &renderer)
     : renderer_(renderer), source_(WiThrottleServerSource::Discovered) {}
 
+void WiThrottleServerSelectionHandler::buildDiscoveredScreen() {
+    discoveredScreen_ = ListSelectionScreen();
+    int count = connectionManager.foundCount();
+
+    discoveredScreen_.totalItems    = count;
+    discoveredScreen_.visibleRows   = renderer_.getLayout().ssidItemsPerPage;  // reuse SSID capacity
+    discoveredScreen_.halfPageSplit = true;
+    discoveredScreen_.footerTemplate = String(menu_text[menu_select_wit_service]);
+
+    discoveredScreen_.itemLabel = [](int gi, bool & /*invert*/) -> String {
+        int count = connectionManager.foundCount();
+        if (gi >= count) return "";
+        const IPAddress *ips   = connectionManager.foundIPs();
+        const int       *ports = connectionManager.foundPorts();
+        const String    *names = connectionManager.foundNames();
+        String ip = ips[gi].toString();
+        String truncatedIp = ".." + ip.substring(ip.lastIndexOf("."));
+        return truncatedIp + ":" + String(ports[gi]) + " " + names[gi];
+    };
+
+    discoveredScreen_.onSelect = [](int index) {
+        connectionManager.selectServer(index);
+    };
+
+    discoveredScreen_.onBeforeRender = []() {
+        menuIsShowing = true;
+    };
+}
+
 void WiThrottleServerSelectionHandler::onEnter() {
     if (source_ == WiThrottleServerSource::Discovered) {
-        // Display already shown by connectionManager.browseService()
+        buildDiscoveredScreen();
+        renderer_.renderListSelection(discoveredScreen_);
     } else {
         // Manual entry mode - display already shown by connectionManager.enterManualServer()
     }
@@ -30,7 +60,6 @@ void WiThrottleServerSelectionHandler::setSource(WiThrottleServerSource source) 
 }
 
 bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
-    // Only handle key press events
     if (ev.type != InputEventType::KeypadChar && ev.type != InputEventType::KeypadSpecial) {
         return false;
     }
@@ -38,20 +67,28 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
     char key = ev.cvalue;
     
     if (source_ == WiThrottleServerSource::Discovered) {
-        // Selecting from discovered servers (1-based for users, convert to 0-based indices)
         switch (key) {
             case '1': case '2': case '3': case '4': case '5':
-                connectionManager.selectServer(key - '1');
+            case '6': case '7': case '8': case '9': {
+                int offset = key - '1';
+                int index = offset + (discoveredScreen_.currentPage * discoveredScreen_.visibleRows);
+                if (discoveredScreen_.onSelect) discoveredScreen_.onSelect(index);
+                return true;
+            }
+
+            case '#':
+                if (discoveredScreen_.nextPage()) {
+                    renderer_.renderListSelection(discoveredScreen_);
+                } else {
+                    // No more pages — switch to manual entry
+                    systemStateManager.setState(SystemState::ServerManualEntry);
+                    connectionManager.buildEntry();
+                    connectionManager.enterManualServer();
+                    setSource(WiThrottleServerSource::ManualEntry);
+                }
                 return true;
                 
-            case '#':  // Switch to manual entry
-                systemStateManager.setState(SystemState::ServerManualEntry);
-                connectionManager.buildEntry();
-                connectionManager.enterManualServer();
-                setSource(WiThrottleServerSource::ManualEntry);
-                return true;
-                
-            case '*':  // Back - rescan or go back to WiFi?
+            case '*':
                 connectionManager.browseService();
                 return true;
                 
@@ -66,22 +103,21 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
                 if (connectionManager.ipAndPortEntered().length() < 17) {
                     connectionManager.ipAndPortEntered() += key;
                     connectionManager.ipAndPortChanged() = true;
-                    connectionManager.enterManualServer(); // Refresh display
+                    connectionManager.enterManualServer();
                 }
                 return true;
                 
-            case '*':  // Backspace
+            case '*':
                 if (connectionManager.ipAndPortEntered().length() > 0) {
                     connectionManager.ipAndPortEntered() = connectionManager.ipAndPortEntered().substring(0, connectionManager.ipAndPortEntered().length() - 1);
                     connectionManager.ipAndPortChanged() = true;
-                    connectionManager.enterManualServer(); // Refresh display
+                    connectionManager.enterManualServer();
                 }
                 return true;
                 
-            case '#':  // Commit
+            case '#':
                 if (connectionManager.ipAndPortEntered().length() == 17) {
                     systemStateManager.setState(SystemState::ServerConnecting);
-                    // Connection will be attempted in loop()
                 }
                 return true;
                 

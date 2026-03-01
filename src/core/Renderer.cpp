@@ -48,31 +48,20 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 		oledText[2] = input + "_";  // Show cursor
 		oledText[layout.menuTextRow] = currentItem->instructions;
 	} else {
-		// Display menu items (main menu or submenu)
-		// Layout: Items 1-5 in lines 0-4, items 6-9 in lines 6-9, item 0 (10th) in line 10
-		// Line 5 is for instructions
+		// Display menu items contiguously, respecting layout.
+		// Items fill rows 0..n, jumping over menuTextRow (footer) into the
+		// second column when necessary (128×64 has 6-row columns, 320×240
+		// has 12 — so on the larger display everything stays in one column).
+		int row = 0;
 		for (uint8_t i = 0; i < menuSize && i < 10; i++) {
-			int displayLine;
-			String itemNum;
-			
-			if (i < 5) {
-				// Items 0-4 → display as "1:" through "5:" in lines 0-4
-				displayLine = i;
-				itemNum = String(i + 1);
-			} else if (i < 9) {
-				// Items 5-8 → display as "6:" through "9:" in lines 6-9
-				displayLine = i + 1;  // Skip line 5 (instructions)
-				itemNum = String(i + 1);
-			} else {
-				// Item 9 → display as "0:" in line 10
-				displayLine = 10;
-				itemNum = "0";
+			String itemNum = (i == 9) ? "0" : String(i + 1);
+			oledText[row] = itemNum + ": " + currentMenu[i].title;
+			row++;
+			// If we hit the footer row, jump to the second column
+			if (row == layout.menuTextRow) {
+				row = layout.secondColumnStartRow;
 			}
-			
-			String line = itemNum + ": " + currentMenu[i].title;
-			oledText[displayLine] = line;
 		}
-		// Bottom instruction at menu text row
 		oledText[layout.menuTextRow] = "* Cancel  # Select";
 	}
 	
@@ -107,9 +96,131 @@ void Renderer::renderPagedList(const PagedListModel &model) {
 			if (item.invert) oledTextInvert[row] = true;
 		}
 	}
-	int footerRow = (model.halfPageSplit ? halfPage : capacity) + rowOffset;
-	oledText[footerRow] = model.footerText;
+	oledText[layout.menuTextRow] = model.footerText;
 	renderArrayInternal(false, false, true, false);
+}
+
+// ── ListSelectionScreen-based renderer ─────────────────────────────────
+void Renderer::renderListSelection(ListSelectionScreen &screen) {
+	if (screen.onBeforeRender) screen.onBeforeRender();
+	clearArray();
+
+	int capacity = screen.visibleRows;
+	int halfPage = capacity / 2;
+
+	// Optional header in row 0 — shifts item rows down by 1
+	int rowOffset = (screen.headerText.length() > 0) ? 1 : 0;
+	if (rowOffset) oledText[0] = screen.headerText;
+
+	for (int i = 0; i < capacity; i++) {
+		int gi = screen.globalIndex(i);
+		if (gi >= screen.totalItems) break;
+		bool invert = false;
+		String label = screen.itemLabel(gi, invert);
+		if (label.length() > 0) {
+			int row = screen.halfPageSplit ? ((i < halfPage) ? i : i + 1) : i;
+			row += rowOffset;
+			oledText[row] = String((i + 1) % 10) + ": " + label;
+			if (invert) oledTextInvert[row] = true;
+		}
+	}
+
+	oledText[layout.menuTextRow] = screen.footerText();
+	renderArrayInternal(false, false, true, false);
+}
+
+// ── TitleScreen renderer ───────────────────────────────────────────────
+// ── Shared helper: populate oledText[] from a TitleScreen ────────────────
+// Returns the row index just past the last body line (useful for placing
+// a spinner or other decoration below the body).
+int Renderer::populateTitleArray(const TitleScreen &screen) {
+	clearArray();
+
+	// Row 0: title (always at top)
+	oledText[0] = screen.title;
+
+	// Subtitle goes at secondColumnStartRow on small displays (2-column),
+	// or row 1 on large single-column displays where secondColumnStartRow
+	// would be off-screen for a title layout.
+	if (screen.subtitle.length() > 0) {
+		int subRow = (layout.menuTextRow <= 5) ? layout.secondColumnStartRow : 1;
+		oledText[subRow] = screen.subtitle;
+	}
+
+	// Vertically centre the body lines between row 2 and menuTextRow-1.
+	// On 128×64 (menuTextRow=5): available rows 2-4 → 3 slots.
+	// On 320×240 (menuTextRow=11): available rows 2-10 → 9 slots.
+	int firstAvail = 2;
+	int lastAvail  = layout.menuTextRow - 1;
+	int available  = lastAvail - firstAvail + 1;
+	int startRow   = firstAvail;
+	if (screen.bodyCount < available) {
+		startRow = firstAvail + (available - screen.bodyCount) / 2;
+	}
+	for (int i = 0; i < screen.bodyCount && (startRow + i) <= lastAvail; i++) {
+		oledText[startRow + i] = screen.body[i];
+	}
+
+	// Footer at the canonical bottom row
+	if (screen.footerText.length() > 0) {
+		oledText[layout.menuTextRow] = screen.footerText;
+	}
+
+	return startRow + screen.bodyCount;
+}
+
+void Renderer::renderTitle(const TitleScreen &screen) {
+	populateTitleArray(screen);
+	renderArrayInternal(false, false, true, screen.showTopLine, true);
+}
+
+// ── Bouncing-dot spinner ────────────────────────────────────────────────
+// Draws 5 small squares centred horizontally at `centerY`.  The "active"
+// dot (and its immediate neighbours) are drawn larger, creating a wave
+// that bounces left ↔ right across the row.
+void Renderer::drawSpinner(int centerY, int frame) {
+	const int dotCount = 5;
+	int maxDot = layout.rowHeight / 3;          // 6 on TFT, 3 on OLED
+	if (maxDot < 2) maxDot = 2;
+	int minDot = (maxDot < 3) ? 1 : maxDot / 3;
+	int midDot = (maxDot + minDot) / 2;
+	int gap    = maxDot;                         // space between dot centres
+
+	int cellStep   = maxDot + gap;
+	int totalWidth = dotCount * maxDot + (dotCount - 1) * gap;
+	int startX     = (layout.screenWidth - totalWidth) / 2;
+
+	// Bounce position: 0→4→0→4→…
+	int period = (dotCount - 1) * 2;
+	int pos = frame % period;
+	if (pos >= dotCount) pos = period - pos;
+
+	display.setDrawColor(1);
+	for (int i = 0; i < dotCount; i++) {
+		int dist = abs(i - pos);
+		int size = (dist == 0) ? maxDot : (dist == 1) ? midDot : minDot;
+		int cellCenterX = startX + i * cellStep + maxDot / 2;
+		int x = cellCenterX - size / 2;
+		int y = centerY - size / 2;
+		display.drawBox(x, y, size, size);
+	}
+}
+
+void Renderer::renderWait(const WaitScreen &screen) {
+	int nextRow = populateTitleArray(screen);
+
+	// Render text without sending the buffer yet
+	renderArrayInternal(false, false, false, screen.showTopLine, true);
+
+	// Place the spinner one row below the last body line, centred vertically
+	// in that row.  Clamp so it stays above the status-bar line.
+	int spinnerY = (nextRow + 1) * layout.rowHeight;
+	int maxY     = layout.statusBarY - layout.rowHeight / 2;
+	if (spinnerY > maxY) spinnerY = maxY;
+
+	drawSpinner(spinnerY, screen.frame);
+
+	display.sendBuffer();
 }
 
 void Renderer::renderFoundSsids(const String &soFar) {
@@ -205,50 +316,15 @@ String Renderer::formatLocoDisplay(const String &loco, bool needSuffixes) {
 	return displayLoco;
 }
 
-void Renderer::renderDropLocoList() {
-	menuIsShowing = true;
-	clearArray();
-	
-	char currentChar = throttleManager.getCurrentThrottleChar();
-	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
-	
-	// Check if we need to show S/L suffixes
-	bool needSuffixes = checkNeedSuffixes(currentChar, numLocos);
-	
-	// Render the locos
-	if (numLocos > 0) {
-		int maxLocos = layout.maxLocosDisplayed;
-		int halfPage = maxLocos / 2;
-		for (int index = 0; index < numLocos && index < maxLocos; index++) {
-			String loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index);
-			int displayNum = index + 1;
-			int linePos = (index < halfPage) ? index : index + 2;
-			
-			String displayLoco = formatLocoDisplay(loco, needSuffixes);
-			
-			oledText[linePos + 1] = String(displayNum) + ": " + displayLoco;
-			if (wiThrottleProtocol.getDirection(currentChar, loco) == Reverse) {
-				oledTextInvert[linePos + 1] = true;
-			}
-		}
-	}
-	
-	oledText[0] = "Drop Loco";
-	oledText[layout.menuTextRow] = "1-9 Select 0 All * Cancel";
-	renderArrayInternal(false, false, true, false);
-}
-
 
 void Renderer::renderHeartbeatCheck() {
 	menuIsShowing = false;
-	RenderModel model;
-	buildHeartbeatRenderModel(model, uiState, heartbeatMonitor.enabled());
-	int max = layout.twoColumnMax;
-	for (int i=0; i<max; i++) {
-		oledText[i] = model.lines[i];
-		oledTextInvert[i] = model.invert[i];
-	}
-	renderArrayInternal(false, false, model.sendBuffer, model.drawTopLine);
+	TitleScreen ts;
+	ts.title = "Heartbeat";
+	ts.addBody(heartbeatMonitor.enabled() ? MSG_HEARTBEAT_CHECK_ENABLED : MSG_HEARTBEAT_CHECK_DISABLED);
+	ts.footerText = "* Close";
+	ts.showTopLine = false;
+	renderTitle(ts);
 }
 
 void Renderer::renderAllLocos(bool hideLeadLoco) {
@@ -284,7 +360,7 @@ void Renderer::renderAllLocos(bool hideLeadLoco) {
 	}
 }
 // Internal unified array renderer
-void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine) {
+void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine, bool centerText) {
 	display.clearBuffer();
 	display.setDrawColor(1);
 	display.setFont(fonts.defaultFont);
@@ -301,13 +377,21 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 		String textPart = hasWifiGlyph ? lineStr.substring(0, sentinelPos) : lineStr;
 		const char *cLine = textPart.c_str();
 		if (isPassword && i==2) display.setFont(fonts.password);
+		// Clamp y so descenders aren't clipped at the screen bottom
+		int drawY = (y > layout.screenHeight - 2) ? layout.screenHeight - 2 : y;
 		if (oledTextInvert[i]) {
 			display.setDrawColor(1);
-			display.drawBox(x, y-8, xInc-2, layout.rowHeight);
+			display.drawBox(x, drawY-8, xInc-2, layout.rowHeight);
 			display.setDrawColor(0);
 		}
 		// Draw base text
-		display.drawUTF8(x, y, cLine);
+		int drawX = x;
+		if (centerText && !oledTextInvert[i] && textPart.length() > 0) {
+			int textW = display.getUTF8Width(cLine);
+			drawX = (layout.screenWidth - textW) / 2;
+			if (drawX < 0) drawX = 0;
+		}
+		display.drawUTF8(drawX, drawY, cLine);
 		// Draw signal bars if sentinel present
 		if (hasWifiGlyph) {
 			int itemsPerPage = layout.ssidItemsPerPage;
@@ -329,7 +413,7 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 			for (int bar = 0; bar < 4; bar++) {
 				int barX = barsX + (bar * (barW + barGap));
 				int barHeight = (bar + 1) * (layout.wifiBarMaxHeight / 4);
-				int barY = y - barHeight + 1;
+				int barY = drawY - barHeight + 1;
 				if (bar <= strength) {
 					display.drawBox(barX, barY, barW, barHeight);
 				}

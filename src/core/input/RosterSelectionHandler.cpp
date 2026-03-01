@@ -6,33 +6,26 @@
 RosterSelectionHandler::RosterSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
 
-int RosterSelectionHandler::getItemCount() const {
-    return rosterSize;
-}
+void RosterSelectionHandler::configureScreen() {
+    auto &s = screen();
+    s.totalItems    = rosterSize;
+    s.visibleRows   = renderer_.getLayout().rosterItemsPerPage;
+    s.footerTemplate = "(%p) " + String(menu_text[menu_roster]);
 
-int RosterSelectionHandler::getItemsPerPage() const {
-    return renderer_.getLayout().rosterItemsPerPage;
-}
+    s.itemLabel = [this](int gi, bool & /*invert*/) -> String {
+        int nameMax = renderer_.getLayout().rosterNameMaxLength;
+        int index = rosterSortedIndex[gi];
+        if (rosterAddress[index] == 0) return "";
+        String name = rosterName[index];
+        if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
+        return name + " (" + rosterAddress[index] + ")";
+    };
 
-String RosterSelectionHandler::getItemLabel(int gi, bool & /*invert*/) const {
-    int nameMax = renderer_.getLayout().rosterNameMaxLength;
-    int index = rosterSortedIndex[gi];
-    if (rosterAddress[index] == 0) return "";
-    String name = rosterName[index];
-    if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
-    return name + " (" + rosterAddress[index] + ")";
-}
+    s.onSelect = [](int index) { selectRoster(index); };
 
-String RosterSelectionHandler::getFooterText() const {
-    return "(" + String(getPage() + 1) + ") " + menu_text[menu_roster];
-}
-
-void RosterSelectionHandler::onBeforeRender() {
-    lastOledScreen = last_oled_screen_roster;
-    lastOledStringParameter = "";
-    menuIsShowing = true;
-}
-
-void RosterSelectionHandler::onItemSelected(int index) {
-    selectRoster(index);
+    s.onBeforeRender = []() {
+        lastOledScreen = last_oled_screen_roster;
+        lastOledStringParameter = "";
+        menuIsShowing = true;
+    };
 }

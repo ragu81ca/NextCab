@@ -8,12 +8,10 @@
 #include "../DisplayConfig.h"        // displayDriver (for sendBuffer)
 #include "../../../WiTcontroller.h"  // oledText macros, activeLayout, MSG_*, menu_*, etc.
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros, WiThrottleDelegate
+#include "../ui/TitleScreen.h"
+#include "../ui/WaitScreen.h"
 
 // External display helpers still living in the sketch (thin wrappers)
-extern void setAppnameForOled();
-extern void clearOledArray();
-extern void setMenuTextForOled(int);
-extern String getDots(int);
 
 // External config vars still living in the sketch
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
@@ -82,31 +80,39 @@ void WiThrottleConnectionManager::browseService() {
     const char* proto   = "tcp";
 
     debug_printf("Browsing for service _%s._%s.local. on %s ... ", service, proto, selectedSsid.c_str());
-    clearOledArray();
-    oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion;
-    oledText[1] = selectedSsid;
-    oledText[2] = MSG_BROWSING_FOR_SERVICE;
+    WaitScreen ws;
+    ws.setAppHeader(appName, appVersion);
+    ws.addBody(selectedSsid);
+    ws.addBody(MSG_BROWSING_FOR_SERVICE);
+    renderer_->renderWait(ws);
     renderer_->renderBattery();
-    renderer_->renderArray(false, false, true, true);
 
     startWaitForSelection_ = millis();
 
     noOfWitServices_ = 0;
     if ((selectedSsid.substring(0, 6) == "DCCEX_") && (selectedSsid.length() == 12)) {
         debug_println(MSG_BYPASS_WIT_SERVER_SEARCH);
-        oledText[1] = MSG_BYPASS_WIT_SERVER_SEARCH;
+        ws.body[0] = MSG_BYPASS_WIT_SERVER_SEARCH;
+        ws.bodyCount = 1;
+        ws.addBody(MSG_BROWSING_FOR_SERVICE);
+        renderer_->renderTitle(ws);
         renderer_->renderBattery();
-        renderer_->renderArray(false, false, true, true);
         delay(500);
     } else {
-        int j = 0;
+        // MDNS.queryService() blocks for ~2 s, so we can't animate during
+        // the query itself.  Instead, query every 2 s and animate the
+        // spinner at 125 ms in between queries.
+        unsigned long lastQuery = 0;
         while ((noOfWitServices_ == 0) && ((nowTime - startTime) <= 10000)) {
-            noOfWitServices_ = MDNS.queryService(service, proto);
-            oledText[3] = getDots(j);
+            if (nowTime - lastQuery >= 2000) {
+                noOfWitServices_ = MDNS.queryService(service, proto);
+                lastQuery = millis();
+                debug_print(".");
+            }
+            ws.advance();
+            renderer_->renderWait(ws);
             renderer_->renderBattery();
-            renderer_->renderArray(false, false, true, true);
-            j++;
-            debug_print(".");
+            delay(125);
             nowTime = millis();
         }
         debug_println("");
@@ -136,31 +142,22 @@ void WiThrottleConnectionManager::browseService() {
     }
 
     if (foundWitServersCount_ == 0) {
-        oledText[1] = MSG_NO_SERVICES_FOUND;
-        renderer_->renderBattery();
-        renderer_->renderArray(false, false, true, true);
-        debug_println(oledText[1]);
+        { TitleScreen tsErr;
+          tsErr.setAppHeader(appName, appVersion);
+          tsErr.addBody(MSG_NO_SERVICES_FOUND);
+          renderer_->renderTitle(tsErr);
+          renderer_->renderBattery(); }
+        debug_println(MSG_NO_SERVICES_FOUND);
         delay(1000);
         buildEntry();
         systemStateManager_->setState(SystemState::ServerManualEntry);
     } else {
         debug_print(noOfWitServices_); debug_println(MSG_SERVICES_FOUND);
-        clearOledArray();
-        oledText[3] = MSG_SERVICES_FOUND;
 
         for (int i = 0; i < foundWitServersCount_; ++i) {
             debug_print("  "); debug_print(i); debug_print(": '"); debug_print(foundWitServersNames_[i]);
             debug_print("' ("); debug_print(foundWitServersIPs_[i]); debug_print(":"); debug_print(foundWitServersPorts_[i]); debug_println(")");
-            if (i < 5) {
-                String truncatedIp = ".." + foundWitServersIPs_[i].toString().substring(foundWitServersIPs_[i].toString().lastIndexOf("."));
-                oledText[i] = String(i + 1) + ": " + truncatedIp + ":" + String(foundWitServersPorts_[i]) + " " + foundWitServersNames_[i];
-            }
         }
-
-        if (foundWitServersCount_ > 0) {
-            setMenuTextForOled(menu_select_wit_service);
-        }
-        renderer_->renderArray(false, false);
 
         // Auto-connect: if exactly 1 WiThrottle server found, connect automatically
         if (foundWitServersCount_ == 1) {
@@ -173,6 +170,7 @@ void WiThrottleConnectionManager::browseService() {
             debug_println("WiT Selection required");
             systemStateManager_->setState(SystemState::ServerSelection);
             witServerSelectionHandler_->setSource(WiThrottleServerSource::Discovered);
+            // Rendering is handled by WiThrottleServerSelectionHandler via ListSelectionScreen
         }
     }
 }
@@ -205,20 +203,23 @@ void WiThrottleConnectionManager::connectServer() {
 #endif
 
     debug_println("Connecting to the server...");
-    clearOledArray();
-    setAppnameForOled();
-    oledText[1] = "        " + selectedWitServerIP_.toString() + " : " + String(selectedWitServerPort_);
-    oledText[2] = "        " + selectedWitServerName_;
-    oledText[3] + MSG_CONNECTING;
-    renderer_->renderBattery();
-    renderer_->renderArray(false, false, true, true);
+    { TitleScreen ts;
+      ts.setAppHeader(appName, appVersion);
+      ts.addBody(selectedWitServerIP_.toString() + " : " + String(selectedWitServerPort_));
+      ts.addBody(selectedWitServerName_);
+      ts.addBody(MSG_CONNECTING);
+      renderer_->renderTitle(ts);
+      renderer_->renderBattery(); }
 
     startWaitForSelection_ = millis();
 
     if (!client_->connect(selectedWitServerIP_, selectedWitServerPort_)) {
         debug_println(MSG_CONNECTION_FAILED);
-        oledText[3] = MSG_CONNECTION_FAILED;
-        renderer_->renderArray(false, false, true, true);
+        { TitleScreen ts;
+          ts.setAppHeader(appName, appVersion);
+          ts.addBody(selectedWitServerIP_.toString() + " : " + String(selectedWitServerPort_));
+          ts.addBody(MSG_CONNECTION_FAILED);
+          renderer_->renderTitle(ts); }
         delay(5000);
 
         systemStateManager_->setState(SystemState::WifiConnected);
@@ -249,15 +250,19 @@ void WiThrottleConnectionManager::connectServer() {
                          (MAX_HEARTBEAT_PERIOD / 1000) * HeartbeatMonitor::TIMEOUT_MULTIPLIER);
         }
 
-        oledText[3] = MSG_CONNECTED;
-        if (!hashShowsFunctionsInsteadOfKeyDefs) {
-            setMenuTextForOled(menu_menu);
-        } else {
-            setMenuTextForOled(menu_menu_hash_is_functions);
-        }
-        renderer_->renderArray(false, false, true, true);
-        renderer_->renderBattery();
-        displayDriver.sendBuffer();
+        { TitleScreen ts;
+          ts.setAppHeader(appName, appVersion);
+          ts.addBody(selectedWitServerIP_.toString() + " : " + String(selectedWitServerPort_));
+          ts.addBody(selectedWitServerName_);
+          ts.addBody(MSG_CONNECTED);
+          if (!hashShowsFunctionsInsteadOfKeyDefs) {
+              ts.footerText = menu_text[menu_menu];
+          } else {
+              ts.footerText = menu_text[menu_menu_hash_is_functions];
+          }
+          renderer_->renderTitle(ts);
+          renderer_->renderBattery();
+          displayDriver.sendBuffer(); }
 
         if (onStartupCommands_) onStartupCommands_();
     }
@@ -272,12 +277,12 @@ void WiThrottleConnectionManager::enterManualServer() {
     witServerSelectionHandler_->setSource(WiThrottleServerSource::ManualEntry);
     if (witServerIpAndPortChanged_) {
         debug_println("enterWitServer()");
-        clearOledArray();
-        setAppnameForOled();
-        oledText[1] = MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED;
-        oledText[3] = witServerIpAndPortConstructed_;
-        setMenuTextForOled(menu_select_wit_entry);
-        renderer_->renderArray(false, false, true, true);
+        TitleScreen ts;
+        ts.setAppHeader(appName, appVersion);
+        ts.addBody(MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED);
+        ts.addBody(witServerIpAndPortConstructed_);
+        ts.footerText = menu_text[menu_select_wit_entry];
+        renderer_->renderTitle(ts);
         witServerIpAndPortChanged_ = false;
     }
 }
@@ -302,9 +307,9 @@ void WiThrottleConnectionManager::disconnect() {
 
     protocol_->disconnect();
     debug_println("Disconnected from wiThrottle server\n");
-    clearOledArray();
-    oledText[0] = MSG_DISCONNECTED;
-    renderer_->renderArray(false, false, true, true);
+    { TitleScreen ts;
+      ts.addBody(MSG_DISCONNECTED);
+      renderer_->renderTitle(ts); }
     systemStateManager_->setState(SystemState::WifiConnected);
     witServerIpAndPortChanged_ = true;
 }

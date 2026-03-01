@@ -123,6 +123,7 @@ namespace MenuHandlers {
     }
     
     void handleFunction(MenuContext& ctx) {
+        if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) == 0) return;
         if (ctx.input.length() > 0) {
             // Direct function number entered
             int functionNumber = ctx.input.toInt();
@@ -190,6 +191,7 @@ namespace MenuHandlers {
     }
     
     void renderFunctionList() {
+        if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) == 0) return;
         // Switch to FunctionSelection mode which will render the list via onEnter
         inputManager.setMode(InputMode::FunctionSelection);
     }

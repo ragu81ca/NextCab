@@ -41,6 +41,8 @@ public:
     State state() const { return currentState; }
     const String& currentSsid() const { return selectedSsidStr; }
     const String& currentPassword() const { return selectedSsidPasswordStr; }
+    int configuredCount() const { return maxSsids; }
+    const String& configuredSsid(int i) const { return ssids[i]; }
     // Turnout/route prefixes intentionally not managed here (remain global/config-driven).
 
     // Network scanning

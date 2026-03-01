@@ -1,8 +1,10 @@
 #pragma once
 #include "IModeHandler.h"
+#include "../ui/ListSelectionScreen.h"
 
 // Forward declarations
 class Renderer;
+class WiThrottleConnectionManager;
 
 enum class WiThrottleServerSource {
     Discovered,  // Selecting from discovered servers
@@ -21,6 +23,9 @@ public:
     WiThrottleServerSource getSource() const { return source_; }
 
 private:
+    void buildDiscoveredScreen();
+
     Renderer &renderer_;
     WiThrottleServerSource source_;
+    ListSelectionScreen discoveredScreen_;
 };

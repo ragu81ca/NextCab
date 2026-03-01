@@ -10,40 +10,36 @@ extern UIState uiState;
 PagedListHandler::PagedListHandler(Renderer &renderer)
     : renderer_(renderer) {}
 
-// ── Template method: builds model and delegates to Renderer ────────────
+// ── Render current page from ListSelectionScreen ───────────────────────
 
 void PagedListHandler::renderCurrentPage() {
-    onBeforeRender();
-
-    PagedListModel model;
-    model.halfPageSplit = useHalfPageSplit();
-    model.headerText    = getHeaderText();
-    model.footerText    = getFooterText();
-
-    int perPage = getItemsPerPage();
-    model.pageCapacity  = perPage;
-    int count   = getItemCount();
-    for (int i = 0; i < perPage; i++) {
-        int gi = page_ * perPage + i;
-        if (gi >= count) break;
-        bool invert = false;
-        String label = getItemLabel(gi, invert);
-        model.addItem(label, invert);
-    }
-
-    renderer_.renderPagedList(model);
+    renderer_.renderListSelection(screen_);
 }
 
 // ── IModeHandler defaults ──────────────────────────────────────────────
 
 void PagedListHandler::onEnter() {
-    page_ = 0;
-    syncPageState(0);
+    // Reset screen to blank state, then set common defaults
+    screen_ = ListSelectionScreen();
+    screen_.onCancel = []() {
+        extern InputManager inputManager;
+        inputManager.setMode(InputMode::Operation);
+    };
+    screen_.onPageChanged = [](int page) {
+        extern UIState uiState;
+        uiState.page = page;
+    };
+
+    // Let the subclass populate data source, callbacks, and hints
+    configureScreen();
+
+    // Sync page state and render
+    if (screen_.onPageChanged) screen_.onPageChanged(0);
     renderCurrentPage();
 }
 
 void PagedListHandler::onExit() {
-    page_ = 0;
+    screen_.reset();
     menuCommandStarted = false;
 }
 
@@ -65,22 +61,15 @@ bool PagedListHandler::handle(const InputEvent &ev) {
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9': {
             int offset = (key == '0') ? 9 : (key - '1');
-            int index  = offset + (page_ * getItemsPerPage());
-            onItemSelected(index);
+            int index  = offset + (screen_.currentPage * screen_.visibleRows);
+            if (screen_.onSelect) screen_.onSelect(index);
             return true;
         }
 
         // ── Next page ─────────────────────────────────────────────────
         case '#': {
-            int perPage = getItemsPerPage();
-            int count   = getItemCount();
-            if (count > perPage) {
-                if ((page_ + 1) * perPage < count) {
-                    page_++;
-                } else {
-                    page_ = 0;
-                }
-                syncPageState(page_);
+            if (screen_.nextPage()) {
+                if (screen_.onPageChanged) screen_.onPageChanged(screen_.currentPage);
                 renderCurrentPage();
             }
             return true;
@@ -88,7 +77,7 @@ bool PagedListHandler::handle(const InputEvent &ev) {
 
         // ── Cancel / back ─────────────────────────────────────────────
         case '*':
-            onCancel();
+            if (screen_.onCancel) screen_.onCancel();
             return true;
 
         default:
@@ -98,14 +87,6 @@ bool PagedListHandler::handle(const InputEvent &ev) {
 
 // ── Optional override defaults ─────────────────────────────────────────
 
-void PagedListHandler::onCancel() {
-    inputManager.setMode(InputMode::Operation);
-}
-
 bool PagedListHandler::handleExtraKey(char /*key*/) {
     return false;
-}
-
-void PagedListHandler::syncPageState(int page) {
-    uiState.page = page;
 }

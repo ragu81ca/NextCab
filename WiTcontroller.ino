@@ -71,6 +71,7 @@ BatteryMonitor batteryMonitor;
 #include "src/core/network/WiThrottleConnectionManager.h"
 #include "src/core/menu/MenuSystem.h"
 #include "src/core/menu/MenuDefinitions.h"
+#include "src/core/ui/TitleScreen.h"
 
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
@@ -438,9 +439,11 @@ void setup() {
   batteryMonitor.loop();
   if (batteryMonitor.shouldSleepForLowBattery()) { deepSleepStart(SLEEP_REASON_BATTERY); }
 
-  clearOledArray(); oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; oledText[2] = MSG_START;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
+  { TitleScreen ts;
+    ts.setAppHeader(appName, appVersion);
+    ts.addBody(MSG_START);
+    renderer.renderTitle(ts);
+    renderer.renderBattery(); }
 
   // Rotary initialization now handled by RotaryEncoderInput begin() if rotary selected.
 
@@ -490,11 +493,11 @@ void setup() {
     }
     
     // Show disconnection message to user
-    clearOledArray();
-    oledText[0] = appName;
-    oledText[2] = MSG_DISCONNECTED;
-    oledText[3] = "Server timeout";
-    renderer.renderArray(false, false, true, true);
+    { TitleScreen ts;
+      ts.title = appName;
+      ts.addBody(MSG_DISCONNECTED);
+      ts.addBody("Server timeout");
+      renderer.renderTitle(ts); }
     
     // Clean disconnect - don't try to release locos as connection may be dead
     wiThrottleProtocol.disconnect();
@@ -599,11 +602,11 @@ void loop() {
       if (!client.connected()) {
         debug_println("TCP connection lost during operation");
         heartbeatMonitor.setEnabled(false); // Disable heartbeat immediately
-        clearOledArray();
-        oledText[0] = appName;
-        oledText[2] = MSG_DISCONNECTED;
-        oledText[3] = "Connection lost";
-        renderer.renderArray(false, false, true, true);
+        { TitleScreen ts;
+          ts.title = appName;
+          ts.addBody(MSG_DISCONNECTED);
+          ts.addBody("Connection lost");
+          renderer.renderTitle(ts); }
         wiThrottleProtocol.disconnect();
         systemStateManager.setState(SystemState::WifiConnected);
         connectionManager.ipAndPortChanged() = true;
@@ -706,7 +709,9 @@ void doKeyPress(char key, bool pressed) {
               renderer.renderSpeed();
             }
           } else {
-            inputManager.setMode(InputMode::FunctionSelection);
+            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) {
+              inputManager.setMode(InputMode::FunctionSelection);
+            }
           }
           break;
 
@@ -1125,19 +1130,12 @@ void stopThenToggleDirection() {
 }
 
 void reconnect() {
-  clearOledArray(); 
-  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
-  oledText[2] = MSG_DISCONNECTED;
-  renderer.renderArray(false, false);
+  { TitleScreen ts;
+    ts.setAppHeader(appName, appVersion);
+    ts.addBody(MSG_DISCONNECTED);
+    renderer.renderTitle(ts); }
   delay(5000);
   connectionManager.disconnect();
-}
-
-String getDots(int howMany) {
-  //             123456789_123456789_123456789_123456789_123456789_123456789_
-  String dots = "............................................................";
-  if (howMany>dots.length()) howMany = dots.length();
-  return dots.substring(0,howMany);
 }
 
 int compareStrings( const void *str1, const void *str2 ) {
@@ -1337,7 +1335,6 @@ void refreshOled() {
 // Legacy free-function OLED wrappers fully removed; use renderer methods directly.
 
 // Thin wrappers retained temporarily for in-progress migration paths
-inline void clearOledArray() { renderer.clearArray(); }
 inline void writeHeartbeatCheck() { renderer.renderHeartbeatCheck(); }
 
 // *********************************************************************************
@@ -1347,19 +1344,19 @@ void deepSleepStart() {
 }
 
 void deepSleepStart(int shutdownReason) {
-  clearOledArray(); 
-  setAppnameForOled();
   int delayPeriod = 2000;
-  if (shutdownReason==SLEEP_REASON_INACTIVITY) {
-    oledText[2] = MSG_AUTO_SLEEP;
-    delayPeriod = 10000;
-  } else if (shutdownReason==SLEEP_REASON_BATTERY) {
-    oledText[2] = MSG_BATTERY_SLEEP;
-    delayPeriod = 10000;
-  }
-  oledText[3] = MSG_START_SLEEP;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
+  { TitleScreen ts;
+    ts.setAppHeader(appName, appVersion);
+    if (shutdownReason==SLEEP_REASON_INACTIVITY) {
+      ts.addBody(MSG_AUTO_SLEEP);
+      delayPeriod = 10000;
+    } else if (shutdownReason==SLEEP_REASON_BATTERY) {
+      ts.addBody(MSG_BATTERY_SLEEP);
+      delayPeriod = 10000;
+    }
+    ts.addBody(MSG_START_SLEEP);
+    renderer.renderTitle(ts);
+    renderer.renderBattery(); }
   delay(delayPeriod);
 
   displayDriver.setPowerSave(true);
