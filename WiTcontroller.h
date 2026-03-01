@@ -43,16 +43,8 @@ extern String ssidPasswordEntered;
 extern bool ssidPasswordChanged;
 extern char ssidPasswordCurrentChar; 
 
-extern IPAddress selectedWitServerIP;
-extern int selectedWitServerPort;
-extern String selectedWitServerName;
-extern int noOfWitServices;
-extern int witConnectionState;
-
-extern IPAddress foundWitServersIPs[];
-extern int foundWitServersPorts[];
-extern String foundWitServersNames[];
-extern int foundWitServersCount;
+// WiThrottle server connection state now lives in WiThrottleConnectionManager
+// (selectedWitServerIP, foundWitServers*, witServerIpAndPort* removed)
 
 extern String foundSsids[];
 extern long foundSsidRssis[];
@@ -60,9 +52,7 @@ extern bool foundSsidsOpen[];
 extern int foundSsidsCount;
 extern int ssidSelectionSource;
 
-extern String witServerIpAndPortConstructed;
-extern String witServerIpAndPortEntered;
-extern bool witServerIpAndPortChanged;
+// witServerIpAndPort* now in WiThrottleConnectionManager
 
 extern int rosterSize;
 extern int rosterIndex[]; 
@@ -116,17 +106,7 @@ int getDisplaySpeed(int multiThrottleIndex);
 void displayUpdateFromWit(int);
 // Legacy SSID functions removed; handled by WifiSsidManager
 
-void witServiceLoop(void);
-void browseWitService(void);
-void selectWitServer(int);
-void connectWitServer(void);
-void enterWitServer(void);
-void disconnectWitServer(void);
-void witEntryAddChar(char);
-void witEntryDeleteChar(char);
-
-// Legacy password helper functions removed (now handled by InputManager + PasswordEntryModeHandler)
-void buildWitEntry(void);
+// WiThrottle server connection functions now in WiThrottleConnectionManager
 
 void keypadEvent(KeypadEvent);
 void initialiseAdditionalButtons(void);

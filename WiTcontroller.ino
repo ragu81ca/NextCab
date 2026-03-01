@@ -68,6 +68,7 @@ BatteryMonitor batteryMonitor;
 #include "src/core/input/EditConsistSelectionHandler.h"
 #include "src/core/input/SystemActionHandler.h"
 #include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
+#include "src/core/network/WiThrottleConnectionManager.h"
 #include "src/core/menu/MenuSystem.h"
 #include "src/core/menu/MenuDefinitions.h"
 
@@ -76,6 +77,7 @@ InputManager inputManager;       // generic input dispatcher
 WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
 Renderer renderer(displayDriver, activeLayout, activeFonts); // display-agnostic renderer
 MenuSystem menuSystem;           // New table-driven menu system
+WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/connection
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
 bool menuCommandStarted = false;
@@ -135,21 +137,14 @@ String ssidPasswordEntered = "";
 bool ssidPasswordChanged = true;
 char ssidPasswordCurrentChar = ssidPasswordBlankChar; 
 
-IPAddress selectedWitServerIP;
-int selectedWitServerPort = 0;
-String selectedWitServerName ="";
-int noOfWitServices = 0;
-String serverType = "";
-
 // Unified system state manager (replaces ssidConnectionState and witConnectionState)
 SystemStateManager systemStateManager(inputManager);
 
-//found wiThrottle servers
-IPAddress foundWitServersIPs[maxFoundWitServers];
-int foundWitServersPorts[maxFoundWitServers];
-String foundWitServersNames[maxFoundWitServers];
-int foundWitServersCount = 0;
-int outboundCmdsMininumDelay = OUTBOUND_COMMANDS_MINIMUM_DELAY;
+// Connection-related state now lives in WiThrottleConnectionManager.
+// serverType remains global for WiThrottleDelegate compatibility.
+String serverType = "";
+
+// Protocol config (still needed by WifiSsidManager)
 bool commandsNeedLeadingCrLf = SEND_LEADING_CR_LF_FOR_COMMANDS;
 
 //found ssids
@@ -159,11 +154,6 @@ bool foundSsidsOpen[maxFoundSsids];
 int foundSsidsCount = 0;
 int ssidSelectionSource;
 double startWaitForSelection;
-
-// wit Server ip entry
-String witServerIpAndPortConstructed = "###.###.###.###:#####";
-String witServerIpAndPortEntered = DEFAULT_IP_AND_PORT;
-bool witServerIpAndPortChanged = true;
 
 // roster variables
 int rosterSize = 0;
@@ -361,332 +351,8 @@ void stealCurrentLoco(String address) {
 
 WiFiClient client;
 WiThrottleProtocol wiThrottleProtocol;
-// Identity components based on MAC (last 4 hex chars)
-static String macLast4;        // e.g. "EEFF"
-String wifiHostname;    // appName + "-" + macLast4 (exposed)
-static String witDeviceId;     // macLast4 used as WiThrottle device ID
-
-static void computeIdentityFromMac() {
-  String macStr = WiFi.macAddress(); // Expected format "AA:BB:CC:DD:EE:FF"
-  if (macStr.length() == 17) {
-    int lastSep = macStr.lastIndexOf(':');
-    String byte5 = macStr.substring(lastSep-2, lastSep);
-    String byte6 = macStr.substring(lastSep+1);
-    macLast4 = byte5 + byte6;
-    macLast4.toUpperCase();
-    debug_print("computeIdentityFromMac(): MAC via WiFi.macAddress() -> "); debug_println(macLast4);
-  } else {
-    macLast4 = "0000";
-    debug_print("computeIdentityFromMac(): macAddress invalid ('"); debug_print(macStr); debug_println("'), using 0000");
-  }
-  wifiHostname = appName + "-" + macLast4;
-  witDeviceId = macLast4;
-}
-// (No stray brace here)
-
-// *********************************************************************************
-// WiThrottle 
-// *********************************************************************************
-
-void witServiceLoop() {
-  SystemState state = systemStateManager.getState();
-  
-  if (state == SystemState::WifiConnected || state == SystemState::ServerScanning) {
-    browseWitService(); 
-  }
-
-  if (state == SystemState::ServerManualEntry) {
-    enterWitServer();
-  }
-
-  if (state == SystemState::ServerConnecting) {
-    connectWitServer();
-  }
-  
-  // ServerSelection state just waits for user input via WiThrottleServerSelectionHandler
-}
-
-// (Removed misplaced global-level identity initialization; now performed inside setup())
-
-void browseWitService() {
-  debug_println("browseWitService()");
-
-  // Legacy mode - not yet migrated to InputManager
-
-  double startTime = millis();
-  double nowTime = startTime;
-
-  const char * service = "withrottle";
-  const char * proto= "tcp";
-
-  debug_printf("Browsing for service _%s._%s.local. on %s ... ", service, proto, selectedSsid.c_str());
-  clearOledArray(); 
-  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
-  oledText[1] = selectedSsid;   oledText[2] = MSG_BROWSING_FOR_SERVICE;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
-  
-  startWaitForSelection = millis();
-
-  noOfWitServices = 0;
-  if ( (selectedSsid.substring(0,6) == "DCCEX_") && (selectedSsid.length()==12) ) {
-    debug_println(MSG_BYPASS_WIT_SERVER_SEARCH);
-    oledText[1] = MSG_BYPASS_WIT_SERVER_SEARCH;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
-    delay(500);
-  } else {
-    int j = 0;
-    while ( (noOfWitServices == 0) 
-    && ((nowTime-startTime) <= 10000)) { // try for 10 seconds 
-      noOfWitServices = MDNS.queryService(service, proto);
-      oledText[3] = getDots(j);
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
-      j++;
-      debug_print(".");
-      nowTime = millis();
-    }
-    debug_println("");
-  }
-  
-
-  foundWitServersCount = noOfWitServices;
-  if (noOfWitServices > 0) {
-    for (int i = 0; ((i < noOfWitServices) && (i<maxFoundWitServers)); ++i) {
-      foundWitServersNames[i] = MDNS.hostname(i);
-      // foundWitServersIPs[i] = MDNS.IP(i);
-      foundWitServersIPs[i] = ESPMDNS_IP_ATTRIBUTE_NAME;
-      foundWitServersPorts[i] = MDNS.port(i);
-      // debug_print("txt 0: key: "); debug_print(MDNS.txtKey(i,0)); debug_print(" value: '"); debug_print(MDNS.txt(i,0)); debug_println("'");
-      // debug_print("txt 1: key: "); debug_print(MDNS.txtKey(i,1)); debug_print(" value: '"); debug_print(MDNS.txt(i,1)); debug_println("'");
-      // debug_print("txt 2: key: "); debug_print(MDNS.txtKey(i,2)); debug_print(" value: '"); debug_print(MDNS.txt(i,2)); debug_println("'");
-      // debug_print("txt 3: key: "); debug_print(MDNS.txtKey(i,3)); debug_print(" value: '"); debug_println(MDNS.txt(i,3)); debug_println("'");
-      if (MDNS.hasTxt(i,"jmri")) {
-        String node = MDNS.txt(i,"node");
-        node.toLowerCase();
-        if (foundWitServersNames[i].equals(node)) {
-          foundWitServersNames[i] = "JMRI  (v" + MDNS.txt(i,"jmri") + ")";
-        }
-      }
-    }
-  }
-  if ( (selectedSsid.substring(0,6) == "DCCEX_") && (selectedSsid.length()==12) ) {
-    foundWitServersIPs[foundWitServersCount].fromString("192.168.4.1");
-    foundWitServersPorts[foundWitServersCount] = 2560;
-    foundWitServersNames[foundWitServersCount] = MSG_GUESSED_EX_CS_WIT_SERVER;
-    foundWitServersCount++;
-  }
-
-  if (foundWitServersCount == 0) {
-    oledText[1] = MSG_NO_SERVICES_FOUND;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
-    debug_println(oledText[1]);
-    delay(1000);
-    buildWitEntry();
-    systemStateManager.setState(SystemState::ServerManualEntry);
-  
-  } else {
-    debug_print(noOfWitServices);  debug_println(MSG_SERVICES_FOUND);
-    clearOledArray(); oledText[3] = MSG_SERVICES_FOUND;
-
-    for (int i = 0; i < foundWitServersCount; ++i) {
-      // Print details for each service found
-      debug_print("  "); debug_print(i); debug_print(": '"); debug_print(foundWitServersNames[i]);
-      debug_print("' ("); debug_print(foundWitServersIPs[i]); debug_print(":"); debug_print(foundWitServersPorts[i]); debug_println(")");
-      if (i<5) {  // only have room for 5
-        String truncatedIp = ".." + foundWitServersIPs[i].toString().substring(foundWitServersIPs[i].toString().lastIndexOf("."));
-        oledText[i] = String(i+1) + ": " + truncatedIp + ":" + String(foundWitServersPorts[i]) + " " + foundWitServersNames[i];
-      }
-    }
-
-    if (foundWitServersCount > 0) {
-      // oledText[5] = menu_select_wit_service;
-      setMenuTextForOled(menu_select_wit_service);
-    }
-  renderer.renderArray(false, false);
-
-    // Auto-connect: if exactly 1 WiThrottle server found, connect automatically
-    if (foundWitServersCount == 1) {
-      debug_println("Auto-connecting to only WiThrottle server found");
-      selectedWitServerIP = foundWitServersIPs[0];
-      selectedWitServerPort = foundWitServersPorts[0];
-      selectedWitServerName = foundWitServersNames[0];
-      systemStateManager.setState(SystemState::ServerConnecting);
-    } else {
-      debug_println("WiT Selection required");
-      systemStateManager.setState(SystemState::ServerSelection);
-      witServerSelectionHandler.setSource(WiThrottleServerSource::Discovered);
-    }
-  }
-}
-
-void selectWitServer(int selection) {
-  debug_print("selectWitServer() "); debug_println(selection);
-
-  if ((selection>=0) && (selection < foundWitServersCount)) {
-    systemStateManager.setState(SystemState::ServerConnecting);
-    selectedWitServerIP = foundWitServersIPs[selection];
-    selectedWitServerPort = foundWitServersPorts[selection];
-    selectedWitServerName = foundWitServersNames[selection];
-  }
-}
-
-void connectWitServer() {
-  // Pass the delegate instance to wiThrottleProtocol
-  wiThrottleProtocol.setDelegate(&myDelegate);
-#if WITHROTTLE_PROTOCOL_DEBUG == 0
-  wiThrottleProtocol.setLogStream(&Serial);
-  wiThrottleProtocol.setLogLevel(DEBUG_LEVEL);
-#endif
-
-  debug_println("Connecting to the server...");
-  clearOledArray(); 
-  setAppnameForOled(); 
-  oledText[1] = "        " + selectedWitServerIP.toString() + " : " + String(selectedWitServerPort); 
-  oledText[2] = "        " + selectedWitServerName; oledText[3] + MSG_CONNECTING;
-  renderer.renderBattery();
-  renderer.renderArray(false, false, true, true);
-  
-  startWaitForSelection = millis();
-
-  if (!client.connect(selectedWitServerIP, selectedWitServerPort)) {
-    debug_println(MSG_CONNECTION_FAILED);
-    oledText[3] = MSG_CONNECTION_FAILED;
-  renderer.renderArray(false, false, true, true);
-    delay(5000);
-    
-    systemStateManager.setState(SystemState::WifiConnected); // Go back to WiFi connected, will rescan
-    ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
-    witServerIpAndPortChanged = true;
-
-  } else {
-    debug_print("Connected to server: ");   debug_println(selectedWitServerIP); debug_println(selectedWitServerPort);
-
-    // Pass the communication to WiThrottle. + Set the mimimum period between sent commands
-    wiThrottleProtocol.connect(&client, outboundCmdsMininumDelay);
-    debug_println("WiThrottle connected");
-
-  wiThrottleProtocol.setDeviceName(appName);  // Device name = Application Name
-  wiThrottleProtocol.setDeviceID(witDeviceId); // Device ID = last 4 hex chars of MAC
-  debug_print("WiThrottle Device Name: "); debug_println(appName);
-  debug_print("WiThrottle Device ID: "); debug_println(witDeviceId);
-    wiThrottleProtocol.setCommandsNeedLeadingCrLf(commandsNeedLeadingCrLf);
-    if (HEARTBEAT_ENABLED) {
-      wiThrottleProtocol.requireHeartbeat(true);
-    }
-
-    systemStateManager.setState(SystemState::Operating);
-    
-    // Start heartbeat monitoring now that we're connected
-    // Use MAX period initially (240s) to give server time to send its preferred period
-    // The server's heartbeat config message will update this to the correct value (usually 10s)
-    // If the server doesn't send a period, DEFAULT_HEARTBEAT_PERIOD will be used as fallback
-    if (HEARTBEAT_ENABLED) {
-      heartbeatMonitor.begin(MAX_HEARTBEAT_PERIOD / 1000, true);
-      debug_printf("Heartbeat monitoring started with initial timeout %lus (waiting for server config)\n", 
-                   (MAX_HEARTBEAT_PERIOD / 1000) * HeartbeatMonitor::TIMEOUT_MULTIPLIER);
-    }
-
-    oledText[3] = MSG_CONNECTED;
-    if (!hashShowsFunctionsInsteadOfKeyDefs) {
-      // oledText[5] = menu_menu;
-      setMenuTextForOled(menu_menu);
-    } else {
-      // oledText[5] = menu_menu_hash_is_functions;
-      setMenuTextForOled(menu_menu_hash_is_functions);
-    }
-  renderer.renderArray(false, false, true, true);
-  renderer.renderBattery();
-    displayDriver.sendBuffer();
-
-    doStartupCommands();
-  }
-}
-
-void enterWitServer() {
-  inputManager.setMode(InputMode::WiThrottleServerSelection);
-  witServerSelectionHandler.setSource(WiThrottleServerSource::ManualEntry);
-  if (witServerIpAndPortChanged) { // don't refresh the screen if nothing nothing has changed
-    debug_println("enterWitServer()");
-    clearOledArray(); 
-    setAppnameForOled(); 
-    oledText[1] = MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED;
-    oledText[3] = witServerIpAndPortConstructed;
-    // oledText[5] = menu_select_wit_entry;
-      setMenuTextForOled(menu_select_wit_entry);
-  renderer.renderArray(false, false, true, true);
-    witServerIpAndPortChanged = false;
-  }
-}
-
-void disconnectWitServer() {
-  debug_println("disconnectWitServer()");
-  
-  // Stop heartbeat monitoring
-  if (HEARTBEAT_ENABLED) {
-    heartbeatMonitor.setEnabled(false); // Disable monitoring
-    debug_println("Heartbeat monitoring stopped");
-  }
-  
-  for (int i=0; i<throttleManager.getMaxThrottles(); i++) {
-    releaseAllLocos(i);
-  }
-  wiThrottleProtocol.disconnect();
-  debug_println("Disconnected from wiThrottle server\n");
-  clearOledArray(); oledText[0] = MSG_DISCONNECTED;
-  renderer.renderArray(false, false, true, true);
-  systemStateManager.setState(SystemState::WifiConnected);
-  witServerIpAndPortChanged = true;
-}
-
-void witEntryAddChar(char key) {
-  if (witServerIpAndPortEntered.length() < 17) {
-    witServerIpAndPortEntered = witServerIpAndPortEntered + key;
-    debug_print("wit entered: ");
-    debug_println(witServerIpAndPortEntered);
-    buildWitEntry();
-    witServerIpAndPortChanged = true;
-  }
-}
-
-void witEntryDeleteChar(char key) {
-  if (witServerIpAndPortEntered.length() > 0) {
-    witServerIpAndPortEntered = witServerIpAndPortEntered.substring(0, witServerIpAndPortEntered.length()-1);
-    debug_print("wit deleted: ");
-    debug_println(witServerIpAndPortEntered);
-    buildWitEntry();
-    witServerIpAndPortChanged = true;
-  }
-}
-
-// Legacy ssidPasswordAddChar / ssidPasswordDeleteChar removed; handled via PasswordEntryModeHandler events.
-
-void buildWitEntry() {
-  debug_println("buildWitEntry()");
-  witServerIpAndPortConstructed = "";
-  for (int i=0; i < witServerIpAndPortEntered.length(); i++) {
-    if ( (i==3) || (i==6) || (i==9) ) {
-      witServerIpAndPortConstructed = witServerIpAndPortConstructed + ".";
-    } else if (i==12) {
-      witServerIpAndPortConstructed = witServerIpAndPortConstructed + ":";
-    }
-    witServerIpAndPortConstructed = witServerIpAndPortConstructed + witServerIpAndPortEntered.substring(i,i+1);
-  }
-  debug_print("wit Constructed: ");
-  debug_println(witServerIpAndPortConstructed);
-  if (witServerIpAndPortEntered.length() < 17) {
-    witServerIpAndPortConstructed = witServerIpAndPortConstructed + witServerIpAndPortEntryMask.substring(witServerIpAndPortConstructed.length());
-  }
-  debug_print("wit Constructed: ");
-  debug_println(witServerIpAndPortConstructed);
-
-  if (witServerIpAndPortEntered.length() == 17) {
-     selectedWitServerIP.fromString( witServerIpAndPortConstructed.substring(0,15));
-     selectedWitServerPort = witServerIpAndPortConstructed.substring(16).toInt();
-  }
-}
+// Identity now managed by connectionManager; bridge for WifiSsidManager's extern
+// connectionManager.hostname() is only valid after computeIdentity(), which runs in setup().
 
 // *********************************************************************************
 //   Preferences (moved to PreferencesManager)
@@ -833,7 +499,7 @@ void setup() {
     // Clean disconnect - don't try to release locos as connection may be dead
     wiThrottleProtocol.disconnect();
     systemStateManager.setState(SystemState::WifiConnected);
-    witServerIpAndPortChanged = true;
+    connectionManager.ipAndPortChanged() = true;
     
     debug_println("Returning to server selection");
   });
@@ -883,12 +549,20 @@ void setup() {
   menuSystem.begin(MenuDefinitions::mainMenuItems, MenuDefinitions::mainMenuSize);
   debug_println("MenuSystem initialized");
   
+  // Initialize WiThrottle Connection Manager
+  connectionManager.begin(client, wiThrottleProtocol, myDelegate,
+                          renderer, throttleManager, inputManager,
+                          systemStateManager, heartbeatMonitor,
+                          witServerSelectionHandler);
+  connectionManager.setOnReleaseAllLocos([](int idx){ releaseAllLocos(idx); });
+  connectionManager.setOnStartupCommands([](){ doStartupCommands(); });
+
   // Ensure station mode so MAC retrieval succeeds before connect.
   WiFi.mode(WIFI_STA); // still set STA mode for consistency
   // Derive identity (MAC-based) and set WiFi hostname BEFORE WiFi connect attempts.
-  computeIdentityFromMac(); // derive macLast4 / wifiHostname / witDeviceId
-  WiFi.setHostname(wifiHostname.c_str());
-  debug_print("Hostname set to: "); debug_println(wifiHostname);
+  connectionManager.computeIdentity();
+  WiFi.setHostname(connectionManager.hostname().c_str());
+  debug_print("Hostname set to: "); debug_println(connectionManager.hostname());
   // Country code feature removed with esp_wifi include elimination; reintroduce if regulatory needs arise.
 }
 
@@ -914,7 +588,7 @@ void loop() {
     case SystemState::ServerManualEntry:
     case SystemState::ServerConnecting:
       // WiThrottle server connection sequence
-      witServiceLoop();
+      connectionManager.loop();
       checkForShutdownOnNoResponse(); // Check for user inactivity
       break;
       
@@ -932,7 +606,7 @@ void loop() {
         renderer.renderArray(false, false, true, true);
         wiThrottleProtocol.disconnect();
         systemStateManager.setState(SystemState::WifiConnected);
-        witServerIpAndPortChanged = true;
+        connectionManager.ipAndPortChanged() = true;
         break;
       }
       
@@ -1456,7 +1130,7 @@ void reconnect() {
   oledText[2] = MSG_DISCONNECTED;
   renderer.renderArray(false, false);
   delay(5000);
-  disconnectWitServer();
+  connectionManager.disconnect();
 }
 
 String getDots(int howMany) {

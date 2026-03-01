@@ -1,4 +1,5 @@
 #include "WifiSsidManager.h"
+#include "WiThrottleConnectionManager.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include "../../../static.h" // macro constants
@@ -32,7 +33,6 @@ extern String routePrefixes[];   // declared in config_network.h normally
 // UI side effects (temporary coupling)
 extern void setAppnameForOled();
 extern void clearOledArray();
-extern void buildWitEntry();
 // Use renderer instance directly instead of indirect extern wrappers
 extern Renderer renderer;
 extern void setMenuTextForOled(int);
@@ -236,8 +236,8 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
         if (selectedSsidStr.startsWith("DCCEX_") && selectedSsidStr.length()==12) {
             selectedSsidPasswordStr = String("PASS_") + selectedSsidStr.substring(6);
             // Mirror legacy heuristic: Set default WiT server IP:Port when connecting to DCC-EX AP
-            extern String witServerIpAndPortEntered;
-            witServerIpAndPortEntered = "19216800400102560"; // 192.168.4.1:2560 compressed
+            extern WiThrottleConnectionManager connectionManager;
+            connectionManager.ipAndPortEntered() = "19216800400102560"; // 192.168.4.1:2560 compressed
             turnoutPrefix = DCC_EX_TURNOUT_PREFIX; // macro constant
             routePrefix = DCC_EX_ROUTE_PREFIX;     // macro constant
             debug_println("getSsidPasswordAndMetadataForFound() Using guessed DCC-EX password & defaults");
@@ -267,9 +267,8 @@ void WifiSsidManager::attemptConnect() {
 
 void WifiSsidManager::connectSelectedInternal() {
     // Migrate legacy connectSsid() body here (UI side-effects retained for now)
-    // Using macros/constants from static.h; only need external wifiHostname & keypadUseType
     extern bool commandsNeedLeadingCrLf;
-    extern String wifiHostname;
+    extern WiThrottleConnectionManager connectionManager;
 
     debug_println("WifiSsidManager::connectSelectedInternal() start");
     clearOledArray();
@@ -326,7 +325,7 @@ void WifiSsidManager::connectSelectedInternal() {
         renderer.renderArray(false,false,true,true);
         systemStateManager.setState(SystemState::WifiConnected);
         // Mode will be set by systemStateManager
-        if (!MDNS.begin(wifiHostname.c_str())) {
+        if (!MDNS.begin(connectionManager.hostname().c_str())) {
             debug_println("Error setting up MDNS responder!");
             oledText[2] = MSG_BOUNJOUR_SETUP_FAILED;
             renderer.renderBattery();
@@ -334,7 +333,7 @@ void WifiSsidManager::connectSelectedInternal() {
             delay(2000);
             systemStateManager.setState(SystemState::Boot);
         } else {
-            debug_print("MDNS responder started: "); debug_println(wifiHostname);
+            debug_print("MDNS responder started: "); debug_println(connectionManager.hostname());
         }
     } else {
         debug_println(MSG_CONNECTION_FAILED);

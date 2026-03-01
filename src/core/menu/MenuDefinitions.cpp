@@ -9,6 +9,7 @@
 #include "../input/InputManager.h"
 #include "../input/TurnoutSelectionHandler.h"
 #include "../SystemState.h"
+#include "../network/WiThrottleConnectionManager.h"
 
 // External dependencies
 extern WiThrottleProtocol wiThrottleProtocol;
@@ -21,6 +22,7 @@ extern String routePrefix;
 extern bool dropBeforeAcquire;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
 extern HeartbeatMonitor heartbeatMonitor;
+extern WiThrottleConnectionManager connectionManager;
 
 // Forward declarations from main sketch
 extern void releaseAllLocos(int multiThrottleIndex);
@@ -30,7 +32,6 @@ extern void toggleDirection(int multiThrottleIndex);
 extern void cycleSpeedStep();
 extern void powerToggle();
 extern void writePreferences();
-extern void disconnectWitServer();
 extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
@@ -166,7 +167,7 @@ namespace MenuHandlers {
         if (systemStateManager.isOperating()) {
             systemStateManager.setState(SystemState::WifiConnected);
             preferencesRead = false;
-            disconnectWitServer();
+            connectionManager.disconnect();
         }
     }
     
