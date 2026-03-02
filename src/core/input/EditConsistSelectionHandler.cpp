@@ -2,12 +2,14 @@
 #include "InputManager.h"
 #include "../Renderer.h"
 #include "../ThrottleManager.h"
+#include "../LocoManager.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 
 extern InputManager inputManager;
 extern ThrottleManager throttleManager;
 extern WiThrottleProtocol wiThrottleProtocol;
+extern LocoManager locoManager;
 
 EditConsistSelectionHandler::EditConsistSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
@@ -52,7 +54,7 @@ void EditConsistSelectionHandler::configureScreen() {
         if (index < numLocos && numLocos > 1) {
             String loco = wiThrottleProtocol.getLocomotiveAtPosition(
                 throttleManager.getCurrentThrottleChar(), index);
-            toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
+            locoManager.toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
         }
         inputManager.setMode(InputMode::Operation);
     };

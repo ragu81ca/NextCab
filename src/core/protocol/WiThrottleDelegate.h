@@ -19,40 +19,18 @@ void receivingServerInfoOled(int index, int total);
 void setupPreferences(bool forceClear);
 void doOneStartupCommand(String cmd);
 
-// Speed/direction/function arrays migrated to ThrottleManager
-extern int rosterSize;
-extern int rosterIndex[];
-extern int rosterSortedIndex[];
-extern String rosterName[];
-extern int rosterAddress[];
-extern char rosterLength[];
-extern char rosterSortStrings[][14];
-extern char* rosterSortPointers[];
-extern int turnoutListSize;
-extern int turnoutListIndex[];
-extern String turnoutListSysName[];
-extern String turnoutListUserName[];
-extern int turnoutListState[];
-extern int routeListSize;
-extern int routeListIndex[];
-extern String routeListSysName[];
-extern String routeListUserName[];
-extern int routeListState[];
+// Speed/direction/function arrays migrated to ThrottleManager\n// Roster/turnout/route data migrated to ServerDataStore
 extern TrackPower trackPower;
 extern long lastSpeedSentTime;
 extern int lastSpeedThrottleIndex;
 extern int currentThrottleIndex;
-extern String serverType;
-extern String turnoutPrefix;
-extern String routePrefix;
+// serverType now in locoManager
 extern String broadcastMessageText;
 extern long broadcastMessageTime;
 
 int getMultiThrottleIndex(char multiThrottle);
 char getMultiThrottleChar(int multiThrottleIndex);
-void stealLoco(int multiThrottleIndex, String address);
-void stealLoco(char multiThrottle, String address);
-int compareStrings(const void * a, const void * b);
+// stealLoco now in LocoManager
 void displayUpdateFromWit(int multiThrottleIndex);
 
 #ifndef ROSTER_SORT_SEQUENCE

@@ -72,11 +72,15 @@ BatteryMonitor batteryMonitor;
 #include "src/core/ui/TitleScreen.h"
 #include "src/core/ui/ThrottleScreen.h"
 #include "src/core/storage/ConfigStore.h"
+#include "src/core/ServerDataStore.h"
+#include "src/core/LocoManager.h"
 
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
 WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
 ConfigStore configStore;         // LittleFS + JSON persistent storage
+ServerDataStore serverDataStore; // roster, turnout, route data from server
+LocoManager locoManager;         // loco acquisition, release, consist management
 Renderer renderer(displayDriver, activeLayout, activeFonts); // display-agnostic renderer
 MenuSystem menuSystem;           // New table-driven menu system
 WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/connection
@@ -85,8 +89,7 @@ WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/co
 bool menuCommandStarted = false;
 String menuCommand = "";
 TrackPower trackPower = PowerOff; // initial power state
-String turnoutPrefix = ""; // updated when selecting SSID or server
-String routePrefix = "";  // updated when selecting SSID or server
+// turnoutPrefix / routePrefix now in serverDataStore
 
 // debug_print / debug_println macros now supplied by WiThrottleDelegate.h
 
@@ -135,8 +138,7 @@ String selectedSsid = "";
 SystemStateManager systemStateManager(inputManager);
 
 // Connection-related state now lives in WiThrottleConnectionManager.
-// serverType remains global for WiThrottleDelegate compatibility.
-String serverType = "";
+// serverType now in locoManager
 
 // Protocol config (still needed by WifiSsidManager)
 bool commandsNeedLeadingCrLf = SEND_LEADING_CR_LF_FOR_COMMANDS;
@@ -145,15 +147,7 @@ bool commandsNeedLeadingCrLf = SEND_LEADING_CR_LF_FOR_COMMANDS;
 int ssidSelectionSource;
 double startWaitForSelection;
 
-// roster variables
-int rosterSize = 0;
-int rosterIndex[maxRoster]; 
-String rosterName[maxRoster]; 
-int rosterAddress[maxRoster];
-char rosterLength[maxRoster];
-char rosterSortStrings[maxRoster][14]; 
-char* rosterSortPointers[maxRoster]; 
-int rosterSortedIndex[maxRoster]; 
+// roster / turnout / route data now in serverDataStore
 
 // migrated: page, functionPage, functionHasBeenSelected now in uiState
 
@@ -166,19 +160,7 @@ long lastReceivingServerDetailsTime = 0;
 // migrated: lastOled* variables now in uiState (except lastOledIntParameter retained locally if still needed)
 int lastOledIntParameter = 0; // TODO: consider moving this as presenters evolve
 
-// turnout variables
-int turnoutListSize = 0;
-int turnoutListIndex[maxTurnoutList]; 
-String turnoutListSysName[maxTurnoutList]; 
-String turnoutListUserName[maxTurnoutList];
-int turnoutListState[maxTurnoutList];
-
-// route variables
-int routeListSize = 0;
-int routeListIndex[maxRouteList]; 
-String routeListSysName[maxRouteList]; 
-String routeListUserName[maxRouteList];
-int routeListState[maxRouteList];
+// turnout / route arrays removed — now in serverDataStore
 
 // function states / labels / consist follow — migrated to ThrottleManager
 
@@ -195,7 +177,7 @@ HeartbeatMonitor heartbeatMonitor; // manages heartbeat period / last response /
 // used to stop speed bounces
 // (moved to ThrottleManager) lastSpeedSentTime / lastSpeedSent / lastSpeedThrottleIndex
 
-bool dropBeforeAcquire = DROP_BEFORE_ACQUIRE;
+// dropBeforeAcquire now in locoManager
 
 // don't alter the assignments here
 // alter them in config_buttons.h
@@ -316,7 +298,7 @@ void buildThrottleScreen(ThrottleScreen &screen) {
     String sep = " ";
     String sLocos;
     for (int i = 0; i < numLocos; i++) {
-      sLocos += sep + getDisplayLocoString(currentIdx, i);
+      sLocos += sep + locoManager.getDisplayLocoString(currentIdx, i);
       sep = CONSIST_SPACE_BETWEEN_LOCOS;
     }
     screen.locoDisplayString = sLocos;
@@ -424,11 +406,7 @@ char getMultiThrottleChar(int multiThrottleIndex) {
   return '0' + multiThrottleIndex;
 }
 
-// Convenience wrapper: steal the specified locomotive address for the current throttle.
-// Reduces repeated calls passing throttleManager.getCurrentThrottleChar() explicitly.
-void stealCurrentLoco(String address) {
-  stealLoco(throttleManager.getCurrentThrottleChar(), address);
-}
+// stealCurrentLoco removed — delegate now calls locoManager.stealLoco() directly
 
 WiFiClient client;
 WiThrottleProtocol wiThrottleProtocol;
@@ -464,8 +442,8 @@ void setupPreferences(bool forceClear) {
     ServerConfig cfg = configStore.findServerConfig(host, port);
 
     // Apply turnout/route prefixes if stored (DCC-EX heuristic may override later)
-    if (cfg.turnoutPrefix.length() > 0) turnoutPrefix = cfg.turnoutPrefix;
-    if (cfg.routePrefix.length() > 0)   routePrefix   = cfg.routePrefix;
+    if (cfg.turnoutPrefix.length() > 0) serverDataStore.setTurnoutPrefix(cfg.turnoutPrefix);
+    if (cfg.routePrefix.length() > 0)   serverDataStore.setRoutePrefix(cfg.routePrefix);
 
     // Restore locos
     for (int t = 0; t < (int)cfg.throttleLocos.size() && t < throttleManager.getMaxThrottles(); t++) {
@@ -492,8 +470,8 @@ void writePreferences() {
     ServerConfig cfg;
     cfg.host           = host;
     cfg.port           = port;
-    cfg.turnoutPrefix  = turnoutPrefix;
-    cfg.routePrefix    = routePrefix;
+    cfg.turnoutPrefix  = serverDataStore.turnoutPrefix();
+    cfg.routePrefix    = serverDataStore.routePrefix();
 
     int maxT = throttleManager.getMaxThrottles();
     cfg.throttleLocos.resize(maxT);
@@ -605,6 +583,8 @@ void setup() {
 
   // Function arrays + speed/direction initialized inside throttleManager.begin()
   throttleManager.begin(&wiThrottleProtocol);
+  locoManager.begin(&wiThrottleProtocol, &throttleManager, &serverDataStore, &renderer, &uiState);
+  locoManager.setDropBeforeAcquire(DROP_BEFORE_ACQUIRE);
   uiState.functionPage = 0;
   // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
@@ -701,7 +681,7 @@ void setup() {
                           renderer, throttleManager, inputManager,
                           systemStateManager, heartbeatMonitor,
                           witServerSelectionHandler);
-  connectionManager.setOnReleaseAllLocos([](int idx){ releaseAllLocos(idx); });
+  connectionManager.setOnReleaseAllLocos([](int idx){ locoManager.releaseAllLocos(idx); });
   connectionManager.setOnStartupCommands([](){ doStartupCommands(); });
 
   // Ensure station mode so MAC retrieval succeeds before connect.
@@ -964,18 +944,9 @@ static void onPasswordCancel() {
 
 // Function reset helpers — delegated to ThrottleManager
 
-String getLocoWithLength(String loco) {
-  int locoNo = loco.toInt();
-  String locoWithLength = "";
-  if ( (locoNo > SHORT_DCC_ADDRESS_LIMIT) 
-  || ( (locoNo <= SHORT_DCC_ADDRESS_LIMIT) && (loco.charAt(0)=='0') && (!serverType.equals("DCC-EX" ) ) ) 
-  ) {
-    locoWithLength = "L" + loco;
-  } else {
-    locoWithLength = "S" + loco;
-  }
-  return locoWithLength;
-}
+// getLocoWithLength, stealLoco, toggleLocoFacing, getLocoFacing,
+// getDisplayLocoString, releaseAllLocos, releaseOneLoco, releaseOneLocoByIndex,
+// toggleDropBeforeAquire — all migrated to LocoManager
 
 void speedEstop() {
   throttleManager.speedEstopAll();
@@ -1001,115 +972,6 @@ int getDisplaySpeed(int multiThrottleIndex) {
   return throttleManager.getDisplaySpeed(multiThrottleIndex);
 }
 
-void stealLoco(int multiThrottleIndex, String loco) {
-  wiThrottleProtocol.stealLocomotive(multiThrottleIndex, loco);  
-}
-
-// Overload added to support protocol delegate call using multiThrottle char
-void stealLoco(char multiThrottle, String loco) {
-  int idx = getMultiThrottleIndex(multiThrottle);
-  stealLoco(idx, loco);
-}
-
-void toggleLocoFacing(int multiThrottleIndex, String loco) {
-  debug_println("toggleLocoFacing()");
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  debug_print("toggleLocoFacing(): "); debug_println(loco); 
-  for(int i=0;i<wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar);i++) {
-    if (wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, i).equals(loco)) {
-      Direction currentDirection = wiThrottleProtocol.getDirection(multiThrottleIndexChar, loco);
-      debug_print("toggleLocoFacing(): loco: ");  debug_print(loco);  debug_print(" current direction: "); debug_println(currentDirection);
-      if (wiThrottleProtocol.getDirection(multiThrottleIndexChar, loco) == Forward) {
-        wiThrottleProtocol.setDirection(multiThrottleIndexChar, loco, Reverse, true);
-      } else {
-        wiThrottleProtocol.setDirection(multiThrottleIndexChar, loco, Forward, true);
-      }
-      break;
-    }
-  } 
-}
-
-int getLocoFacing(int multiThrottleIndex, String loco) {
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  int result = Forward;
-  for(int i=0;i<wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar);i++) {
-    if (wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, i).equals(loco)) {
-      result = wiThrottleProtocol.getDirection(multiThrottleIndexChar, loco);
-      break;
-    }
-  }
-  return result;
-}
-
-String getDisplayLocoString(int multiThrottleIndex, int index) {
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  String loco = wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, index);
-  String locoNumber = loco.substring(1);
-  
-  #ifdef DISPLAY_LOCO_NAME
-    for (int i = 0; i < maxRoster; i++) {
-      if (String(rosterAddress[i]) == locoNumber) {
-        if (rosterName[i] != "") {
-          locoNumber = rosterName[i];
-        }
-        break;
-      }
-    }
-  #endif
-  
-  if (!wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, 0).equals(loco)) { // not the lead loco
-    Direction leadLocoDirection 
-        = wiThrottleProtocol.getDirection(multiThrottleIndexChar, 
-                                          wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, 0));
-    // Direction locoDirection = leadLocoDirection;
-
-    for(int i=0;i<wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar);i++) {
-      if (wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, i).equals(loco)) {
-        if (wiThrottleProtocol.getDirection(multiThrottleIndexChar, loco) != leadLocoDirection) {
-          locoNumber = locoNumber + DIRECTION_REVERSE_INDICATOR;
-        }
-        break;
-      }
-    }
-  }
-  return locoNumber;
-}
-
-void releaseAllLocos(int multiThrottleIndex) {
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  String loco;
-  if (wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar)>0) {
-    for(int index=wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar)-1;index>=0;index--) {
-      loco = wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, index);
-      wiThrottleProtocol.releaseLocomotive(multiThrottleIndexChar, loco);
-  renderer.renderSpeed();  // note the released locos may not be visible
-    } 
-    throttleManager.resetFunctionLabels(multiThrottleIndex);
-    uiState.functionPage = 0;
-  }
-}
-
-void releaseOneLoco(int multiThrottleIndex, String loco) {
-  debug_print("releaseOneLoco(): "); debug_print(multiThrottleIndex); debug_print(": "); debug_println(loco);
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  wiThrottleProtocol.releaseLocomotive(multiThrottleIndexChar, loco);
-  throttleManager.resetFunctionLabels(multiThrottleIndex);
-  uiState.functionPage = 0;
-  debug_println("releaseOneLoco(): end"); 
-}
-
-void releaseOneLocoByIndex(int multiThrottleIndex, int index) {
-  debug_print("releaseOneLocoByIndex(): "); debug_print(multiThrottleIndex); debug_print(": "); debug_println(index);
-  char multiThrottleIndexChar = getMultiThrottleChar(multiThrottleIndex);
-  if (index <= wiThrottleProtocol.getNumberOfLocomotives(multiThrottleIndexChar)) {
-    String loco = wiThrottleProtocol.getLocomotiveAtPosition(multiThrottleIndexChar, index);
-    wiThrottleProtocol.releaseLocomotive(multiThrottleIndexChar, loco);
-    throttleManager.resetFunctionLabels(multiThrottleIndex);
-    uiState.functionPage = 0;
-  }
-  debug_println("releaseOneLocoByIndex(): end");
-}
-
 // Speed step cycling now handled directly by ThrottleManager
 void cycleSpeedStep() { throttleManager.cycleSpeedStep(); }
 
@@ -1121,9 +983,7 @@ void toggleHeartbeatCheck() {
 }
 
 void toggleDropBeforeAquire() {
-  dropBeforeAcquire = !dropBeforeAcquire;
-  debug_print("Drop Before Acquire: "); 
-  debug_println(dropBeforeAcquire ? "Enabled" : "Disabled"); 
+  locoManager.toggleDropBeforeAcquire();
 }
 
 void toggleDirection(int multiThrottleIndex) {
@@ -1193,13 +1053,7 @@ void reconnect() {
   connectionManager.disconnect();
 }
 
-int compareStrings( const void *str1, const void *str2 ) {
-    const char *rec1 = *(char**)str1;
-    const char *rec2 = *(char**)str2;
-    int val = strcmp(rec1, rec2);
-
-    return val;
-}
+// compareStrings() moved to ServerDataStore
 
 void checkForShutdownOnNoResponse() {
   // Only check inactivity during pre-connection sequence
@@ -1243,14 +1097,13 @@ void doOneStartupCommand(String cmd) {
 void selectRoster(int selection) {
   debug_print("selectRoster() "); debug_println(selection);
 
-  if ((selection>=0) && (selection < rosterSize)) {
-    if ( (dropBeforeAcquire) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
+  if ((selection>=0) && (selection < serverDataStore.rosterSize())) {
+    if ( (locoManager.dropBeforeAcquire()) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
       wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
     }
-    int index = rosterSortedIndex[selection];
-    String loco = String(rosterLength[index]) + rosterAddress[index];
+    int index = serverDataStore.rosterSortedIndex(selection);
+    String loco = String(serverDataStore.rosterLength(index)) + serverDataStore.rosterAddress(index);
     
-    // String loco = String(rosterLength[selection]) + rosterAddress[selection];
     debug_print("add Loco: "); debug_println(loco);
   wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
   wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
@@ -1264,8 +1117,8 @@ void selectRoster(int selection) {
 void selectTurnoutList(int selection, TurnoutAction action) {
   debug_print("selectTurnoutList() "); debug_println(selection);
 
-  if ((selection>=0) && (selection < turnoutListSize)) {
-    String turnout = turnoutListSysName[selection];
+  if ((selection>=0) && (selection < serverDataStore.turnoutListSize())) {
+    String turnout = serverDataStore.turnoutSysName(selection);
     debug_print("Turnout Selected: "); debug_println(turnout);
     wiThrottleProtocol.setTurnout(turnout,action);
   renderer.renderSpeed();
@@ -1276,8 +1129,8 @@ void selectTurnoutList(int selection, TurnoutAction action) {
 void selectRouteList(int selection) {
   debug_print("selectRouteList() "); debug_println(selection);
 
-  if ((selection>=0) && (selection < routeListSize)) {
-    String route = routeListSysName[selection];
+  if ((selection>=0) && (selection < serverDataStore.routeListSize())) {
+    String route = serverDataStore.routeSysName(selection);
     debug_print("Route Selected: "); debug_println(route);
     wiThrottleProtocol.setRoute(route);
   renderer.renderSpeed();
@@ -1303,7 +1156,7 @@ void selectEditConsistList(int selection) {
 
   if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 1 ) {
     String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleManager.getCurrentThrottleChar(), selection);
-    toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
+    locoManager.toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
   renderer.renderSpeed();
     inputManager.setMode(InputMode::Operation);
     menuCommandStarted = false;

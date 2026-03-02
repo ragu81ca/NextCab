@@ -1,11 +1,12 @@
 #include "WiThrottleDelegate.h"
 #include "../ThrottleManager.h" // full definition for method calls
+#include "../ServerDataStore.h"
+#include "../LocoManager.h"
 #include "../../../WiTcontroller.h" // extern throttleManager instance declaration
 #include "../heartbeat/HeartbeatMonitor.h"
 extern HeartbeatMonitor heartbeatMonitor;
-
-// Forward declaration for helper defined in sketch
-void stealCurrentLoco(String address);
+extern ServerDataStore serverDataStore;
+extern LocoManager locoManager;
 
 // Helper to note server activity for heartbeat monitoring
 static inline void noteServerActivity() {
@@ -24,8 +25,8 @@ void WiThrottleDelegate::receivedVersion(String version) {
 
 void WiThrottleDelegate::receivedServerDescription(String description) {
     noteServerActivity();
-    serverType = description.substring(0, description.indexOf(" "));
-    if (serverType.equals("DCC-EX")) { turnoutPrefix = DCC_EX_TURNOUT_PREFIX; routePrefix = DCC_EX_ROUTE_PREFIX; }
+    locoManager.setServerType(description.substring(0, description.indexOf(" ")));
+    if (locoManager.serverType().equals("DCC-EX")) { serverDataStore.setTurnoutPrefix(DCC_EX_TURNOUT_PREFIX); serverDataStore.setRoutePrefix(DCC_EX_ROUTE_PREFIX); }
 }
 
 void WiThrottleDelegate::receivedMessage(String message) {
@@ -87,45 +88,44 @@ void WiThrottleDelegate::receivedTrackPower(TrackPower state) {
 
 void WiThrottleDelegate::receivedRosterEntries(int size) { 
     noteServerActivity();
-    rosterSize = size; if (rosterSize == 0) { setupPreferences(false); } 
+    serverDataStore.setRosterSize(size); if (size == 0) { setupPreferences(false); } 
 }
 
 void WiThrottleDelegate::receivedRosterEntry(int index, String name, int address, char length) {
     noteServerActivity();
-    if (index < rosterSize) {
-        rosterIndex[index] = index; rosterSortedIndex[index] = index; rosterName[index] = name; rosterAddress[index] = address; rosterLength[index] = length;
-        if (ROSTER_SORT_SEQUENCE == 1) { strncpy(rosterSortStrings[index], ((name + "          ").substring(0, 10) + ":" + (index < 10 ? "0" : "") + String(index)).c_str(), 13); rosterSortPointers[index] = rosterSortStrings[index]; }
-        else if (ROSTER_SORT_SEQUENCE == 2) { char buf[11]; sprintf(buf, "%10d", rosterAddress[index]); strncpy(rosterSortStrings[index], (String(buf) + ":" + (index < 10 ? "0" : "") + String(index)).c_str(), 13); rosterSortPointers[index] = rosterSortStrings[index]; }
-        if ((index == (rosterSize - 1)) && (ROSTER_SORT_SEQUENCE > 0)) { qsort(rosterSortPointers, rosterSize, sizeof rosterSortPointers[0], compareStrings); for (int i = 0; i < rosterSize; i++) { rosterSortedIndex[i] = (rosterSortPointers[i][11] - '0') * 10 + (rosterSortPointers[i][12] - '0'); } setupPreferences(false); }
+    serverDataStore.addRosterEntry(index, name, address, length);
+    // When last entry arrives, addRosterEntry triggers sort internally
+    if (index == serverDataStore.rosterSize() - 1) {
+        setupPreferences(false);
     }
-    receivingServerInfoOled(index, rosterSize);
+    receivingServerInfoOled(index, serverDataStore.rosterSize());
 #if ACQUIRE_ROSTER_ENTRY_IF_ONLY_ONE
-    if ((rosterSize == 1) && (index == 0)) { doOneStartupCommand("*1#0"); }
+    if ((serverDataStore.rosterSize() == 1) && (index == 0)) { doOneStartupCommand("*1#0"); }
 #endif
 }
 void WiThrottleDelegate::receivedTurnoutEntries(int size) { 
     noteServerActivity();
-    turnoutListSize = size; 
+    serverDataStore.setTurnoutListSize(size); 
 }
 
 void WiThrottleDelegate::receivedTurnoutEntry(int index, String sysName, String userName, int state) {
     noteServerActivity();
-    if (index < turnoutListSize) { turnoutListIndex[index] = index; turnoutListSysName[index] = sysName; turnoutListUserName[index] = userName; turnoutListState[index] = state; }
-    receivingServerInfoOled(index, turnoutListSize);
+    serverDataStore.addTurnoutEntry(index, sysName, userName, state);
+    receivingServerInfoOled(index, serverDataStore.turnoutListSize());
 }
 
 void WiThrottleDelegate::receivedRouteEntries(int size) { 
     noteServerActivity();
-    routeListSize = size; 
+    serverDataStore.setRouteListSize(size); 
 }
 
 void WiThrottleDelegate::receivedRouteEntry(int index, String sysName, String userName, int state) {
     noteServerActivity();
-    if (index < routeListSize) { routeListIndex[index] = index; routeListSysName[index] = sysName; routeListUserName[index] = userName; routeListState[index] = state; }
-    receivingServerInfoOled(index, routeListSize);
+    serverDataStore.addRouteEntry(index, sysName, userName, state);
+    receivingServerInfoOled(index, serverDataStore.routeListSize());
 }
-void WiThrottleDelegate::addressStealNeeded(String address, String entry) { stealCurrentLoco(address); }
-void WiThrottleDelegate::addressStealNeededMultiThrottle(char multiThrottle, String address, String entry) { stealLoco(multiThrottle, address); }
+void WiThrottleDelegate::addressStealNeeded(String address, String entry) { locoManager.stealLoco(throttleManager.getCurrentThrottleChar(), address); }
+void WiThrottleDelegate::addressStealNeededMultiThrottle(char multiThrottle, String address, String entry) { locoManager.stealLoco(multiThrottle, address); }
 void WiThrottleDelegate::receivedUnknownCommand(String unknownCommand) { 
     noteServerActivity();
     debug_print("Received unknown command: "); debug_println(unknownCommand); 

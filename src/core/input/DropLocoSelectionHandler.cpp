@@ -2,12 +2,14 @@
 #include "InputManager.h"
 #include "../Renderer.h"
 #include "../ThrottleManager.h"
+#include "../LocoManager.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 
 extern InputManager inputManager;
 extern ThrottleManager throttleManager;
 extern WiThrottleProtocol wiThrottleProtocol;
+extern LocoManager locoManager;
 
 DropLocoSelectionHandler::DropLocoSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
@@ -37,7 +39,7 @@ void DropLocoSelectionHandler::configureScreen() {
         char tc = throttleManager.getCurrentThrottleChar();
         int numLocos = wiThrottleProtocol.getNumberOfLocomotives(tc);
         if (index < numLocos) {
-            releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), index);
+            locoManager.releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), index);
         }
         extern InputManager inputManager;
         inputManager.setMode(InputMode::Operation);
@@ -51,7 +53,7 @@ void DropLocoSelectionHandler::configureScreen() {
 
 bool DropLocoSelectionHandler::handleExtraKey(char key) {
     if (key == '0') {
-        releaseAllLocos(throttleManager.getCurrentThrottleIndex());
+        locoManager.releaseAllLocos(throttleManager.getCurrentThrottleIndex());
         inputManager.setMode(InputMode::Operation);
         return true;
     }

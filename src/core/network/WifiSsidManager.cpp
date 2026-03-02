@@ -6,6 +6,7 @@
 #include "../../../static.h"          // macro constants
 #include "../../../WiTcontroller.h"   // legacy glue (menuIsShowing etc.)
 #include "../Renderer.h"
+#include "../ServerDataStore.h"
 #include "../protocol/WiThrottleDelegate.h" // debug_print macros
 #include "../SystemState.h"
 #include "../ui/TitleScreen.h"
@@ -13,8 +14,7 @@
 
 // Remaining globals that are truly app-wide and written by many consumers
 extern int ssidSelectionSource;
-extern String turnoutPrefix;
-extern String routePrefix;
+extern ServerDataStore serverDataStore;
 
 void WifiSsidManager::begin(SystemStateManager& stateManager,
                Renderer& renderer,
@@ -207,8 +207,8 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
             // Mirror legacy heuristic: Set default WiT server IP:Port when connecting to DCC-EX AP
             extern WiThrottleConnectionManager connectionManager;
             connectionManager.ipAndPortEntered() = "19216800400102560"; // 192.168.4.1:2560 compressed
-            turnoutPrefix = DCC_EX_TURNOUT_PREFIX;
-            routePrefix = DCC_EX_ROUTE_PREFIX;
+            serverDataStore.setTurnoutPrefix(DCC_EX_TURNOUT_PREFIX);
+            serverDataStore.setRoutePrefix(DCC_EX_ROUTE_PREFIX);
             debug_println("getSsidPasswordAndMetadataForFound() Using guessed DCC-EX password & defaults");
         } else {
             selectedSsidPasswordStr = "";

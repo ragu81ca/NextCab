@@ -16,9 +16,7 @@ extern Renderer renderer;
 // 
 
 #define maxFoundWitServers 5     // must be 5 for the moment
-#define maxRoster 70     // must be a multiple of rosterItemsPerPage (both 5 and 10)
-#define maxTurnoutList 60     // must be a multiple of turnoutItemsPerPage
-#define maxRouteList 60     // must be a multiple of routeItemsPerPage
+// maxRoster / maxTurnoutList / maxRouteList now in ServerDataStore.h (MAX_ROSTER etc.)
 
 
 extern bool menuCommandStarted;
@@ -30,8 +28,7 @@ extern String menuCommand;
 
 
 extern TrackPower trackPower;
-extern String turnoutPrefix;
-extern String routePrefix;
+// turnoutPrefix / routePrefix now in serverDataStore
 
 extern bool circleValues;
 
@@ -45,24 +42,11 @@ extern int ssidSelectionSource;
 
 // witServerIpAndPort* now in WiThrottleConnectionManager
 
-extern int rosterSize;
-extern int rosterIndex[]; 
-extern String rosterName[]; 
-extern int rosterAddress[];
-extern char rosterLength[];
-extern int rosterSortedIndex[]; // sorted index order
-
-extern int turnoutListSize;
-extern int turnoutListIndex[]; 
-extern String turnoutListSysName[]; 
-extern String turnoutListUserName[];
-extern int turnoutListState[];
-
-extern int routeListSize;
-extern int routeListIndex[]; 
-extern String routeListSysName[]; 
-extern String routeListUserName[];
-extern int routeListState[];
+// roster / turnout / route data now in serverDataStore
+#include "src/core/ServerDataStore.h"
+extern ServerDataStore serverDataStore;
+#include "src/core/LocoManager.h"
+extern LocoManager locoManager;
 // Function arrays migrated to ThrottleManager
 // Heartbeat state migrated to HeartbeatMonitor (no longer exposed as globals)
 // extern int heartbeatPeriod;
@@ -87,7 +71,7 @@ extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
 // Additional globals used by Renderer (migrated rendering logic)
 extern bool oledDirectCommandsAreBeingDisplayed;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
-String getDisplayLocoString(int multiThrottleIndex, int index); // helper for speed screen
+// getDisplayLocoString now in LocoManager
 int getDisplaySpeed(int multiThrottleIndex);
 
 class ThrottleScreen; // forward declaration
@@ -113,17 +97,15 @@ void doDirectAction(int);
 void doMenu(void);
 void resetMenu(void);
 
-String getLocoWithLength(String);
+// getLocoWithLength, releaseAllLocos, releaseOneLocoByIndex, toggleLocoFacing now in LocoManager
 void speedEstop(void);
 void speedDown(int, int);
 void speedUp(int, int);
 void speedSet(int, int);
-void releaseAllLocos(int);
-void releaseOneLocoByIndex(int, int);
 void toggleAdditionalMultiplier(void);
 void toggleHeartbeatCheck(void);
 void toggleDirection(int);
-void toggleLocoFacing(int, String);
+// toggleLocoFacing now in LocoManager
 void changeDirection(int, Direction);
 
 void powerOnOff(TrackPower);

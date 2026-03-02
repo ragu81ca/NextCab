@@ -5,6 +5,8 @@
 #include "../../../static.h"
 #include "../Renderer.h"
 #include "../ThrottleManager.h"
+#include "../ServerDataStore.h"
+#include "../LocoManager.h"
 #include "../heartbeat/HeartbeatMonitor.h"
 #include "../input/InputManager.h"
 #include "../input/TurnoutSelectionHandler.h"
@@ -17,17 +19,13 @@ extern ThrottleManager throttleManager;
 extern Renderer renderer;
 extern InputManager inputManager;
 extern TurnoutSelectionHandler turnoutSelectionHandler;
-extern String turnoutPrefix;
-extern String routePrefix;
-extern bool dropBeforeAcquire;
+extern ServerDataStore serverDataStore;
+extern LocoManager locoManager;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
 extern HeartbeatMonitor heartbeatMonitor;
 extern WiThrottleConnectionManager connectionManager;
 
 // Forward declarations from main sketch
-extern void releaseAllLocos(int multiThrottleIndex);
-extern void releaseOneLoco(int multiThrottleIndex, String loco);
-extern void releaseOneLocoByIndex(int multiThrottleIndex, int index);
 extern void toggleDirection(int multiThrottleIndex);
 extern void cycleSpeedStep();
 extern void powerToggle();
@@ -36,7 +34,6 @@ extern void setupPreferences(bool forceClear);
 extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
-extern String getLocoWithLength(String loco);
 extern void selectEditConsistList(int);
 extern SystemStateManager systemStateManager;
 
@@ -46,10 +43,10 @@ namespace MenuHandlers {
     
     void handleAddLoco(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            if (dropBeforeAcquire && wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) {
+            if (locoManager.dropBeforeAcquire() && wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) {
                 wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
             }
-            String loco = getLocoWithLength(ctx.input);
+            String loco = locoManager.getLocoWithLength(ctx.input);
             wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
             wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
             wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
@@ -66,10 +63,10 @@ namespace MenuHandlers {
                 #define CONSIST_RELEASE_BY_INDEX false
             #endif
             if (!CONSIST_RELEASE_BY_INDEX) {
-                String loco = getLocoWithLength(ctx.input);
-                releaseOneLoco(throttleManager.getCurrentThrottleIndex(), loco);
+                String loco = locoManager.getLocoWithLength(ctx.input);
+                locoManager.releaseOneLoco(throttleManager.getCurrentThrottleIndex(), loco);
             } else {
-                releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), ctx.input.toInt());
+                locoManager.releaseOneLocoByIndex(throttleManager.getCurrentThrottleIndex(), ctx.input.toInt());
             }
         } else {
             // No input - show list of current locos to select from via InputManager
@@ -87,7 +84,7 @@ namespace MenuHandlers {
     
     void handleThrowPoint(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            String turnout = turnoutPrefix + ctx.input;
+            String turnout = serverDataStore.turnoutPrefix() + ctx.input;
             wiThrottleProtocol.setTurnout(turnout, TurnoutThrow);
         } else {
             // No input - show turnout list via InputManager
@@ -98,7 +95,7 @@ namespace MenuHandlers {
     
     void handleClosePoint(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            String turnout = turnoutPrefix + ctx.input;
+            String turnout = serverDataStore.turnoutPrefix() + ctx.input;
             wiThrottleProtocol.setTurnout(turnout, TurnoutClose);
         } else {
             // No input - show turnout list via InputManager
@@ -109,7 +106,7 @@ namespace MenuHandlers {
     
     void handleRoute(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            String route = routePrefix + ctx.input;
+            String route = serverDataStore.routePrefix() + ctx.input;
             wiThrottleProtocol.setRoute(route);
         } else {
             // No input - show route list via InputManager
