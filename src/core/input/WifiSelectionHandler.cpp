@@ -9,6 +9,7 @@
 extern InputManager inputManager;
 extern UIState uiState;
 extern int foundSsidsCount;
+extern int ssidSelectionSource;
 
 WifiSelectionHandler::WifiSelectionHandler(Renderer &renderer, WifiSsidManager &wifiManager)
     : renderer_(renderer), wifiManager_(wifiManager), source_(WifiSelectionSource::Configured), page_(0) {}
@@ -42,6 +43,13 @@ void WifiSelectionHandler::buildConfiguredScreen() {
 void WifiSelectionHandler::onEnter() {
     page_ = 0;
     uiState.page = 0;
+
+    // Sync source from the global selection source so we show the right list
+    if (ssidSelectionSource == SSID_CONNECTION_SOURCE_LIST) {
+        source_ = WifiSelectionSource::Configured;
+    } else {
+        source_ = WifiSelectionSource::Scanned;
+    }
     
     if (source_ == WifiSelectionSource::Configured) {
         buildConfiguredScreen();
@@ -129,7 +137,14 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
                 return true;
                 
             case '*':
-                setSource(WifiSelectionSource::Configured);
+                if (foundSsidsCount == 0) {
+                    // No results — rescan
+                    page_ = 0;
+                    uiState.page = 0;
+                    wifiManager_.browseSsids();
+                } else {
+                    setSource(WifiSelectionSource::Configured);
+                }
                 return true;
                 
             default:

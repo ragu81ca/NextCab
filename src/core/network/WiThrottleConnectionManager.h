@@ -15,6 +15,7 @@ class WiThrottleDelegate;
 
 #include "../../../static.h" // constants: MSG_*, menu_*, etc.
 #include "../../../WiTcontroller.h" // maxFoundWitServers, DEFAULT_IP_AND_PORT, etc.
+#include "../ui/TextInputScreen.h"
 
 /**
  * WiThrottleConnectionManager
@@ -113,6 +114,7 @@ private:
     String    selectedWitServerName_;
 
     // ── Manual IP entry ──
+    TextInputScreen manualEntryScreen_;
     String witServerIpAndPortConstructed_ = "###.###.###.###:#####";
     String witServerIpAndPortEntered_     = DEFAULT_IP_AND_PORT;
     bool   witServerIpAndPortChanged_     = true;

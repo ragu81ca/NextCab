@@ -51,7 +51,7 @@ struct DisplayLayout {
     int directionX;               // x of direction text
     int directionY;               // baseline y of direction text
     int throttleNumberX;          // x of throttle number
-    int throttleNumberY;          // baseline y of throttle number
+    // throttleNumberY removed — now computed dynamically from box height + font ascent
     int throttleNumberBoxW;       // width of throttle number background box
     int throttleNumberBoxH;       // height of throttle number background box
 

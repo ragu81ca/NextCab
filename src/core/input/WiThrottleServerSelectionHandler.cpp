@@ -112,6 +112,10 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
                     connectionManager.ipAndPortEntered() = connectionManager.ipAndPortEntered().substring(0, connectionManager.ipAndPortEntered().length() - 1);
                     connectionManager.ipAndPortChanged() = true;
                     connectionManager.enterManualServer();
+                } else {
+                    // Cancel — go back to discovered server list
+                    setSource(WiThrottleServerSource::Discovered);
+                    connectionManager.browseService();
                 }
                 return true;
                 

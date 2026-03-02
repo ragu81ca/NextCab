@@ -37,11 +37,6 @@ extern String routePrefix;
 extern bool circleValues;
 
 extern String selectedSsid;
-extern String selectedSsidPassword;
-
-extern String ssidPasswordEntered;
-extern bool ssidPasswordChanged;
-extern char ssidPasswordCurrentChar; 
 
 // WiThrottle server connection state now lives in WiThrottleConnectionManager
 // (selectedWitServerIP, foundWitServers*, witServerIpAndPort* removed)

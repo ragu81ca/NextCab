@@ -303,8 +303,6 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
   #define SSID_CONNECTION_TIMEOUT 10000
 #endif
 
-extern const char ssidPasswordBlankChar; // defined in static.cpp
-
 #endif // WIT_STATIC_H_INCLUDED
 
 

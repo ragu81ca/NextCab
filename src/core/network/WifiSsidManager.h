@@ -28,10 +28,8 @@ public:
     void selectConfigured(int index);
     void selectFound(int index);
 
-    // Password entry (Phase 1: thin wrappers around legacy globals that still live here)
+    // Password entry
     void startPasswordEntry();
-    void appendPasswordChar(char c);
-    void backspacePassword();
 
     void attemptConnect();
 
@@ -41,6 +39,7 @@ public:
     State state() const { return currentState; }
     const String& currentSsid() const { return selectedSsidStr; }
     const String& currentPassword() const { return selectedSsidPasswordStr; }
+    void setPassword(const String &pw) { selectedSsidPasswordStr = pw; }
     int configuredCount() const { return maxSsids; }
     const String& configuredSsid(int i) const { return ssids[i]; }
     // Turnout/route prefixes intentionally not managed here (remain global/config-driven).
@@ -71,12 +70,11 @@ private:
 
     double startWaitForSelection = 0;
 
-    // Password entry
-    String passwordEntered;
-    bool passwordChanged = true;
-
     StateCallback onStateChangeCb;
     ListChangedCallback onListChangedCb;
+
+    // Scan result processing
+    void processScanResults(int num);
 
     // Access to legacy global foundSsidsCount
     static int _foundSsidsCountExtern();

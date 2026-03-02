@@ -49,5 +49,3 @@ const bool speedDisplayAs0to28 = DISPLAY_SPEED_AS_0_TO_28;
 #else
 const bool speedDisplayAs0to28 = false;
 #endif
-
-const char ssidPasswordBlankChar = 164;

@@ -71,7 +71,20 @@ WifiSsidManager::FoundSsid WifiSsidManager::getFound(int i) const {
 }
 
 void WifiSsidManager::loop() {
-    // Replicates legacy ssidsLoop decision tree.
+    SystemState state = systemStateManager.getState();
+
+    // These states have their own UI/input handling — don't interfere.
+    if (state == SystemState::WifiPasswordEntry || state == SystemState::WifiSelection) {
+        return;
+    }
+
+    // When told to connect, do it immediately — don't re-scan.
+    if (state == SystemState::WifiConnecting) {
+        connectSelectedInternal();
+        return;
+    }
+
+    // Not connected — show selection UI or start scanning.
     if (!systemStateManager.isConnectedToWifi()) {
         if (ssidSelectionSource == SSID_CONNECTION_SOURCE_LIST) {
             showConfiguredList();
@@ -79,43 +92,41 @@ void WifiSsidManager::loop() {
             browseSsids();
         }
     }
-    // Password entry UI is automatically handled by InputManager when mode is set to PasswordEntry
-    if (systemStateManager.getState() == SystemState::WifiConnecting) {
-        connectSelectedInternal();
-    }
 }
 
 void WifiSsidManager::browseSsids() {
     debug_println("WifiSsidManager::browseSsids()");
-    double startTime = millis();
-    double nowTime = startTime;
 
+    // Static "please wait" screen — no animation for a 2-3 second scan
     { TitleScreen ts;
       ts.setAppHeader(appName, appVersion);
       ts.addBody(MSG_BROWSING_FOR_SSIDS);
       renderer.renderTitle(ts);
       renderer.renderBattery(); }
 
-    // Ensure in station mode and not connected before scanning
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(); // prevent filtering only current network
+    WiFi.disconnect();
     delay(100);
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-    int num = WiFi.scanNetworks();
+
+    int num = WiFi.scanNetworks(); // blocking, ~2-3 seconds
     debug_print("scanNetworks() returned: "); debug_println(num);
-    while ( (num == -1) && ((nowTime-startTime) <= 10000) ) {
-        delay(250);
-        debug_print(".");
-        nowTime = millis();
-    }
+    processScanResults(num);
+    WiFi.scanDelete();
+}
+
+void WifiSsidManager::processScanResults(int num) {
+    debug_print("processScanResults: "); debug_println(num);
 
     foundSsidsCount = 0;
     if (num > 0) {
-    for (int thisSsid=0; thisSsid<num && foundSsidsCount<maxFoundSsids; ++thisSsid) {
+        for (int thisSsid = 0; thisSsid < num && foundSsidsCount < maxFoundSsids; ++thisSsid) {
             String ssid = WiFi.SSID(thisSsid);
             bool duplicate = false;
-            for (int i=0;i<foundSsidsCount;i++) { if (foundSsids[i]==ssid) { duplicate=true; break; } }
+            for (int i = 0; i < foundSsidsCount; i++) {
+                if (foundSsids[i] == ssid) { duplicate = true; break; }
+            }
             if (!duplicate) {
                 foundSsids[foundSsidsCount] = ssid;
                 foundSsidRssis[foundSsidsCount] = WiFi.RSSI(thisSsid);
@@ -123,48 +134,33 @@ void WifiSsidManager::browseSsids() {
                 foundSsidsCount++;
             }
         }
-        for (int i=0;i<foundSsidsCount;i++) { debug_println(foundSsids[i]); }
+        for (int i = 0; i < foundSsidsCount; i++) { debug_println(foundSsids[i]); }
         // Use unified rendering path: delegate to renderer::renderFoundSsids
         uiState.page = 0; // reset to first page
         renderer.renderFoundSsids("");
-        systemStateManager.setState(SystemState::WifiSelection);
-        
-        // Auto-connect: if exactly ONE scanned SSID matches a configured SSID, connect automatically
-        int matchCount = 0;
-        int matchIndex = -1;
-        for (int found = 0; found < foundSsidsCount; found++) {
-            for (int cfg = 0; cfg < maxSsids; cfg++) {
-                if (foundSsids[found] == ssids[cfg]) {
-                    matchCount++;
-                    matchIndex = found;
-                    break; // Don't double-count
-                }
-            }
-        }
-        if (matchCount == 1 && matchIndex >= 0) {
-            debug_println("Auto-connecting to only matching known SSID");
-            systemStateManager.setState(SystemState::WifiConnecting);
-            selectedSsidStr = foundSsids[matchIndex];
-            getSsidPasswordAndMetadataForFound();
-        }
+        // forceState ensures onEnter() always fires on the WifiSelectionHandler,
+        // even if the system state was already WifiSelection from a previous scan.
+        systemStateManager.forceState(SystemState::WifiSelection);
     } else {
         { TitleScreen ts;
           ts.setAppHeader(appName, appVersion);
           ts.addBody(MSG_NO_SSIDS_FOUND);
+          ts.footerText = "* Rescan";
           renderer.renderTitle(ts); }
         debug_println("No SSIDs found in scan");
+        // Set state to WifiSelection so the loop doesn't re-scan every iteration.
+        // The user will need to restart or press a button to retry.
+        systemStateManager.setState(SystemState::WifiSelection);
     }
 }
 
 void WifiSsidManager::showConfiguredList() {
     debug_println("WifiSsidManager::showConfiguredList()");
     if (maxSsids == 0) {
-        { TitleScreen ts;
-          ts.setAppHeader(appName, appVersion);
-          ts.addBody(MSG_NO_SSIDS_FOUND);
-          renderer.renderTitle(ts);
-          renderer.renderBattery(); }
-        debug_println(MSG_NO_SSIDS_FOUND);
+        // No configured networks — fall through to WiFi scan so the user can discover one
+        debug_println("No configured SSIDs, switching to browse mode");
+        ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
+        browseSsids();
         return;
     }
     debug_print(maxSsids); debug_println(MSG_SSIDS_LISTED);
@@ -232,15 +228,6 @@ void WifiSsidManager::startPasswordEntry() {
     systemStateManager.setState(SystemState::WifiPasswordEntry);
 }
 
-void WifiSsidManager::appendPasswordChar(char c) {
-    if (c=='#') return; // commit handled elsewhere
-    if (passwordEntered.length()<32) { passwordEntered += c; passwordChanged = true; }
-}
-
-void WifiSsidManager::backspacePassword() {
-    if (passwordEntered.length()>0) { passwordEntered.remove(passwordEntered.length()-1); passwordChanged = true; }
-}
-
 void WifiSsidManager::attemptConnect() {
     if (selectedSsidStr.length()==0) return;
     changeState(State::Connecting);
@@ -267,31 +254,22 @@ void WifiSsidManager::connectSelectedInternal() {
     if (selectedSsidStr.length()==0) return;
 
     debug_print("Trying Network "); debug_println(cSsid);
-    for (int i=0; i<3; ++i) {
-        ws.body[1] = String(MSG_TRYING_TO_CONNECT) + " (" + String(i + 1) + " of 3)";
-        if (ws.bodyCount < 2) ws.bodyCount = 2;
-        renderer.renderWait(ws);
-        renderer.renderBattery();
-        nowTime = startTime;
-        debug_print("hostname "); debug_println(WiFi.getHostname());
-        WiFi.begin(cSsid, cPassword);
-        int tempTimer = millis();
-        debug_print("Trying Network ... Checking status "); debug_print(cSsid); debug_print(" :"); debug_print(cPassword); debug_println(":");
-        while ((WiFi.status() != WL_CONNECTED) && ((nowTime-startTime) <= SSID_CONNECTION_TIMEOUT)) {
-            if (millis() > tempTimer + 125) {
-                ws.advance();
-                renderer.renderWait(ws);
-                renderer.renderBattery();
-                debug_print("."); tempTimer = millis();
-            }
-            nowTime = millis();
+    ws.body[1] = MSG_TRYING_TO_CONNECT;
+    if (ws.bodyCount < 2) ws.bodyCount = 2;
+    renderer.renderWait(ws);
+    renderer.renderBattery();
+    debug_print("hostname "); debug_println(WiFi.getHostname());
+    WiFi.begin(cSsid, cPassword);
+    int tempTimer = millis();
+    debug_print("Trying Network ... Checking status "); debug_print(cSsid); debug_print(" :"); debug_print(cPassword); debug_println(":");
+    while ((WiFi.status() != WL_CONNECTED) && ((nowTime-startTime) <= SSID_CONNECTION_TIMEOUT)) {
+        if (millis() > tempTimer + 125) {
+            ws.advance();
+            renderer.renderWait(ws);
+            renderer.renderBattery();
+            debug_print("."); tempTimer = millis();
         }
-        if (WiFi.status() == WL_CONNECTED) {
-            if (!commandsNeedLeadingCrLf) { debug_println("Leading CRLF will not be sent for commands"); }
-            break; // success
-        } else {
-            debug_println("");
-        }
+        nowTime = millis();
     }
     debug_println("");
     if (WiFi.status() == WL_CONNECTED) {
@@ -327,7 +305,11 @@ void WifiSsidManager::connectSelectedInternal() {
         renderer.renderBattery();
         delay(2000);
         WiFi.disconnect();
+        // Clear credentials so we don't retry with the same bad password
+        selectedSsidStr = "";
+        selectedSsidPasswordStr = "";
+        // Go back to browse mode so the user can pick a different network
+        ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
         systemStateManager.setState(SystemState::Boot);
-        ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
     }
 }

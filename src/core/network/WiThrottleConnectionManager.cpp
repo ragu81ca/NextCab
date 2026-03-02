@@ -57,6 +57,14 @@ void WiThrottleConnectionManager::loop() {
 
     if (state == SystemState::ServerManualEntry) {
         enterManualServer();
+        // Animate caret blink even when input hasn't changed
+        static unsigned long lastManualTick = 0;
+        unsigned long now = millis();
+        if (now - lastManualTick >= 125) {
+            lastManualTick = now;
+            manualEntryScreen_.advance();
+            renderer_->renderTextInput(manualEntryScreen_);
+        }
     }
 
     if (state == SystemState::ServerConnecting) {
@@ -277,12 +285,10 @@ void WiThrottleConnectionManager::enterManualServer() {
     witServerSelectionHandler_->setSource(WiThrottleServerSource::ManualEntry);
     if (witServerIpAndPortChanged_) {
         debug_println("enterWitServer()");
-        TitleScreen ts;
-        ts.setAppHeader(appName, appVersion);
-        ts.addBody(MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED);
-        ts.addBody(witServerIpAndPortConstructed_);
-        ts.footerText = menu_text[menu_select_wit_entry];
-        renderer_->renderTitle(ts);
+        manualEntryScreen_.promptLine1 = MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED;
+        manualEntryScreen_.inputText   = witServerIpAndPortConstructed_;
+        manualEntryScreen_.footerText  = menu_text[menu_select_wit_entry];
+        renderer_->renderTextInput(manualEntryScreen_);
         witServerIpAndPortChanged_ = false;
     }
 }

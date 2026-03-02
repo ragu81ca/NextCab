@@ -9,6 +9,7 @@
 #include "ui/ListSelectionScreen.h"
 #include "ui/TitleScreen.h"
 #include "ui/WaitScreen.h"
+#include "ui/TextInputScreen.h"
 
 class Renderer {
 public:
@@ -16,7 +17,6 @@ public:
 
     // Public rendering entry points used by application code
     void renderFoundSsids(const String &soFar);
-    void renderEnterPassword();
     void renderHeartbeatCheck();
     void renderNewMenu(class MenuSystem& menuSystem);  // New table-driven menu system rendering
     void renderSpeed();
@@ -44,6 +44,9 @@ public:
     /// Render a WaitScreen — same layout as TitleScreen plus a bouncing-dot
     /// spinner drawn below the body text.
     void renderWait(const WaitScreen &screen);
+
+    /// Render a TextInputScreen — prompt lines, input with blinking caret, footer.
+    void renderTextInput(const TextInputScreen &screen);
 
     // Access layout for code that needs content capacity values
     const DisplayLayout& getLayout() const { return layout; }

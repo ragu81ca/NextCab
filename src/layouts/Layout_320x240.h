@@ -49,7 +49,6 @@ constexpr DisplayLayout LAYOUT_320x240 = {
     .directionX       = 200,
     .directionY       = 100,
     .throttleNumberX  = 4,
-    .throttleNumberY  = 28,
     .throttleNumberBoxW = 24,
     .throttleNumberBoxH = 30,
 

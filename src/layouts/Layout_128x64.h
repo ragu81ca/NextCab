@@ -48,7 +48,6 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     .directionX       = 79,
     .directionY       = 36,
     .throttleNumberX  = 2,
-    .throttleNumberY  = 15,
     .throttleNumberBoxW = 12,
     .throttleNumberBoxH = 16,
 

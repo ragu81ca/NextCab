@@ -117,6 +117,7 @@ struct AdditionalButtonDef buttonDefsStatic[MAX_ADDITIONAL_BUTTONS];
 // Instantiate mode handlers
 OperationModeHandler operationModeHandler(throttleManager);
 static void onPasswordCommit();
+static void onPasswordCancel();
 PasswordEntryModeHandler passwordModeHandler(32, onPasswordCommit); // arbitrary max len
 WifiSelectionHandler wifiSelectionHandler(renderer, wifiSsidManager);
 WiThrottleServerSelectionHandler witServerSelectionHandler(renderer);
@@ -131,12 +132,6 @@ SystemActionHandler systemActionHandler(throttleManager);
 // server variables
 // bool ssidConnected = false;
 String selectedSsid = "";
-String selectedSsidPassword = "";
-
-// ssid password entry
-String ssidPasswordEntered = "";
-bool ssidPasswordChanged = true;
-char ssidPasswordCurrentChar = ssidPasswordBlankChar; 
 
 // Unified system state manager (replaces ssidConnectionState and witConnectionState)
 SystemStateManager systemStateManager(inputManager);
@@ -469,6 +464,7 @@ void setup() {
   // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
   inputManager.setPasswordHandler(&passwordModeHandler);
+  passwordModeHandler.setCancelCallback(onPasswordCancel);
   inputManager.setWifiSelectionHandler(&wifiSelectionHandler);
   inputManager.setWiThrottleServerSelectionHandler(&witServerSelectionHandler);
   inputManager.setRosterSelectionHandler(&rosterSelectionHandler);
@@ -578,12 +574,23 @@ void loop() {
     case SystemState::Boot:
     case SystemState::WifiScanning:
     case SystemState::WifiSelection:
-    case SystemState::WifiPasswordEntry:
     case SystemState::WifiConnecting:
       // WiFi connection sequence
       wifiSsidManager.loop();
       checkForShutdownOnNoResponse(); // Check for user inactivity
       break;
+
+    case SystemState::WifiPasswordEntry: {
+      // Password entry — drive caret blink animation
+      static unsigned long lastPasswordTick = 0;
+      unsigned long now = millis();
+      if (now - lastPasswordTick >= 125) {
+        lastPasswordTick = now;
+        passwordModeHandler.tick();
+      }
+      checkForShutdownOnNoResponse();
+      break;
+    }
       
     case SystemState::WifiConnected:
     case SystemState::ServerScanning:
@@ -790,10 +797,14 @@ void doDirectAction(int buttonAction) {
 }
 
 static void onPasswordCommit() {
-  // Accept the entered password and return to normal mode
-  selectedSsidPassword = ssidPasswordEntered;
+  // Accept the entered password and connect
+  wifiSsidManager.setPassword(passwordModeHandler.entered());
   systemStateManager.setState(SystemState::WifiConnecting);
-  renderer.renderSpeed();
+}
+
+static void onPasswordCancel() {
+  // Go back to the WiFi selection list
+  systemStateManager.forceState(SystemState::WifiSelection);
 }
 
 // *********************************************************************************

@@ -3,16 +3,33 @@
 #include "static.h" // root-level include (platformio include_dir=.)
 
 extern Renderer renderer;
-extern int encoderUseType; // transitional
+
+void PasswordEntryModeHandler::onEnter() {
+    buffer_ = "";
+    previewChar_ = 0;
+    currentIndex_ = 0;
+    activeSelection_ = false;
+
+    screen_.clear();
+    screen_.promptLine1 = MSG_ENTER_PASSWORD;
+    screen_.footerText  = menu_text[menu_enter_ssid_password];
+    screen_.maxLength   = 0; // we manage length ourselves (encoder preview complicates it)
+    screen_.onCancel    = cancelCb_;
+    render();
+}
 
 void PasswordEntryModeHandler::render() {
-    // Temporary bridge: update legacy globals consumed by renderer until renderer is refactored.
-    // Remove when renderer pulls from handler directly.
-    extern String ssidPasswordEntered; // legacy global
-    extern char ssidPasswordCurrentChar; // legacy global preview
-    ssidPasswordEntered = buffer_; // keep global in sync for now
-    ssidPasswordCurrentChar = previewChar_;
-    renderer.renderEnterPassword();
+    // Build the display text: entered buffer + encoder preview char (if cycling)
+    screen_.inputText = buffer_;
+    if (activeSelection_ && previewChar_ != 0) {
+        screen_.inputText += previewChar_;
+    }
+    renderer.renderTextInput(screen_);
+}
+
+void PasswordEntryModeHandler::tick() {
+    screen_.advance();
+    render();
 }
 
 bool PasswordEntryModeHandler::handle(const InputEvent &ev) {
@@ -50,31 +67,50 @@ bool PasswordEntryModeHandler::handle(const InputEvent &ev) {
         }
         case InputEventType::KeypadChar: {
             if (buffer_.length() < maxLen_) {
-                buffer_ += ev.cvalue;
+                // If encoder preview was active, commit it first
+                if (activeSelection_) {
+                    buffer_ += kCharSet[currentIndex_];
+                    activeSelection_ = false;
+                    previewChar_ = 0;
+                }
+                if (buffer_.length() < maxLen_) {
+                    buffer_ += ev.cvalue;
+                }
                 render();
             }
             return true;
         }
         case InputEventType::KeypadSpecial: {
-            // Treat '*' as backspace and '#' as commit if present
+            // Treat '*' as backspace and '#' as commit
             if (ev.cvalue == '*') {
-                if (buffer_.length() > 0) {
-                    buffer_.remove(buffer_.length()-1);
-                    // After deletion, keep current preview (do not alter activeSelection_)
+                if (activeSelection_) {
+                    // Cancel the encoder preview without deleting
+                    activeSelection_ = false;
+                    previewChar_ = 0;
                     render();
+                } else if (buffer_.length() > 0) {
+                    buffer_.remove(buffer_.length()-1);
+                    render();
+                } else {
+                    // Empty buffer + back = cancel
+                    if (screen_.onCancel) screen_.onCancel();
                 }
                 return true;
             } else if (ev.cvalue == '#') {
+                // Commit any pending encoder preview before submitting
+                if (activeSelection_ && buffer_.length() < maxLen_) {
+                    buffer_ += kCharSet[currentIndex_];
+                    activeSelection_ = false;
+                    previewChar_ = 0;
+                }
                 if (commitCb_) commitCb_();
                 return true;
             } else {
-                // ignore other specials
                 return false;
             }
         }
         case InputEventType::KeypadCharRelease:
         case InputEventType::KeypadSpecialRelease: {
-            // Releases are ignored in password entry (press already consumed)
             return true;
         }
         case InputEventType::PasswordCommit: {

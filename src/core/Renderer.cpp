@@ -223,6 +223,94 @@ void Renderer::renderWait(const WaitScreen &screen) {
 	display.sendBuffer();
 }
 
+// ── Text input screen ───────────────────────────────────────────────────
+// Draws: optional top-bar, 1-2 centred prompt lines, centred input with
+// blinking caret, bottom status-bar, footer text.
+void Renderer::renderTextInput(const TextInputScreen &screen) {
+	display.clearBuffer();
+	display.setDrawColor(1);
+
+	// Top bar separator
+	display.drawHLine(0, layout.topBarHeight, layout.screenWidth);
+	renderBattery();
+
+	// Bottom status bar separator
+	display.drawHLine(0, layout.statusBarY, layout.screenWidth);
+
+	// ── Vertical layout planning ──
+	// Available vertical space: between topBarHeight and statusBarY.
+	// We'll place prompt lines in the upper portion and the input line
+	// in the middle, vertically centred in the available space.
+	int contentTop    = layout.topBarHeight + 2;
+	int contentBottom = layout.statusBarY;
+	int rh            = layout.rowHeight;
+
+	// Count content lines: prompt1 + prompt2 + gap + input = 3 or 4 rows
+	int promptLines = 0;
+	if (screen.promptLine1.length() > 0) promptLines++;
+	if (screen.promptLine2.length() > 0) promptLines++;
+	int totalLines = promptLines + 1;  // +1 for the input line
+	// Add a gap row between prompt and input if there are prompt lines
+	if (promptLines > 0) totalLines++;
+
+	int totalHeight = totalLines * rh;
+	int startY = contentTop + (contentBottom - contentTop - totalHeight) / 2 + rh;
+	if (startY < contentTop + rh) startY = contentTop + rh;
+
+	display.setFont(fonts.defaultFont);
+	int row = 0;
+
+	// ── Prompt lines (centred) ──
+	if (screen.promptLine1.length() > 0) {
+		const char *p1 = screen.promptLine1.c_str();
+		int w = display.getUTF8Width(p1);
+		int x = (layout.screenWidth - w) / 2;
+		if (x < 0) x = 0;
+		display.drawUTF8(x, startY + row * rh, p1);
+		row++;
+	}
+	if (screen.promptLine2.length() > 0) {
+		const char *p2 = screen.promptLine2.c_str();
+		int w = display.getUTF8Width(p2);
+		int x = (layout.screenWidth - w) / 2;
+		if (x < 0) x = 0;
+		display.drawUTF8(x, startY + row * rh, p2);
+		row++;
+	}
+
+	// ── Gap between prompt and input ──
+	if (promptLines > 0) row++;
+
+	// ── Input line with blinking caret (centred) ──
+	String dispText = screen.displayText();
+	// Caret blinks: visible for 4 frames, hidden for 4 frames (at 125ms tick = 500ms cycle)
+	bool caretVisible = ((screen.frame / 4) % 2) == 0;
+	String caretChar = caretVisible ? "_" : "";
+	String fullLine = dispText + caretChar;
+
+	const char *inputStr = fullLine.c_str();
+	int inputW = display.getUTF8Width(inputStr);
+	int inputX = (layout.screenWidth - inputW) / 2;
+	if (inputX < 0) inputX = 0;
+	int inputY = startY + row * rh;
+	// Clamp so descenders don't clip
+	if (inputY > layout.screenHeight - 2) inputY = layout.screenHeight - 2;
+	display.drawUTF8(inputX, inputY, inputStr);
+
+	// ── Footer ──
+	if (screen.footerText.length() > 0) {
+		const char *ft = screen.footerText.c_str();
+		int fw = display.getUTF8Width(ft);
+		int fx = (layout.screenWidth - fw) / 2;
+		if (fx < 0) fx = 0;
+		int fy = layout.menuTextRow * rh + rh;
+		if (fy > layout.screenHeight - 2) fy = layout.screenHeight - 2;
+		display.drawUTF8(fx, fy, ft);
+	}
+
+	display.sendBuffer();
+}
+
 void Renderer::renderFoundSsids(const String &soFar) {
 	menuIsShowing = true;
 	if (soFar == "") {
@@ -252,16 +340,6 @@ void Renderer::renderFoundSsids(const String &soFar) {
 		}
 		renderPagedList(model);
 	}
-}
-
-void Renderer::renderEnterPassword() {
-	clearArray();
-	String temp = ssidPasswordEntered+ssidPasswordCurrentChar;
-	if (temp.length()>12) { temp = "\253"+temp.substring(temp.length()-12); } else { temp = " "+temp; }
-	oledText[0] = MSG_ENTER_PASSWORD;
-	oledText[2] = temp;
-	setMenuTextForOled(menu_enter_ssid_password);
-	renderArrayInternal(false,true,true,false);
 }
 
 void Renderer::renderFunctions() {
@@ -614,7 +692,8 @@ void Renderer::renderSpeed() {
 		display.drawBox(0, 0, layout.throttleNumberBoxW, layout.throttleNumberBoxH);
 		display.setDrawColor(1);
 		display.setFont(fonts.throttleNumber);
-		display.drawStr(layout.throttleNumberX, layout.throttleNumberY, String(currentIdx + 1).c_str());
+		int tnY = (layout.throttleNumberBoxH + display.getFontAscent()) / 2;
+		display.drawStr(layout.throttleNumberX, tnY, String(currentIdx + 1).c_str());
 	}
 
 	renderBattery();
