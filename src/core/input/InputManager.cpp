@@ -4,7 +4,6 @@
 #include "OperationModeHandler.h"
 #include "../../../actions.h"
 extern OperationModeHandler operationModeHandler; // defined in sketch
-extern void doDirectFunction(int multiThrottleIndex, int functionNumber, bool pressed); // ensure direct function control
 extern void doKeyPress(char key, bool pressed); // legacy keypad logic bridge (to be refactored later)
 
 
@@ -68,7 +67,7 @@ void InputManager::dispatch(const InputEvent &ev) {
             // Directly invoke function control for current throttle index.
             extern class ThrottleManager throttleManager;
             int mtIndex = throttleManager.getCurrentThrottleIndex();
-            doDirectFunction(mtIndex, actionCode, pressed);
+            throttleManager.directFunction(mtIndex, actionCode, pressed);
             return;
         } else {
             if (!pressed) return; // non-function actions fire on press only

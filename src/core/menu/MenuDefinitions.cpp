@@ -37,7 +37,6 @@ extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
 extern String getLocoWithLength(String loco);
-extern void doFunction(int, int, bool, bool);
 extern void selectEditConsistList(int);
 extern SystemStateManager systemStateManager;
 
@@ -127,7 +126,7 @@ namespace MenuHandlers {
         if (ctx.input.length() > 0) {
             // Direct function number entered
             int functionNumber = ctx.input.toInt();
-            doFunction(throttleManager.getCurrentThrottleIndex(), functionNumber, true, true);
+            throttleManager.toggleFunction(throttleManager.getCurrentThrottleIndex(), functionNumber, true, true);
         } else {
             // Show function list via InputManager
             inputManager.setMode(InputMode::FunctionSelection);

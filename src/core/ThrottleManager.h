@@ -64,6 +64,31 @@ public:
 	Direction getDirection(int throttle) const { return currentDirection[throttle]; }
 	int getSpeedStep() const { return globalSpeedStep; }
 	void setGlobalSpeedStep(int step) { if (step<1) step=1; globalSpeedStep = step; }
+
+	// ── Function state management ──────────────────────────────────────────
+	// Accessors
+	bool getFunctionState(int throttle, int funcNum) const;
+	const String& getFunctionLabel(int throttle, int funcNum) const;
+	int getFunctionFollow(int throttle, int funcNum) const;
+
+	// Mutation (used by protocol callbacks)
+	void setFunctionState(int throttle, int funcNum, bool state);
+	void setFunctionLabelsFromRoster(int throttle, const String labels[MAX_FUNCTIONS]);
+
+	// Reset helpers
+	void resetFunctionStates(int throttle);
+	void resetFunctionLabels(int throttle);
+	void resetAllFunctionLabels();
+	void resetAllFunctionFollow();
+
+	// Consist-aware function dispatch
+	// toggleFunction: for latching controls (keypad/menu) — checks current state to toggle
+	void toggleFunction(int throttle, int funcNum, bool pressed);
+	void toggleFunction(int throttle, int funcNum, bool pressed, bool force);
+	// directFunction: for momentary controls (hard buttons) — passes press/release through
+	void directFunction(int throttle, int funcNum, bool pressed);
+	void directFunction(int throttle, int funcNum, bool pressed, bool force);
+
 private:
 	WiThrottleProtocol *proto { nullptr };
 	void writeSpeedIfVisible(int throttle);
@@ -99,4 +124,12 @@ private:
 	int currentSpeed[WIT_MAX_THROTTLES];
 	Direction currentDirection[WIT_MAX_THROTTLES];
 	int globalSpeedStep { speedStep }; // base step from macro; modified by multiplier logic
+
+	// Function arrays (migrated from sketch globals)
+	bool functionStates_[WIT_MAX_THROTTLES][MAX_FUNCTIONS];
+	String functionLabels_[WIT_MAX_THROTTLES][MAX_FUNCTIONS];
+	int functionFollow_[WIT_MAX_THROTTLES][MAX_FUNCTIONS];
+
+	// Internal consist-aware dispatch helper
+	void dispatchToConsist(int throttle, int funcNum, bool pressed, bool force);
 };

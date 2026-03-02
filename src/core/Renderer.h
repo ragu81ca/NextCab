@@ -10,6 +10,7 @@
 #include "ui/TitleScreen.h"
 #include "ui/WaitScreen.h"
 #include "ui/TextInputScreen.h"
+#include "ui/ThrottleScreen.h"
 
 class Renderer {
 public:
@@ -47,6 +48,10 @@ public:
     /// Render a TextInputScreen — prompt lines, input with blinking caret, footer.
     void renderTextInput(const TextInputScreen &screen);
 
+    /// Render the main throttle operating screen from a pre-built model.
+    /// Replaces the old renderSpeed() which reached into globals directly.
+    void renderThrottleScreen(const ThrottleScreen &screen);
+
     // Access layout for code that needs content capacity values
     const DisplayLayout& getLayout() const { return layout; }
 
@@ -55,7 +60,7 @@ public:
     String formatLocoDisplay(const String &loco, bool needSuffixes);
 
 private:
-    void renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine, bool centerText = false);
+    void renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine, bool centerText = false, bool fullWidthInvert = false);
     int  populateTitleArray(const TitleScreen &screen); // shared layout for renderTitle/renderWait
     void drawSpinner(int centerY, int frame);            // bouncing-dot animation
     void renderFunctions();

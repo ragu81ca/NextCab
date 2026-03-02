@@ -84,20 +84,26 @@ void Renderer::renderPagedList(const PagedListModel &model) {
 	// Use page capacity for layout; fall back to itemCount when capacity not set
 	int capacity = (model.pageCapacity > 0) ? model.pageCapacity : model.itemCount;
 	int halfPage = capacity / 2;
+	// halfPageSplit only makes sense when items overflow into col 2 (OLED).
+	// On TFT all items fit in column 0, so disable the split to avoid a
+	// mid-screen gap and place the footer at the canonical bottom row.
+	bool useSplit = model.halfPageSplit && (layout.secondColumnStartRow <= capacity);
 	// Optional header in row 0 — shifts item rows down by 1
 	int rowOffset = (model.headerText.length() > 0) ? 1 : 0;
 	if (rowOffset) oledText[0] = model.headerText;
 	for (int i = 0; i < model.itemCount; i++) {
 		const auto &item = model.items[i];
 		if (item.label.length() > 0) {
-			int row = model.halfPageSplit ? ((i < halfPage) ? i : i + 1) : i;
+			int row = useSplit ? ((i < halfPage) ? i : i + 1) : i;
 			row += rowOffset;
 			oledText[row] = String((i + 1) % 10) + ": " + item.label;
 			if (item.invert) oledTextInvert[row] = true;
 		}
 	}
-	oledText[layout.menuTextRow] = model.footerText;
-	renderArrayInternal(false, false, true, false);
+	// Place footer at the split gap when using split, else at the canonical menu row
+	int footerRow = useSplit ? (halfPage + rowOffset) : layout.menuTextRow;
+	oledText[footerRow] = model.footerText;
+	renderArrayInternal(false, false, true, false, false, !useSplit);
 }
 
 // ── ListSelectionScreen-based renderer ─────────────────────────────────
@@ -107,6 +113,9 @@ void Renderer::renderListSelection(ListSelectionScreen &screen) {
 
 	int capacity = screen.visibleRows;
 	int halfPage = capacity / 2;
+	// halfPageSplit only makes sense when items overflow into col 2 (OLED).
+	// On TFT all items fit in column 0, so disable the split.
+	bool useSplit = screen.halfPageSplit && (layout.secondColumnStartRow <= capacity);
 
 	// Optional header in row 0 — shifts item rows down by 1
 	int rowOffset = (screen.headerText.length() > 0) ? 1 : 0;
@@ -118,15 +127,17 @@ void Renderer::renderListSelection(ListSelectionScreen &screen) {
 		bool invert = false;
 		String label = screen.itemLabel(gi, invert);
 		if (label.length() > 0) {
-			int row = screen.halfPageSplit ? ((i < halfPage) ? i : i + 1) : i;
+			int row = useSplit ? ((i < halfPage) ? i : i + 1) : i;
 			row += rowOffset;
 			oledText[row] = String((i + 1) % 10) + ": " + label;
 			if (invert) oledTextInvert[row] = true;
 		}
 	}
 
-	oledText[layout.menuTextRow] = screen.footerText();
-	renderArrayInternal(false, false, true, false);
+	// Place footer at the split gap when using split, else at the canonical menu row
+	int footerRow = useSplit ? (halfPage + rowOffset) : layout.menuTextRow;
+	oledText[footerRow] = screen.footerText();
+	renderArrayInternal(false, false, true, false, false, !useSplit);
 }
 
 // ── TitleScreen renderer ───────────────────────────────────────────────
@@ -364,7 +375,7 @@ void Renderer::renderFunctions() {
 	int boxW = layout.functionIndicatorBoxW;
 	int boxH = layout.functionIndicatorBoxH;
 	int spacing = layout.functionIndicatorSpacing;
-	for (int i=0; i < MAX_FUNCTIONS; i++) if (functionStates[currentIdx][i]) {
+	for (int i=0; i < MAX_FUNCTIONS; i++) if (throttleManager.getFunctionState(currentIdx, i)) {
 		display.drawRBox(i*spacing+startX, y+1, boxW, boxH, 2);
 		display.setDrawColor(0);
 		display.setFont(fonts.functionIndicators);
@@ -452,7 +463,7 @@ void Renderer::renderAllLocos(bool hideLeadLoco) {
 	}
 }
 // Internal unified array renderer
-void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine, bool centerText) {
+void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool sendBuffer, bool drawTopLine, bool centerText, bool fullWidthInvert) {
 	display.clearBuffer();
 	display.setDrawColor(1);
 	display.setFont(fonts.defaultFont);
@@ -482,8 +493,10 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 		// Clamp y so descenders aren't clipped at the screen bottom
 		int drawY = (y > layout.screenHeight - 2) ? layout.screenHeight - 2 : y;
 		if (oledTextInvert[i]) {
+			int boxYOff = layout.rowHeight - 3;  // align box top with font ascender
+			int boxW = fullWidthInvert ? (layout.screenWidth - x) : (xInc - 2);
 			display.setDrawColor(1);
-			display.drawBox(x, drawY-8, xInc-2, layout.rowHeight);
+			display.drawBox(x, drawY - boxYOff, boxW, layout.rowHeight);
 			display.setDrawColor(0);
 		}
 		// Draw base text
@@ -625,75 +638,53 @@ void Renderer::renderBrakeIndicator() {
 }
 
 void Renderer::renderSpeed() {
+	// Delegate to the model-based rendering path.
+	// buildThrottleScreen() populates a ThrottleScreen from global state;
+	// renderThrottleScreen() draws it without touching any globals.
+	ThrottleScreen screen;
+	buildThrottleScreen(screen);
+	renderThrottleScreen(screen);
+}
+
+// ── ThrottleScreen-based rendering ──────────────────────────────────────────
+// Self-contained operating screen renderer driven entirely by the
+// ThrottleScreen model.  No globals are read — all data comes from `screen`.
+
+void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	lastOledScreen = last_oled_screen_speed;
 	menuIsShowing = false;
-	String sLocos = "";
-	String sSpeed = "";
-	String sDirection = "";
-	String sep = " ";
-	bool foundNext = false;
-	String nextNo = "";
-	String nextSpeedDir = "";
-	String noLocoMsg1 = "";
-	String noLocoMsg2 = "";
 	clearArray();
 	bool drawTop = false;
-	int currentIdx = throttleManager.getCurrentThrottleIndex();
-	char currentChar = throttleManager.getCurrentThrottleChar();
+	String noLocoMsg1;
+	String noLocoMsg2;
 
-	if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
-		for (int i = 0; i < wiThrottleProtocol.getNumberOfLocomotives(currentChar); i++) {
-			sLocos += sep + getDisplayLocoString(currentIdx, i);
-			sep = CONSIST_SPACE_BETWEEN_LOCOS;
-		}
-		sSpeed = String(throttleManager.getDisplaySpeed(currentIdx));
-		Direction dir = throttleManager.directions()[currentIdx];
-		sDirection = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
-
-		if (throttleManager.getMaxThrottles() > 1) {
-			int nextIdx = currentIdx + 1;
-			for (int i = nextIdx; i < throttleManager.getMaxThrottles(); i++)
-				if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { foundNext = true; nextIdx = i; break; }
-			if (!foundNext && currentIdx > 0) {
-				for (int i = 0; i < currentIdx; i++)
-					if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { foundNext = true; nextIdx = i; break; }
-			}
-			if (foundNext) {
-				nextNo = String(nextIdx + 1);
-				int sp = throttleManager.getDisplaySpeed(nextIdx);
-				nextSpeedDir = String(sp);
-				Direction nextDir = throttleManager.directions()[nextIdx];
-				if (nextDir == Forward) nextSpeedDir += DIRECTION_FORWARD_TEXT_SHORT;
-				else nextSpeedDir = DIRECTION_REVERSE_TEXT_SHORT + nextSpeedDir;
-				nextSpeedDir = String("     ") + nextSpeedDir;
-				nextSpeedDir = nextSpeedDir.substring(nextSpeedDir.length() - 5);
-			}
-		}
-		oledText[0] = "   " + sLocos;
+	if (screen.hasLoco()) {
+		oledText[0] = "   " + screen.locoDisplayString;
 		drawTop = true;
 	} else {
 		setAppnameForOled();
-		// "Throttle #N" and "No Loco Selected" are drawn centered after
-		// renderArrayInternal to handle both narrow and wide displays.
-		noLocoMsg1 = MSG_THROTTLE_NUMBER + String(currentIdx + 1);
+		noLocoMsg1 = MSG_THROTTLE_NUMBER + String(screen.throttleNumber);
 		noLocoMsg2 = MSG_NO_LOCO_SELECTED;
 		drawTop = true;
 	}
 
-	if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu);
-	else setMenuTextForOled(menu_menu_hash_is_functions);
+	// Populate menu/key-label lines from the model
+	for (int i = 0; i < ThrottleScreen::MAX_MENU_LINES; i++) {
+		oledText[i] = screen.menuLines[i].length() > 0 ? screen.menuLines[i] : oledText[i];
+		oledTextInvert[i] = screen.menuInvert[i];
+	}
 
 	renderArrayInternal(false, false, false, drawTop);
 
-	// Draw centered "Throttle #N" / "No Loco Selected" when idle
+	// Centred "Throttle #N" / "No Loco Selected" when idle
 	if (noLocoMsg1.length() > 0) {
 		display.setFont(fonts.defaultFont);
-		int contentTop = layout.topBarHeight + 4;
+		int contentTop    = layout.topBarHeight + 4;
 		int contentBottom = layout.statusBarY - 4;
-		int areaHeight = contentBottom - contentTop;
-		int lineSpacing = layout.rowHeight + 4;
-		int blockHeight = lineSpacing;  // two lines, one gap
-		int startY = contentTop + (areaHeight - blockHeight) / 2;
+		int areaHeight    = contentBottom - contentTop;
+		int lineSpacing   = layout.rowHeight + 4;
+		int blockHeight   = lineSpacing;
+		int startY        = contentTop + (areaHeight - blockHeight) / 2;
 
 		int w1 = display.getUTF8Width(noLocoMsg1.c_str());
 		display.drawUTF8((layout.screenWidth - w1) / 2, startY, noLocoMsg1.c_str());
@@ -701,21 +692,48 @@ void Renderer::renderSpeed() {
 		display.drawUTF8((layout.screenWidth - w2) / 2, startY + lineSpacing, noLocoMsg2.c_str());
 	}
 
-	if (wiThrottleProtocol.getNumberOfLocomotives(currentChar) > 0) {
-		renderFunctions();
+	// Function state indicators
+	if (screen.hasLoco()) {
+		int startX  = layout.functionIndicatorStartX;
+		int y       = layout.functionIndicatorY;
+		int boxW    = layout.functionIndicatorBoxW;
+		int boxH    = layout.functionIndicatorBoxH;
+		int spacing = layout.functionIndicatorSpacing;
+		for (int i = 0; i < MAX_FUNCTIONS; i++) {
+			if (screen.functionActive[i]) {
+				display.drawRBox(i * spacing + startX, y + 1, boxW, boxH, 2);
+				display.setDrawColor(0);
+				display.setFont(fonts.functionIndicators);
+				display.drawUTF8(i * spacing + 1 + startX, y + 6 + 1,
+				                 String(i < 10 ? i : (i < 20 ? i - 10 : i - 20)).c_str());
+				display.setDrawColor(1);
+			}
+		}
+
+		// Throttle number badge
 		display.setDrawColor(0);
 		display.drawBox(0, 0, layout.throttleNumberBoxW, layout.throttleNumberBoxH);
 		display.setDrawColor(1);
 		display.setFont(fonts.throttleNumber);
 		int tnY = (layout.throttleNumberBoxH + display.getFontAscent()) / 2;
-		display.drawStr(layout.throttleNumberX, tnY, String(currentIdx + 1).c_str());
+		display.drawStr(layout.throttleNumberX, tnY, String(screen.throttleNumber).c_str());
 	}
 
+	// Battery (already abstracted via batteryMonitor)
 	renderBattery();
-	renderSpeedStepMultiplier();
+
+	// Speed step multiplier indicator (shown when different from compile-time default)
+	if (screen.currentSpeedStep != speedStep) {
+		display.setDrawColor(1);
+		display.setFont(fonts.glyphs);
+		display.drawGlyph(layout.speedStepGlyphX, layout.speedStepGlyphY, glyph_speed_step);
+		display.setFont(fonts.defaultFont);
+		display.drawStr(layout.speedStepTextX, layout.speedStepTextY,
+		                String(screen.currentSpeedStep).c_str());
+	}
 
 	// Track power indicator
-	if (trackPower == PowerOn) {
+	if (screen.trackPower == PowerOn) {
 		display.drawRBox(layout.trackPowerBoxX, layout.trackPowerBoxY,
 		                 layout.trackPowerBoxW, layout.trackPowerBoxH, 1);
 		display.setDrawColor(0);
@@ -725,7 +743,7 @@ void Renderer::renderSpeed() {
 	display.setDrawColor(1);
 
 	// Heartbeat disabled indicator
-	if (!heartbeatMonitor.enabled()) {
+	if (!screen.heartbeatEnabled) {
 		display.setFont(fonts.glyphs);
 		display.drawGlyph(layout.heartbeatGlyphX, layout.heartbeatGlyphY, glyph_heartbeat_off);
 		display.setDrawColor(2);
@@ -734,25 +752,43 @@ void Renderer::renderSpeed() {
 		display.setDrawColor(1);
 	}
 
-	renderMomentumIndicator();
-	renderBrakeIndicator();
+	// Momentum indicator (L/M/H)
+	if (screen.momentumLevel > 0) {
+		const char *labels[] = {"L", "M", "H"};
+		int idx = constrain(screen.momentumLevel - 1, 0, 2);
+		display.setFont(fonts.defaultFont);
+		display.drawStr(layout.momentumTextX, layout.momentumTextY, labels[idx]);
+	}
 
-	// Direction and speed
+	// Brake / ramp indicator
+	if (screen.brakeState == 1) {
+		display.setFont(fonts.defaultFont);
+		display.drawStr(layout.brakeTextX, layout.brakeTextY, "B");
+	} else if (screen.brakeState == 2) {
+		display.setFont(fonts.glyphs);
+		display.drawGlyph(layout.brakeTextX, layout.brakeTextY, glyph_arrow_up);
+	} else if (screen.brakeState == 3) {
+		display.setFont(fonts.glyphs);
+		display.drawGlyph(layout.brakeTextX, layout.brakeTextY, glyph_arrow_down);
+	}
+
+	// Direction and speed (large font)
 	display.setFont(fonts.direction);
-	display.drawStr(layout.directionX, layout.directionY, sDirection.c_str());
+	display.drawStr(layout.directionX, layout.directionY, screen.directionDisplay.c_str());
 
-	const char *cSpeed = sSpeed.c_str();
+	const char *cSpeed = screen.speedDisplay.c_str();
 	display.setFont(fonts.speed);
 	int width = display.getStrWidth(cSpeed);
-	// Center speed text in the speed area
 	int speedAreaWidth = layout.directionX - layout.speedX;
 	display.drawStr(layout.speedX + (speedAreaWidth - width), layout.speedY, cSpeed);
 
-	// Next throttle info
-	if (throttleManager.getMaxThrottles() > 1 && foundNext) {
+	// Next throttle preview
+	if (screen.hasNextThrottle) {
 		display.setFont(fonts.nextThrottle);
-		display.drawStr(layout.nextThrottleNumberX, layout.nextThrottleNumberY, nextNo.c_str());
-		display.drawStr(layout.nextThrottleSpeedX, layout.nextThrottleSpeedY, nextSpeedDir.c_str());
+		display.drawStr(layout.nextThrottleNumberX, layout.nextThrottleNumberY,
+		                screen.nextThrottleNumber.c_str());
+		display.drawStr(layout.nextThrottleSpeedX, layout.nextThrottleSpeedY,
+		                screen.nextThrottleSpeedDir.c_str());
 	}
 
 	display.sendBuffer();

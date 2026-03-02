@@ -45,10 +45,11 @@ void FunctionSelectionHandler::configureScreen() {
     s.itemLabel = [this](int gi, bool &invert) -> String {
         int currentIdx = throttleManager.getCurrentThrottleIndex();
         int labelMax = renderer_.getLayout().functionLabelMaxLength;
-        String label = functionLabels[currentIdx][gi];
+        String label = throttleManager.getFunctionLabel(currentIdx, gi);
         if (labelMax > 0 && (int)label.length() > labelMax) label = label.substring(0, labelMax);
-        if (functionStates[currentIdx][gi]) invert = true;
-        return (gi < 10) ? label : String(gi) + "-" + label;
+        if (throttleManager.getFunctionState(currentIdx, gi)) invert = true;
+        // Always include function number so the row is never empty
+        return (label.length() > 0) ? (String(gi) + "-" + label) : String(gi);
     };
 
     s.onSelect = [](int index) {

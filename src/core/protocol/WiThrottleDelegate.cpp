@@ -71,15 +71,13 @@ void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, Stri
 void WiThrottleDelegate::receivedFunctionStateMultiThrottle(char multiThrottle, uint8_t func, bool state) {
     noteServerActivity();
     int idx = getMultiThrottleIndex(multiThrottle);
-    if (functionStates[idx][func] != state) { functionStates[idx][func] = state; displayUpdateFromWit(idx); }
+    if (throttleManager.getFunctionState(idx, func) != state) { throttleManager.setFunctionState(idx, func, state); displayUpdateFromWit(idx); }
 }
 
 void WiThrottleDelegate::receivedRosterFunctionListMultiThrottle(char multiThrottle, String functions[MAX_FUNCTIONS]) {
     noteServerActivity();
     int idx = getMultiThrottleIndex(multiThrottle);
-    for (int i = 0; i < MAX_FUNCTIONS; i++) { 
-        functionLabels[idx][i] = functions[i]; 
-    }
+    throttleManager.setFunctionLabelsFromRoster(idx, functions);
 }
 
 void WiThrottleDelegate::receivedTrackPower(TrackPower state) {

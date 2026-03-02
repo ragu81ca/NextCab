@@ -63,9 +63,7 @@ extern int routeListIndex[];
 extern String routeListSysName[]; 
 extern String routeListUserName[];
 extern int routeListState[];
-extern bool functionStates[][MAX_FUNCTIONS];
-extern String functionLabels[][MAX_FUNCTIONS];
-extern int functionFollow[][MAX_FUNCTIONS];
+// Function arrays migrated to ThrottleManager
 // Heartbeat state migrated to HeartbeatMonitor (no longer exposed as globals)
 // extern int heartbeatPeriod;
 // extern long lastServerResponseTime;
@@ -92,6 +90,9 @@ extern bool hashShowsFunctionsInsteadOfKeyDefs;
 String getDisplayLocoString(int multiThrottleIndex, int index); // helper for speed screen
 int getDisplaySpeed(int multiThrottleIndex);
 
+class ThrottleScreen; // forward declaration
+void buildThrottleScreen(ThrottleScreen &screen); // populate screen model from global state
+
 // function prototypes
 
 void displayUpdateFromWit(int);
@@ -112,9 +113,6 @@ void doDirectAction(int);
 void doMenu(void);
 void resetMenu(void);
 
-void resetFunctionStates(int);
-void resetFunctionLabels(int); 
-void resetAllFunctionLabels(void); 
 String getLocoWithLength(String);
 void speedEstop(void);
 void speedDown(int, int);
@@ -127,14 +125,6 @@ void toggleHeartbeatCheck(void);
 void toggleDirection(int);
 void toggleLocoFacing(int, String);
 void changeDirection(int, Direction);
-
-void doDirectFunction(int, bool);
-void doDirectFunction(int, bool, bool force);
-void doFunction(int, int, bool);
-void doFunction(int, int, bool, bool force);
-
-void doFunctionWhichLocosInConsist(int multiThrottleIndex, int functionNumber, bool pressed);
-void doFunctionWhichLocosInConsist(int multiThrottleIndex, int functionNumber, bool pressed, bool force);
 
 void powerOnOff(TrackPower);
 void powerToggle(void);

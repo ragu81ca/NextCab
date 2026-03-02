@@ -17,6 +17,11 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 		currentSpeed[i] = 0;
 		currentDirection[i] = Forward;
 	}
+	// Initialize function arrays
+	resetAllFunctionLabels();
+	resetAllFunctionFollow();
+	for (int i = 0; i < WIT_MAX_THROTTLES; i++) resetFunctionStates(i);
+
 	momentum_.begin(this, &sound_); // Pass both ThrottleManager and SoundController to momentum
 	sound_.begin(this); // Initialize sound controller with reference to ThrottleManager
 }
@@ -312,3 +317,135 @@ void ThrottleManager::setMaxThrottles(int value) {
 void ThrottleManager::setCurrentThrottleIndex(int idx) { selectThrottle(idx); }
 void ThrottleManager::cycleNextThrottle() { nextThrottle(); }
 // obsolete methods removed (resetSpeedStepMultiplier/applyAdditionalMultiplier/toggleAdditionalMultiplier)
+
+// ── Function state management ──────────────────────────────────────────
+
+bool ThrottleManager::getFunctionState(int throttle, int funcNum) const {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES || funcNum < 0 || funcNum >= MAX_FUNCTIONS) return false;
+	return functionStates_[throttle][funcNum];
+}
+
+const String& ThrottleManager::getFunctionLabel(int throttle, int funcNum) const {
+	static const String empty;
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES || funcNum < 0 || funcNum >= MAX_FUNCTIONS) return empty;
+	return functionLabels_[throttle][funcNum];
+}
+
+int ThrottleManager::getFunctionFollow(int throttle, int funcNum) const {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES || funcNum < 0 || funcNum >= MAX_FUNCTIONS) return CONSIST_LEAD_LOCO;
+	return functionFollow_[throttle][funcNum];
+}
+
+void ThrottleManager::setFunctionState(int throttle, int funcNum, bool state) {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES || funcNum < 0 || funcNum >= MAX_FUNCTIONS) return;
+	functionStates_[throttle][funcNum] = state;
+}
+
+void ThrottleManager::setFunctionLabelsFromRoster(int throttle, const String labels[MAX_FUNCTIONS]) {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+	for (int i = 0; i < MAX_FUNCTIONS; i++) {
+		functionLabels_[throttle][i] = labels[i];
+	}
+}
+
+void ThrottleManager::resetFunctionStates(int throttle) {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+	for (int i = 0; i < MAX_FUNCTIONS; i++) {
+		functionStates_[throttle][i] = false;
+	}
+}
+
+void ThrottleManager::resetFunctionLabels(int throttle) {
+	if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+	for (int i = 0; i < MAX_FUNCTIONS; i++) {
+		functionLabels_[throttle][i] = "";
+	}
+}
+
+void ThrottleManager::resetAllFunctionLabels() {
+	for (int i = 0; i < WIT_MAX_THROTTLES; i++) {
+		resetFunctionLabels(i);
+	}
+}
+
+void ThrottleManager::resetAllFunctionFollow() {
+	for (int i = 0; i < WIT_MAX_THROTTLES; i++) {
+		functionFollow_[i][0]  = CONSIST_FUNCTION_FOLLOW_F0;
+		functionFollow_[i][1]  = CONSIST_FUNCTION_FOLLOW_F1;
+		functionFollow_[i][2]  = CONSIST_FUNCTION_FOLLOW_F2;
+		functionFollow_[i][3]  = CONSIST_FUNCTION_FOLLOW_F3;
+		functionFollow_[i][4]  = CONSIST_FUNCTION_FOLLOW_F4;
+		functionFollow_[i][5]  = CONSIST_FUNCTION_FOLLOW_F5;
+		functionFollow_[i][6]  = CONSIST_FUNCTION_FOLLOW_F6;
+		functionFollow_[i][7]  = CONSIST_FUNCTION_FOLLOW_F7;
+		functionFollow_[i][8]  = CONSIST_FUNCTION_FOLLOW_F8;
+		functionFollow_[i][9]  = CONSIST_FUNCTION_FOLLOW_F9;
+		functionFollow_[i][10] = CONSIST_FUNCTION_FOLLOW_F10;
+		functionFollow_[i][11] = CONSIST_FUNCTION_FOLLOW_F11;
+		functionFollow_[i][12] = CONSIST_FUNCTION_FOLLOW_F12;
+		functionFollow_[i][13] = CONSIST_FUNCTION_FOLLOW_F13;
+		functionFollow_[i][14] = CONSIST_FUNCTION_FOLLOW_F14;
+		functionFollow_[i][15] = CONSIST_FUNCTION_FOLLOW_F15;
+		functionFollow_[i][16] = CONSIST_FUNCTION_FOLLOW_F16;
+		functionFollow_[i][17] = CONSIST_FUNCTION_FOLLOW_F17;
+		functionFollow_[i][18] = CONSIST_FUNCTION_FOLLOW_F18;
+		functionFollow_[i][19] = CONSIST_FUNCTION_FOLLOW_F19;
+		functionFollow_[i][20] = CONSIST_FUNCTION_FOLLOW_F20;
+		functionFollow_[i][21] = CONSIST_FUNCTION_FOLLOW_F21;
+		functionFollow_[i][22] = CONSIST_FUNCTION_FOLLOW_F22;
+		functionFollow_[i][23] = CONSIST_FUNCTION_FOLLOW_F23;
+		functionFollow_[i][24] = CONSIST_FUNCTION_FOLLOW_F24;
+		functionFollow_[i][25] = CONSIST_FUNCTION_FOLLOW_F25;
+		functionFollow_[i][26] = CONSIST_FUNCTION_FOLLOW_F26;
+		functionFollow_[i][27] = CONSIST_FUNCTION_FOLLOW_F27;
+		functionFollow_[i][28] = CONSIST_FUNCTION_FOLLOW_F28;
+		functionFollow_[i][29] = CONSIST_FUNCTION_FOLLOW_F29;
+		functionFollow_[i][30] = CONSIST_FUNCTION_FOLLOW_F30;
+		functionFollow_[i][31] = CONSIST_FUNCTION_FOLLOW_F31;
+	}
+}
+
+// ── Consist-aware function dispatch ────────────────────────────────────
+
+void ThrottleManager::dispatchToConsist(int throttle, int funcNum, bool pressed, bool force) {
+	if (!proto) return;
+	char tChar = getMultiThrottleChar(throttle);
+	if (functionFollow_[throttle][funcNum] == CONSIST_LEAD_LOCO) {
+		proto->setFunction(tChar, "", funcNum, pressed, force);
+	} else { // CONSIST_ALL_LOCOS
+		proto->setFunction(tChar, "*", funcNum, pressed, force);
+	}
+}
+
+void ThrottleManager::directFunction(int throttle, int funcNum, bool pressed) {
+	directFunction(throttle, funcNum, pressed, false);
+}
+
+void ThrottleManager::directFunction(int throttle, int funcNum, bool pressed, bool force) {
+	if (!proto) return;
+	char tChar = getMultiThrottleChar(throttle);
+	if (proto->getNumberOfLocomotives(tChar) > 0) {
+		dispatchToConsist(throttle, funcNum, pressed, force);
+		renderer.renderSpeed();
+	}
+}
+
+void ThrottleManager::toggleFunction(int throttle, int funcNum, bool pressed) {
+	toggleFunction(throttle, funcNum, pressed, false);
+}
+
+void ThrottleManager::toggleFunction(int throttle, int funcNum, bool pressed, bool force) {
+	if (!proto) return;
+	char tChar = getMultiThrottleChar(throttle);
+	if (proto->getNumberOfLocomotives(tChar) > 0) {
+		if (force) {
+			dispatchToConsist(throttle, funcNum, true, force);
+			if (functionStates_[throttle][funcNum]) {
+				dispatchToConsist(throttle, funcNum, false, force);
+			}
+		} else {
+			dispatchToConsist(throttle, funcNum, pressed, false);
+		}
+		renderer.renderSpeed();
+	}
+}

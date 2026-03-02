@@ -19,10 +19,7 @@ void receivingServerInfoOled(int index, int total);
 void setupPreferences(bool forceClear);
 void doOneStartupCommand(String cmd);
 
-extern int currentSpeed[6];
-extern Direction currentDirection[6];
-extern bool functionStates[6][MAX_FUNCTIONS];
-extern String functionLabels[6][MAX_FUNCTIONS];
+// Speed/direction/function arrays migrated to ThrottleManager
 extern int rosterSize;
 extern int rosterIndex[];
 extern int rosterSortedIndex[];
