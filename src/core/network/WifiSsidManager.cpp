@@ -1,5 +1,6 @@
 #include "WifiSsidManager.h"
 #include "WiThrottleConnectionManager.h"
+#include "../storage/ConfigStore.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include "../../../static.h"          // macro constants
@@ -15,25 +16,19 @@ extern int ssidSelectionSource;
 extern String turnoutPrefix;
 extern String routePrefix;
 
-void WifiSsidManager::begin(const String* configuredSsids,
-               const String* configuredPasswords,
-               int configuredCount,
-               const String* turnoutPrefixes,
-               const String* routePrefixes,
-               SystemStateManager& stateManager,
+void WifiSsidManager::begin(SystemStateManager& stateManager,
                Renderer& renderer,
+               ConfigStore& configStore,
                StateCallback onStateChange,
                ListChangedCallback onListChanged) {
-    ssids_    = configuredSsids;
-    passwords_ = configuredPasswords;
-    maxSsids  = configuredCount;
-    turnoutPrefixes_ = turnoutPrefixes;
-    routePrefixes_   = routePrefixes;
-    stateManager_    = &stateManager;
-    renderer_        = &renderer;
+    stateManager_  = &stateManager;
+    renderer_      = &renderer;
+    configStore_   = &configStore;
     onStateChangeCb  = onStateChange;
     onListChangedCb  = onListChanged;
     changeState(State::Disconnected);
+
+    loadStoredCredentials();
 }
 
 void WifiSsidManager::changeState(State s) {
@@ -41,6 +36,23 @@ void WifiSsidManager::changeState(State s) {
         currentState = s;
         if (onStateChangeCb) onStateChangeCb(s);
     }
+}
+
+void WifiSsidManager::loadStoredCredentials() {
+    storedSsids_.clear();
+    storedPasswords_.clear();
+
+    // Load all credentials from persistent storage
+    if (configStore_) {
+        auto stored = configStore_->loadWifiNetworks();
+        for (const auto& cred : stored) {
+            storedSsids_.push_back(cred.ssid);
+            storedPasswords_.push_back(cred.password);
+        }
+    }
+
+    storedCount_ = (int)storedSsids_.size();
+    Serial.printf("[WifiSsidManager] Loaded %d stored credentials\n", storedCount_);
 }
 
 WifiSsidManager::FoundSsid WifiSsidManager::getFound(int i) const {
@@ -137,21 +149,19 @@ void WifiSsidManager::processScanResults(int num) {
 
 void WifiSsidManager::showConfiguredList() {
     debug_println("WifiSsidManager::showConfiguredList()");
-    if (maxSsids == 0) {
-        // No configured networks — fall through to WiFi scan so the user can discover one
-        debug_println("No configured SSIDs, switching to browse mode");
+    if (storedCount_ == 0) {
+        // No stored networks — fall through to WiFi scan
+        debug_println("No stored SSIDs, switching to browse mode");
         ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
         browseSsids();
         return;
     }
-    debug_print(maxSsids); debug_println(MSG_SSIDS_LISTED);
-    // Auto-connect if exactly 1 configured SSID
-    if (maxSsids == 1) {
-        selectedSsidStr = ssids_[0];
-        selectedSsidPasswordStr = passwords_[0];
+    debug_print(storedCount_); debug_println(MSG_SSIDS_LISTED);
+    // Auto-connect if exactly 1 known SSID
+    if (storedCount_ == 1) {
+        selectedSsidStr = storedSsids_[0];
+        selectedSsidPasswordStr = storedPasswords_[0];
         stateManager_->setState(SystemState::WifiConnecting);
-        turnoutPrefix = turnoutPrefixes_[0];
-        routePrefix = routePrefixes_[0];
     } else {
         stateManager_->setState(SystemState::WifiSelection);
         // Rendering is handled by WifiSelectionHandler via ListSelectionScreen
@@ -159,9 +169,9 @@ void WifiSsidManager::showConfiguredList() {
 }
 
 void WifiSsidManager::selectConfigured(int index) {
-    if (index>=0 && index<maxSsids) {
-        selectedSsidStr = ssids_[index];
-        selectedSsidPasswordStr = passwords_[index];
+    if (index >= 0 && index < storedCount_) {
+        selectedSsidStr = storedSsids_[index];
+        selectedSsidPasswordStr = storedPasswords_[index];
         changeState(State::Selected);
         stateManager_->setState(SystemState::WifiConnecting);
     }
@@ -182,13 +192,13 @@ void WifiSsidManager::selectFound(int index) {
 }
 
 void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
+    // Check stored credentials for a known password
     bool found = false;
-    for (int i=0;i<maxSsids;i++) {
-        if (selectedSsidStr == ssids_[i]) {
-            selectedSsidPasswordStr = passwords_[i];
-            turnoutPrefix = turnoutPrefixes_[i];
-            routePrefix = routePrefixes_[i];
-            found = true; break;
+    for (int i = 0; i < storedCount_; i++) {
+        if (selectedSsidStr == storedSsids_[i]) {
+            selectedSsidPasswordStr = storedPasswords_[i];
+            found = true;
+            break;
         }
     }
     if (!found) {
@@ -200,6 +210,8 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
             turnoutPrefix = DCC_EX_TURNOUT_PREFIX;
             routePrefix = DCC_EX_ROUTE_PREFIX;
             debug_println("getSsidPasswordAndMetadataForFound() Using guessed DCC-EX password & defaults");
+        } else {
+            selectedSsidPasswordStr = "";
         }
     }
 }
@@ -257,6 +269,13 @@ void WifiSsidManager::connectSelectedInternal() {
         WiFi.setSleep(false);
         debug_print("Connected. IP address: "); debug_println(WiFi.localIP());
         debug_println("WiFi modem sleep disabled for stable TCP");
+
+        // Save credentials on successful connection
+        if (configStore_ && selectedSsidPasswordStr.length() > 0) {
+            configStore_->saveWifiNetwork(selectedSsidStr, selectedSsidPasswordStr);
+            loadStoredCredentials();  // refresh credential list
+        }
+
         ws.body[1] = MSG_CONNECTED;
         ws.body[2] = MSG_ADDRESS_LABEL + String(WiFi.localIP());
         if (ws.bodyCount < 3) ws.bodyCount = 3;

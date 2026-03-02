@@ -1,10 +1,12 @@
 #pragma once
 #include <Arduino.h>
 #include <functional>
+#include <vector>
 
 // Forward declarations
 class SystemStateManager;
 class Renderer;
+class ConfigStore;
 
 class WifiSsidManager {
 public:
@@ -19,13 +21,9 @@ public:
     using StateCallback = std::function<void(State)>;
     using ListChangedCallback = std::function<void()>;
 
-    void begin(const String* configuredSsids,
-               const String* configuredPasswords,
-               int configuredCount,
-               const String* turnoutPrefixes,
-               const String* routePrefixes,
-               SystemStateManager& stateManager,
+    void begin(SystemStateManager& stateManager,
                Renderer& renderer,
+               ConfigStore& configStore,
                StateCallback onStateChange = nullptr,
                ListChangedCallback onListChanged = nullptr);
 
@@ -52,8 +50,10 @@ public:
     const String& currentSsid() const { return selectedSsidStr; }
     const String& currentPassword() const { return selectedSsidPasswordStr; }
     void setPassword(const String &pw) { selectedSsidPasswordStr = pw; }
-    int configuredCount() const { return maxSsids; }
-    const String& configuredSsid(int i) const { return ssids_[i]; }
+
+    // Stored credential count
+    int configuredCount() const { return storedCount_; }
+    const String& configuredSsid(int i) const { return storedSsids_[i]; }
 
     // Network scanning
     void browseSsids();
@@ -67,17 +67,17 @@ private:
     void getSsidPasswordAndMetadataForFound();
     void processScanResults(int num);
     void changeState(State s);
-
-    // Config references (set by begin())
-    const String* ssids_ = nullptr;
-    const String* passwords_ = nullptr;
-    const String* turnoutPrefixes_ = nullptr;
-    const String* routePrefixes_ = nullptr;
-    int maxSsids = 0;
+    void loadStoredCredentials();
 
     // Injected dependencies (set by begin())
     SystemStateManager* stateManager_ = nullptr;
     Renderer* renderer_ = nullptr;
+    ConfigStore* configStore_ = nullptr;
+
+    // Stored credential list (loaded from ConfigStore)
+    std::vector<String> storedSsids_;
+    std::vector<String> storedPasswords_;
+    int storedCount_ = 0;
 
     // State
     String selectedSsidStr;

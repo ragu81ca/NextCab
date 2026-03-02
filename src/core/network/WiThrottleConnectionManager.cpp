@@ -285,7 +285,9 @@ void WiThrottleConnectionManager::enterManualServer() {
     witServerSelectionHandler_->setSource(WiThrottleServerSource::ManualEntry);
     if (witServerIpAndPortChanged_) {
         debug_println("enterWitServer()");
+        buildEntry();
         manualEntryScreen_.promptLine1 = MSG_NO_SERVICES_FOUND_ENTRY_REQUIRED;
+        manualEntryScreen_.promptLine2 = witServerIpAndPortEntryMask;
         manualEntryScreen_.inputText   = witServerIpAndPortConstructed_;
         manualEntryScreen_.footerText  = menu_text[menu_select_wit_entry];
         renderer_->renderTextInput(manualEntryScreen_);
@@ -348,17 +350,12 @@ void WiThrottleConnectionManager::buildEntry() {
     debug_println("buildWitEntry()");
     witServerIpAndPortConstructed_ = "";
     for (unsigned int i = 0; i < witServerIpAndPortEntered_.length(); i++) {
-        if ((i == 3) || (i == 6) || (i == 9)) {
-            witServerIpAndPortConstructed_ = witServerIpAndPortConstructed_ + ".";
+        if (i == 3 || i == 6 || i == 9) {
+            witServerIpAndPortConstructed_ += ".";
         } else if (i == 12) {
-            witServerIpAndPortConstructed_ = witServerIpAndPortConstructed_ + ":";
+            witServerIpAndPortConstructed_ += ":";
         }
-        witServerIpAndPortConstructed_ = witServerIpAndPortConstructed_ + witServerIpAndPortEntered_.substring(i, i + 1);
-    }
-    debug_print("wit Constructed: ");
-    debug_println(witServerIpAndPortConstructed_);
-    if (witServerIpAndPortEntered_.length() < 17) {
-        witServerIpAndPortConstructed_ = witServerIpAndPortConstructed_ + witServerIpAndPortEntryMask.substring(witServerIpAndPortConstructed_.length());
+        witServerIpAndPortConstructed_ += witServerIpAndPortEntered_[i];
     }
     debug_print("wit Constructed: ");
     debug_println(witServerIpAndPortConstructed_);

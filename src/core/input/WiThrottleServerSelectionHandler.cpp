@@ -96,21 +96,17 @@ bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {
                 return false;
         }
     } else {
-        // Manual IP entry mode
+        // Manual IP entry mode — numeric only
         switch (key) {
             case '0': case '1': case '2': case '3': case '4': 
             case '5': case '6': case '7': case '8': case '9':
-                if (connectionManager.ipAndPortEntered().length() < 17) {
-                    connectionManager.ipAndPortEntered() += key;
-                    connectionManager.ipAndPortChanged() = true;
-                    connectionManager.enterManualServer();
-                }
+                connectionManager.entryAddChar(key);
+                connectionManager.enterManualServer();
                 return true;
                 
             case '*':
                 if (connectionManager.ipAndPortEntered().length() > 0) {
-                    connectionManager.ipAndPortEntered() = connectionManager.ipAndPortEntered().substring(0, connectionManager.ipAndPortEntered().length() - 1);
-                    connectionManager.ipAndPortChanged() = true;
+                    connectionManager.entryDeleteChar(key);
                     connectionManager.enterManualServer();
                 } else {
                     // Cancel — go back to discovered server list

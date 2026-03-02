@@ -16,7 +16,6 @@ extern Renderer renderer;
 // 
 
 #define maxFoundWitServers 5     // must be 5 for the moment
-#define maxFoundSsids 60     // must be a multiple of ssidItemsPerPage (both 5 and 10)
 #define maxRoster 70     // must be a multiple of rosterItemsPerPage (both 5 and 10)
 #define maxTurnoutList 60     // must be a multiple of turnoutItemsPerPage
 #define maxRouteList 60     // must be a multiple of routeItemsPerPage

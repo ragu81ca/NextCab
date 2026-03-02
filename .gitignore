@@ -55,6 +55,5 @@ build\preproc\*.*
 
 .pio
 
-config_network.h
 config_buttons.h
 config_buttons_keep.h

@@ -115,7 +115,7 @@ private:
 
     // ── Manual IP entry ──
     TextInputScreen manualEntryScreen_;
-    String witServerIpAndPortConstructed_ = "###.###.###.###:#####";
+    String witServerIpAndPortConstructed_ = "";
     String witServerIpAndPortEntered_     = DEFAULT_IP_AND_PORT;
     bool   witServerIpAndPortChanged_     = true;
 

@@ -32,6 +32,7 @@ extern void toggleDirection(int multiThrottleIndex);
 extern void cycleSpeedStep();
 extern void powerToggle();
 extern void writePreferences();
+extern void setupPreferences(bool forceClear);
 extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
@@ -39,7 +40,6 @@ extern String getLocoWithLength(String loco);
 extern void doFunction(int, int, bool, bool);
 extern void selectEditConsistList(int);
 extern SystemStateManager systemStateManager;
-extern bool preferencesRead;
 
 // ==================== Menu Handlers ====================
 
@@ -166,8 +166,8 @@ namespace MenuHandlers {
     
     void handleDisconnect(MenuContext& ctx) {
         if (systemStateManager.isOperating()) {
+            setupPreferences(true);  // reset loco-restore guard
             systemStateManager.setState(SystemState::WifiConnected);
-            preferencesRead = false;
             connectionManager.disconnect();
         }
     }

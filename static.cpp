@@ -27,7 +27,7 @@ const String menu_text[14] = {
 };
 
 // Definition for extern declared in static.h
-String witServerIpAndPortEntryMask = "###.###.###.###:#####";
+String witServerIpAndPortEntryMask = "___.___.___.___:_____";
 
 // Added moved constant definitions from static.h to resolve Arduino IDE multiple inclusion redefinition errors
 const String label_track_power = "TRK";

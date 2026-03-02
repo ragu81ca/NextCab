@@ -27,8 +27,6 @@
 
 // Pangodream_18650_CL.h now only needed inside BatteryMonitor implementation
 
-// create these files by copying the example files and editing them as needed
-#include "config_network.h"      // LAN networks (SSIDs and passwords)
 #include "config_buttons.h"      // keypad buttons assignments
 #include "WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
 
@@ -72,10 +70,12 @@ BatteryMonitor batteryMonitor;
 #include "src/core/menu/MenuSystem.h"
 #include "src/core/menu/MenuDefinitions.h"
 #include "src/core/ui/TitleScreen.h"
+#include "src/core/storage/ConfigStore.h"
 
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
 WifiSsidManager wifiSsidManager; // Wi-Fi SSID manager
+ConfigStore configStore;         // LittleFS + JSON persistent storage
 Renderer renderer(displayDriver, activeLayout, activeFonts); // display-agnostic renderer
 MenuSystem menuSystem;           // New table-driven menu system
 WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/connection
@@ -103,9 +103,6 @@ int throttlePotNotchSpeeds[8] = {0,20,40,60,80,100,120,127};
 
 // ----------------- Startup commands stub -----------------
 String startupCommands[4] = {"","","",""};
-
-// Preferences flag forward declaration (needed by menu logic earlier in file)
-bool preferencesRead = false;
 
 // Additional buttons device (static storage to avoid heap fragmentation)
 static AdditionalButtonsInput additionalButtonsInputInstance([](const InputEvent &ev){ inputManager.dispatch(ev); });
@@ -347,16 +344,81 @@ WiThrottleProtocol wiThrottleProtocol;
 // connectionManager.hostname() is only valid after computeIdentity(), which runs in setup().
 
 // *********************************************************************************
-//   Preferences (moved to PreferencesManager)
-//   Legacy function names kept as thin wrappers for now for minimal intrusion.
+//   Server-associated loco persistence (via ConfigStore / LittleFS)
+//
+//   Locos are stored per-server (IP:port) in servers.json so they are only
+//   restored when reconnecting to the same WiThrottle server.
 
-#include "src/core/PreferencesManager.h"
-PreferencesManager preferencesManager;
+// Called from WiThrottleDelegate after roster entries are received, or on
+// reconnect.  Restores previously-acquired locos for this server.
+// Guard: only runs once per connection (reset on disconnect).
+static bool locosRestoredForCurrentServer = false;
 
-void setupPreferences(bool forceClear) { preferencesManager.begin(forceClear); }
-void readPreferences() { preferencesManager.restoreLocos(wiThrottleProtocol); }
-void writePreferences() { preferencesManager.saveLocos(wiThrottleProtocol, throttleManager.getMaxThrottles()); }
-void clearPreferences() { preferencesManager.clear(); }
+void setupPreferences(bool forceClear) {
+    if (forceClear) {
+        locosRestoredForCurrentServer = false;
+        return;
+    }
+
+    if (!RESTORE_ACQUIRED_LOCOS) return;
+    if (locosRestoredForCurrentServer) return;
+
+    String host = connectionManager.selectedIP().toString();
+    int    port = connectionManager.selectedPort();
+    if (host.length() == 0 || port == 0) return;
+
+    locosRestoredForCurrentServer = true;
+
+    ServerConfig cfg = configStore.findServerConfig(host, port);
+
+    // Apply turnout/route prefixes if stored (DCC-EX heuristic may override later)
+    if (cfg.turnoutPrefix.length() > 0) turnoutPrefix = cfg.turnoutPrefix;
+    if (cfg.routePrefix.length() > 0)   routePrefix   = cfg.routePrefix;
+
+    // Restore locos
+    for (int t = 0; t < (int)cfg.throttleLocos.size() && t < throttleManager.getMaxThrottles(); t++) {
+        char throttleChar = '0' + t;
+        for (const auto& addr : cfg.throttleLocos[t]) {
+            if (addr.length() > 0) {
+                wiThrottleProtocol.addLocomotive(throttleChar, addr);
+                wiThrottleProtocol.getDirection(throttleChar, addr);
+                wiThrottleProtocol.getSpeed(throttleChar);
+            }
+        }
+    }
+
+    Serial.printf("[Locos] Restored %d throttle(s) of locos for %s:%d\n",
+                  (int)cfg.throttleLocos.size(), host.c_str(), port);
+}
+
+// Called from menu "Save Locos" action.  Saves current locos + prefixes for this server.
+void writePreferences() {
+    String host = connectionManager.selectedIP().toString();
+    int    port = connectionManager.selectedPort();
+    if (host.length() == 0 || port == 0) return;
+
+    ServerConfig cfg;
+    cfg.host           = host;
+    cfg.port           = port;
+    cfg.turnoutPrefix  = turnoutPrefix;
+    cfg.routePrefix    = routePrefix;
+
+    int maxT = throttleManager.getMaxThrottles();
+    cfg.throttleLocos.resize(maxT);
+    for (int t = 0; t < maxT; t++) {
+        char throttleChar = '0' + t;
+        int numLocos = wiThrottleProtocol.getNumberOfLocomotives(throttleChar);
+        for (int j = 0; j < numLocos; j++) {
+            String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleChar, j);
+            if (loco.length() > 0) {
+                cfg.throttleLocos[t].push_back(loco);
+            }
+        }
+    }
+
+    configStore.saveServer(cfg);
+    Serial.printf("[Locos] Saved locos for %s:%d\n", host.c_str(), port);
+}
 
 
 // *********************************************************************************
@@ -537,10 +599,11 @@ void setup() {
   inputManager.registerDevice(&keypadDev);
   keypadDev.begin();
 
-  // Initialize WifiSsidManager (Phase 1): turnout/route prefixes remain global for now.
-  wifiSsidManager.begin(ssids, passwords, maxSsids,
-                        turnoutPrefixes, routePrefixes,
-                        systemStateManager, renderer);
+  // Initialize persistent storage (LittleFS + JSON)
+  configStore.begin();
+
+  // Initialize WifiSsidManager — loads stored credentials from ConfigStore
+  wifiSsidManager.begin(systemStateManager, renderer, configStore);
   
   // Initialize new menu system
   menuSystem.begin(MenuDefinitions::mainMenuItems, MenuDefinitions::mainMenuSize);
@@ -1144,6 +1207,7 @@ void reconnect() {
     ts.addBody(MSG_DISCONNECTED);
     renderer.renderTitle(ts); }
   delay(5000);
+  setupPreferences(true);  // reset loco-restore guard
   connectionManager.disconnect();
 }
 
