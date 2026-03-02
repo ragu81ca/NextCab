@@ -281,21 +281,66 @@ void Renderer::renderTextInput(const TextInputScreen &screen) {
 	// ── Gap between prompt and input ──
 	if (promptLines > 0) row++;
 
-	// ── Input line with blinking caret (centred) ──
+	// ── Input line with cursor (centred) ──
 	String dispText = screen.displayText();
-	// Caret blinks: visible for 4 frames, hidden for 4 frames (at 125ms tick = 500ms cycle)
-	bool caretVisible = ((screen.frame / 4) % 2) == 0;
-	String caretChar = caretVisible ? "_" : "";
-	String fullLine = dispText + caretChar;
-
-	const char *inputStr = fullLine.c_str();
-	int inputW = display.getUTF8Width(inputStr);
-	int inputX = (layout.screenWidth - inputW) / 2;
-	if (inputX < 0) inputX = 0;
+	int hlPos = screen.highlightPos; // -1 = no highlight, >=0 = invert that char
 	int inputY = startY + row * rh;
-	// Clamp so descenders don't clip
 	if (inputY > layout.screenHeight - 2) inputY = layout.screenHeight - 2;
-	display.drawUTF8(inputX, inputY, inputStr);
+
+	if (hlPos >= 0 && hlPos < (int)dispText.length()) {
+		// ── Inverted-cursor mode: draw prefix normally, highlight char inverted ──
+		String prefix = dispText.substring(0, hlPos);
+		String hlChar = dispText.substring(hlPos, hlPos + 1);
+		String suffix = (hlPos + 1 < (int)dispText.length())
+		                ? dispText.substring(hlPos + 1) : String();
+
+		// Measure widths for centering
+		int prefixW = display.getUTF8Width(prefix.c_str());
+		int hlCharW = display.getUTF8Width(hlChar.c_str());
+		int suffixW = suffix.length() > 0
+		              ? display.getUTF8Width(suffix.c_str()) : 0;
+		int totalW  = prefixW + hlCharW + suffixW;
+		int inputX  = (layout.screenWidth - totalW) / 2;
+		if (inputX < 0) inputX = 0;
+
+		int fontAsc = display.getFontAscent();
+		int pad     = 1; // horizontal padding around highlighted char
+
+		// Draw prefix text normally
+		if (prefix.length() > 0)
+			display.drawUTF8(inputX, inputY, prefix.c_str());
+
+		// Draw filled box behind the highlighted character
+		int hlX = inputX + prefixW;
+		display.setDrawColor(1);
+		display.drawBox(hlX - pad, inputY - fontAsc, hlCharW + pad * 2, rh);
+
+		// Draw the highlighted character in inverted colour
+		display.setDrawColor(0);
+		display.drawUTF8(hlX, inputY, hlChar.c_str());
+		display.setDrawColor(1);
+
+		// Draw any suffix text normally
+		if (suffix.length() > 0)
+			display.drawUTF8(hlX + hlCharW, inputY, suffix.c_str());
+
+	} else {
+		// ── Normal text + blinking cursor line ──
+		const char *inputStr = dispText.c_str();
+		int inputW = display.getUTF8Width(inputStr);
+		int inputX = (layout.screenWidth - inputW) / 2;
+		if (inputX < 0) inputX = 0;
+		display.drawUTF8(inputX, inputY, inputStr);
+
+		// Draw a thin blinking cursor line after the text
+		bool caretVisible = ((screen.frame / 4) % 2) == 0;
+		if (caretVisible) {
+			int cursorX = inputX + inputW + 1;
+			int fontAsc = display.getFontAscent();
+			// Vertical line from baseline-ascent to baseline
+			display.drawLine(cursorX, inputY - fontAsc, cursorX, inputY);
+		}
+	}
 
 	// ── Footer ──
 	if (screen.footerText.length() > 0) {
@@ -309,37 +354,6 @@ void Renderer::renderTextInput(const TextInputScreen &screen) {
 	}
 
 	display.sendBuffer();
-}
-
-void Renderer::renderFoundSsids(const String &soFar) {
-	menuIsShowing = true;
-	if (soFar == "") {
-		int itemsPerPage = layout.ssidItemsPerPage;
-		int nameMax = layout.ssidNameMaxLength;
-		int totalPages = (foundSsidsCount + itemsPerPage - 1) / itemsPerPage;
-		String baseMenu = menu_text[menu_select_ssids_from_found];
-		String pageIndicator = " p" + String(uiState.page+1) + "/" + String(totalPages);
-		int maxChars = layout.maxCharsPerRow;
-		if ((int)baseMenu.length() > (maxChars - (int)pageIndicator.length())) {
-			baseMenu = baseMenu.substring(0, maxChars - pageIndicator.length());
-		}
-		PagedListModel model;
-		model.halfPageSplit = false;
-		model.pageCapacity  = itemsPerPage;
-		model.footerText = baseMenu + pageIndicator;
-		for (int i = 0; i < itemsPerPage; i++) {
-			int gi = uiState.page * itemsPerPage + i;
-			if (gi >= foundSsidsCount) break;
-			if (foundSsids[gi].length() > 0) {
-				String ssid = foundSsids[gi];
-				if (nameMax > 0 && (int)ssid.length() > nameMax) ssid = ssid.substring(0, nameMax);
-				model.addItem(ssid + " \x01");
-			} else {
-				model.addItem("");
-			}
-		}
-		renderPagedList(model);
-	}
 }
 
 void Renderer::renderFunctions() {
@@ -450,7 +464,17 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 	int rowsPerColumn = max / (isThreeColumns ? 3 : 2);
 	for (int i=0; i < max; i++) {
 		String lineStr = oledText[i];
-		int sentinelPos = lineStr.indexOf('\x01');
+		// Check for wifi signal sentinel (values \x01-\x04 encode strength 0-3)
+		int sentinelPos = -1;
+		int wifiStrength = 0;
+		for (int j = 0; j < (int)lineStr.length(); j++) {
+			char c = lineStr.charAt(j);
+			if (c >= '\x01' && c <= '\x04') {
+				sentinelPos = j;
+				wifiStrength = c - '\x01';
+				break;
+			}
+		}
 		bool hasWifiGlyph = (sentinelPos >= 0);
 		String textPart = hasWifiGlyph ? lineStr.substring(0, sentinelPos) : lineStr;
 		const char *cLine = textPart.c_str();
@@ -472,15 +496,6 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 		display.drawUTF8(drawX, drawY, cLine);
 		// Draw signal bars if sentinel present
 		if (hasWifiGlyph) {
-			int itemsPerPage = layout.ssidItemsPerPage;
-			int globalIndex = (uiState.page * itemsPerPage) + i;
-			int rssi = (globalIndex < foundSsidsCount) ? foundSsidRssis[globalIndex] : -100;
-			int strength;
-			if (rssi >= -50) strength = 3;
-			else if (rssi >= -65) strength = 2;
-			else if (rssi >= -80) strength = 1;
-			else strength = 0;
-			
 			int16_t textWidth = display.getUTF8Width(cLine);
 			int barsX = x + textWidth + 2;
 			
@@ -492,7 +507,7 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 				int barX = barsX + (bar * (barW + barGap));
 				int barHeight = (bar + 1) * (layout.wifiBarMaxHeight / 4);
 				int barY = drawY - barHeight + 1;
-				if (bar <= strength) {
+				if (bar <= wifiStrength) {
 					display.drawBox(barX, barY, barW, barHeight);
 				}
 			}

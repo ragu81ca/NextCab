@@ -2,11 +2,14 @@
 #include <Arduino.h>
 #include <functional>
 
-// Forward declare for constants expected in existing code (Phase 1 keeps macros elsewhere)
-// We reuse existing CONNECTION_STATE_* macros for compatibility.
+// Forward declarations
+class SystemStateManager;
+class Renderer;
 
 class WifiSsidManager {
 public:
+    static constexpr int kMaxFound = 60;  // must be a multiple of ssidItemsPerPage
+
     enum class State { Disconnected, Scanning, SelectionRequired, PasswordEntry, Selected, Connecting, Connected };
 
     struct FoundSsid {
@@ -19,6 +22,10 @@ public:
     void begin(const String* configuredSsids,
                const String* configuredPasswords,
                int configuredCount,
+               const String* turnoutPrefixes,
+               const String* routePrefixes,
+               SystemStateManager& stateManager,
+               Renderer& renderer,
                StateCallback onStateChange = nullptr,
                ListChangedCallback onListChanged = nullptr);
 
@@ -33,49 +40,56 @@ public:
 
     void attemptConnect();
 
-    // Accessors
-    int foundCount() const { return _foundSsidsCountExtern(); }
+    // Found-SSID accessors (data owned by this class)
+    int foundCount() const { return foundSsidsCount_; }
+    const String& foundSsid(int i) const { return foundSsids_[i]; }
+    long foundRssi(int i) const { return foundSsidRssis_[i]; }
+    bool foundIsOpen(int i) const { return foundSsidsOpen_[i]; }
     FoundSsid getFound(int i) const;
+
+    // State accessors
     State state() const { return currentState; }
     const String& currentSsid() const { return selectedSsidStr; }
     const String& currentPassword() const { return selectedSsidPasswordStr; }
     void setPassword(const String &pw) { selectedSsidPasswordStr = pw; }
     int configuredCount() const { return maxSsids; }
-    const String& configuredSsid(int i) const { return ssids[i]; }
-    // Turnout/route prefixes intentionally not managed here (remain global/config-driven).
+    const String& configuredSsid(int i) const { return ssids_[i]; }
 
     // Network scanning
-    void browseSsids(); // Trigger SSID scan and display results
-    void showConfiguredList(); // Display configured network list
+    void browseSsids();
+    void showConfiguredList();
+
+    /// Compute WiFi signal strength (0-3) from RSSI
+    static int rssiToStrength(long rssi);
 
 private:
     void connectSelectedInternal();
     void getSsidPasswordAndMetadataForFound();
-
+    void processScanResults(int num);
     void changeState(State s);
 
-    // Config references
-    const String* ssids = nullptr;
-    const String* passwords = nullptr;
+    // Config references (set by begin())
+    const String* ssids_ = nullptr;
+    const String* passwords_ = nullptr;
+    const String* turnoutPrefixes_ = nullptr;
+    const String* routePrefixes_ = nullptr;
     int maxSsids = 0;
 
-    // State copied from sketch
+    // Injected dependencies (set by begin())
+    SystemStateManager* stateManager_ = nullptr;
+    Renderer* renderer_ = nullptr;
+
+    // State
     String selectedSsidStr;
     String selectedSsidPasswordStr;
-
-    // Found SSID storage now relies on legacy global arrays (foundSsids, foundSsidRssis, foundSsidsOpen, foundSsidsCount)
-
     State currentState = State::Disconnected;
-    int selectionSource = 0; // mirror ssidSelectionSource
 
-    double startWaitForSelection = 0;
+    // Found-SSID storage (owned by this class)
+    String foundSsids_[kMaxFound];
+    long   foundSsidRssis_[kMaxFound];
+    bool   foundSsidsOpen_[kMaxFound];
+    int    foundSsidsCount_ = 0;
 
     StateCallback onStateChangeCb;
     ListChangedCallback onListChangedCb;
-
-    // Scan result processing
-    void processScanResults(int num);
-
-    // Access to legacy global foundSsidsCount
-    static int _foundSsidsCountExtern();
 };

@@ -143,11 +143,7 @@ String serverType = "";
 // Protocol config (still needed by WifiSsidManager)
 bool commandsNeedLeadingCrLf = SEND_LEADING_CR_LF_FOR_COMMANDS;
 
-//found ssids
-String foundSsids[maxFoundSsids];
-long foundSsidRssis[maxFoundSsids];
-bool foundSsidsOpen[maxFoundSsids];
-int foundSsidsCount = 0;
+// WiFi selection source (remains global — written by WiThrottleConnectionManager on disconnect)
 int ssidSelectionSource;
 double startWaitForSelection;
 
@@ -542,7 +538,9 @@ void setup() {
   keypadDev.begin();
 
   // Initialize WifiSsidManager (Phase 1): turnout/route prefixes remain global for now.
-  wifiSsidManager.begin(ssids, passwords, maxSsids);
+  wifiSsidManager.begin(ssids, passwords, maxSsids,
+                        turnoutPrefixes, routePrefixes,
+                        systemStateManager, renderer);
   
   // Initialize new menu system
   menuSystem.begin(MenuDefinitions::mainMenuItems, MenuDefinitions::mainMenuSize);

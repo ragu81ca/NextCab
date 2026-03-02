@@ -23,6 +23,9 @@ void PasswordEntryModeHandler::render() {
     screen_.inputText = buffer_;
     if (activeSelection_ && previewChar_ != 0) {
         screen_.inputText += previewChar_;
+        screen_.highlightPos = (int)buffer_.length(); // highlight the preview char
+    } else {
+        screen_.highlightPos = -1; // show blinking cursor line
     }
     renderer.renderTextInput(screen_);
 }
@@ -59,7 +62,10 @@ bool PasswordEntryModeHandler::handle(const InputEvent &ev) {
                 if (buffer_.length() < maxLen_) {
                     buffer_ += kCharSet[currentIndex_];
                 }
-                // Keep preview char so user can continue cycling for next char
+                // Deactivate selection so the committed char isn't shown
+                // as a duplicate preview, and won't be re-added on '#' submit.
+                activeSelection_ = false;
+                previewChar_ = 0;
                 render();
                 return true;
             }

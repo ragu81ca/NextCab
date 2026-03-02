@@ -110,23 +110,36 @@ public:
             _lastPosition = pos; // update baseline only on validated reads
 
             // Filter rotation noise during / after button events
-            if (now - _lastButtonEventMs > 100 /*bounceFilterMs*/) {
+            if (now - _lastButtonEventMs > _bounceFilterMs) {
                 // Clamp to ±MAX_DELTA_PER_POLL for smooth ramping
                 int16_t emit = rawDelta;
                 if (emit > MAX_DELTA_PER_POLL)  emit = MAX_DELTA_PER_POLL;
                 if (emit < -MAX_DELTA_PER_POLL) emit = -MAX_DELTA_PER_POLL;
 
-                Serial.printf("[Knob] pos=%d raw=%d emit=%d\n", pos, rawDelta, emit);
-
-                if (_dispatch) {
-                    InputEvent ev;
-                    ev.type  = InputEventType::SpeedDelta;
-                    ev.ivalue = (int)emit;
-                    ev.timestamp = now;
-                    _dispatch(ev);
-                }
+                // Buffer the delta instead of dispatching immediately.
+                // This lets us discard it if the user is actually pressing
+                // the button and the shaft wobbled right before contact.
+                if (_pendingDelta == 0) _pendingDeltaMs = now;
+                _pendingDelta += emit;
             }
             // else: discard movement during button-bounce window
+        }
+
+        // ── Dispatch buffered rotation after guard delay ──
+        // Held for kPrePressGuardMs so a button press arriving in the
+        // next poll cycle can cancel it.
+        if (_pendingDelta != 0
+            && now - _pendingDeltaMs >= _prePressGuardMs
+            && now - _lastButtonEventMs > _bounceFilterMs) {
+            Serial.printf("[Knob] pos=%d emit=%d\n", _lastPosition, _pendingDelta);
+            if (_dispatch) {
+                InputEvent ev;
+                ev.type  = InputEventType::SpeedDelta;
+                ev.ivalue = (int)_pendingDelta;
+                ev.timestamp = now;
+                _dispatch(ev);
+            }
+            _pendingDelta = 0;
         }
 
         // ── Button: detect press start ──
@@ -135,6 +148,7 @@ public:
             _buttonPressStartMs = now;
             _longPressTriggered = false;
             _lastButtonEventMs = now;
+            _pendingDelta = 0; // discard any buffered pre-press rotation
         }
 
         // ── Hold detection ──
@@ -157,6 +171,7 @@ public:
             _buttonWasPressed = false;
             unsigned long dur = now - _buttonPressStartMs;
             _lastButtonEventMs = now;
+            _pendingDelta = 0; // discard any post-release rotation
 
             if (_longPressTriggered) {
                 // Release after hold
@@ -244,6 +259,8 @@ private:
     // Rotation
     int16_t _lastPosition { 0 };
     unsigned long _lastPollMs { 0 };
+    int     _pendingDelta { 0 };         // buffered rotation awaiting dispatch
+    unsigned long _pendingDeltaMs { 0 }; // when the pending delta was first recorded
 
     // Button timing
     bool _buttonWasPressed { false };
@@ -256,4 +273,6 @@ private:
     static constexpr unsigned long _holdThresholdMs = 500;
     static constexpr unsigned long _doubleClickWindowMs = 400;
     static constexpr unsigned long _minClickMs = 50;
+    static constexpr unsigned long _bounceFilterMs = 120;     // post-press rotation filter
+    static constexpr unsigned long _prePressGuardMs = 25;     // buffer rotation before dispatch
 };

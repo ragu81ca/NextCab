@@ -41,10 +41,7 @@ extern String selectedSsid;
 // WiThrottle server connection state now lives in WiThrottleConnectionManager
 // (selectedWitServerIP, foundWitServers*, witServerIpAndPort* removed)
 
-extern String foundSsids[];
-extern long foundSsidRssis[];
-extern bool foundSsidsOpen[];
-extern int foundSsidsCount;
+// Found-SSID storage now lives inside WifiSsidManager
 extern int ssidSelectionSource;
 
 // witServerIpAndPort* now in WiThrottleConnectionManager

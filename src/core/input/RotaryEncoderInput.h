@@ -16,6 +16,8 @@ private:
     static RotaryEncoderInput *s_instance; // for ISR callback
     IInputDevice::DispatchFn _dispatch { nullptr };
     long _lastEncoderValue = 0;      // raw hardware position
+    int  _pendingDelta = 0;          // buffered rotation awaiting dispatch
+    unsigned long _pendingDeltaMs = 0; // when the pending delta was first recorded
     unsigned long _lastClickMs = 0;  // debounce timestamp for button
     unsigned long _buttonPressStartMs = 0; // track when button was pressed
     unsigned long _lastDoubleClickMs = 0;   // for double-click detection

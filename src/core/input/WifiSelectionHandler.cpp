@@ -3,16 +3,15 @@
 #include "../Renderer.h"
 #include "../UIState.h"
 #include "../network/WifiSsidManager.h"
+#include "../ui/TitleScreen.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 
-extern InputManager inputManager;
 extern UIState uiState;
-extern int foundSsidsCount;
 extern int ssidSelectionSource;
 
 WifiSelectionHandler::WifiSelectionHandler(Renderer &renderer, WifiSsidManager &wifiManager)
-    : renderer_(renderer), wifiManager_(wifiManager), source_(WifiSelectionSource::Configured), page_(0) {}
+    : renderer_(renderer), wifiManager_(wifiManager), source_(WifiSelectionSource::Configured) {}
 
 void WifiSelectionHandler::buildConfiguredScreen() {
     configuredScreen_ = ListSelectionScreen();
@@ -40,33 +39,64 @@ void WifiSelectionHandler::buildConfiguredScreen() {
     };
 }
 
-void WifiSelectionHandler::onEnter() {
-    page_ = 0;
-    uiState.page = 0;
+void WifiSelectionHandler::buildScannedScreen() {
+    scannedScreen_ = ListSelectionScreen();
+    int nameMax = renderer_.getLayout().ssidNameMaxLength;
 
+    scannedScreen_.totalItems    = wifiManager_.foundCount();
+    scannedScreen_.visibleRows   = renderer_.getLayout().ssidItemsPerPage;
+    scannedScreen_.halfPageSplit = false;
+    scannedScreen_.footerTemplate = String(menu_text[menu_select_ssids_from_found]);
+
+    scannedScreen_.itemLabel = [this, nameMax](int gi, bool & /*invert*/) -> String {
+        if (gi >= wifiManager_.foundCount()) return "";
+        String ssid = wifiManager_.foundSsid(gi);
+        if (nameMax > 0 && (int)ssid.length() > nameMax) ssid = ssid.substring(0, nameMax);
+        // Encode signal strength (0-3) in sentinel char (\x01-\x04)
+        int strength = WifiSsidManager::rssiToStrength(wifiManager_.foundRssi(gi));
+        return ssid + " " + String((char)('\x01' + strength));
+    };
+
+    scannedScreen_.onSelect = [this](int index) {
+        wifiManager_.selectFound(index);
+    };
+
+    scannedScreen_.onBeforeRender = []() {
+        menuIsShowing = true;
+    };
+}
+
+void WifiSelectionHandler::onEnter() {
     // Sync source from the global selection source so we show the right list
     if (ssidSelectionSource == SSID_CONNECTION_SOURCE_LIST) {
         source_ = WifiSelectionSource::Configured;
     } else {
         source_ = WifiSelectionSource::Scanned;
     }
-    
+
     if (source_ == WifiSelectionSource::Configured) {
         buildConfiguredScreen();
         renderer_.renderListSelection(configuredScreen_);
     } else {
-        renderer_.renderFoundSsids("");
+        if (wifiManager_.foundCount() > 0) {
+            buildScannedScreen();
+            renderer_.renderListSelection(scannedScreen_);
+        } else {
+            TitleScreen ts;
+            ts.setAppHeader(appName, appVersion);
+            ts.addBody(MSG_NO_SSIDS_FOUND);
+            ts.footerText = "* Rescan";
+            renderer_.renderTitle(ts);
+        }
     }
 }
 
 void WifiSelectionHandler::onExit() {
-    page_ = 0;
+    // Nothing to clean up
 }
 
 void WifiSelectionHandler::setSource(WifiSelectionSource source) {
     source_ = source;
-    page_ = 0;
-    uiState.page = 0;
 }
 
 bool WifiSelectionHandler::handle(const InputEvent &ev) {
@@ -108,45 +138,34 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
         switch (key) {
             case '1': case '2': case '3': case '4': case '5':
             case '6': case '7': case '8': case '9': {
-                int itemsPerPage = renderer_.getLayout().ssidItemsPerPage;
-                int index = (key - '1');
-                if (index < itemsPerPage) {
-                    wifiManager_.selectFound(index + (page_ * itemsPerPage));
+                int gi = scannedScreen_.globalIndex(key - '1');
+                if (gi < scannedScreen_.totalItems) {
+                    if (scannedScreen_.onSelect) scannedScreen_.onSelect(gi);
                 }
                 return true;
             }
-                
-            case '#': {
-                int itemsPerPage = renderer_.getLayout().ssidItemsPerPage;
-                if (foundSsidsCount > itemsPerPage) {
-                    if ((page_ + 1) * itemsPerPage < foundSsidsCount) {
-                        page_++;
-                    } else {
-                        page_ = 0;
-                    }
-                    uiState.page = page_;
-                    renderer_.renderFoundSsids("");
+
+            case '#':
+                if (scannedScreen_.nextPage()) {
+                    renderer_.renderListSelection(scannedScreen_);
                 }
                 return true;
-            }
-                
+
             case '0':
-                page_ = 0;
-                uiState.page = 0;
                 wifiManager_.browseSsids();
                 return true;
-                
+
             case '*':
-                if (foundSsidsCount == 0) {
+                if (wifiManager_.foundCount() == 0) {
                     // No results — rescan
-                    page_ = 0;
-                    uiState.page = 0;
                     wifiManager_.browseSsids();
-                } else {
+                } else if (wifiManager_.configuredCount() > 0) {
                     setSource(WifiSelectionSource::Configured);
+                    buildConfiguredScreen();
+                    renderer_.renderListSelection(configuredScreen_);
                 }
                 return true;
-                
+
             default:
                 return false;
         }

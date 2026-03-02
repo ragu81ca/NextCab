@@ -29,7 +29,7 @@ public:
     String inputText;                       // Current value (caret is always at end)
     int    maxLength   = 0;                 // Maximum characters (0 = unlimited)
     bool   maskInput   = false;             // Show '*' instead of actual chars
-
+    int    highlightPos = -1;               // Character index to draw inverted (-1 = none)
     // ── Footer ──────────────────────────────────────────────────────────
     String footerText;                      // e.g. "# Submit  * Delete"
 
@@ -69,6 +69,7 @@ public:
         inputText   = "";
         maxLength   = 0;
         maskInput   = false;
+        highlightPos = -1;
         footerText  = "";
         frame       = 0;
         onCancel    = nullptr;

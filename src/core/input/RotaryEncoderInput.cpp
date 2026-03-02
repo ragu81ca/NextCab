@@ -55,7 +55,8 @@ void RotaryEncoderInput::poll() {
     // Poll for rotation
     if (rotaryEncoder.encoderChanged()) {
         unsigned long now = millis();
-        const unsigned long buttonBounceFilterMs = 100; // Ignore rotation for 100ms after button events
+        const unsigned long buttonBounceFilterMs = 120; // Ignore rotation for 120ms after button events
+        const unsigned long prePressGuardMs = 25;       // Buffer rotation before dispatch
         
         // Filter out mechanical bounce from button press/release
         if (now - _lastButtonEventMs > buttonBounceFilterMs) {
@@ -71,13 +72,11 @@ void RotaryEncoderInput::poll() {
                     delta = -delta;
                 }
                 #endif
-                #if WITCONTROLLER_DEBUG == 0
-                Serial.print("[Rotary] raw delta:"); Serial.print(newValue - (_lastEncoderValue - delta)); Serial.print(" applied:"); Serial.println(delta);
-                #endif
-                if (_dispatch) {
-                    InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = (int)delta; gev.cvalue = 0; gev.timestamp = now;
-                    _dispatch(gev);
-                }
+                // Buffer the delta instead of dispatching immediately.
+                // This lets us discard it if the user is pressing
+                // the button and the shaft wobbled right before contact.
+                if (_pendingDelta == 0) _pendingDeltaMs = now;
+                _pendingDelta += (int)delta;
             }
         } else {
             // Update the encoder value to stay in sync, but don't dispatch the event
@@ -85,6 +84,20 @@ void RotaryEncoderInput::poll() {
             #if INPUT_DEBUG
             Serial.println("[Rotary] rotation ignored - too soon after button event (mechanical bounce)");
             #endif
+        }
+
+        // Dispatch buffered rotation after guard delay
+        if (_pendingDelta != 0
+            && now - _pendingDeltaMs >= prePressGuardMs
+            && now - _lastButtonEventMs > buttonBounceFilterMs) {
+            #if WITCONTROLLER_DEBUG == 0
+            Serial.print("[Rotary] emit:"); Serial.println(_pendingDelta);
+            #endif
+            if (_dispatch) {
+                InputEvent gev; gev.type = InputEventType::SpeedDelta; gev.ivalue = _pendingDelta; gev.cvalue = 0; gev.timestamp = now;
+                _dispatch(gev);
+            }
+            _pendingDelta = 0;
         }
     }
 
@@ -102,6 +115,7 @@ void RotaryEncoderInput::poll() {
         _buttonWasPressed = true;
         _longPressTriggered = false;
         _lastButtonEventMs = now; // Track button event for rotation filtering
+        _pendingDelta = 0;        // Discard any buffered pre-press rotation
         #if INPUT_DEBUG
         Serial.println("[Rotary] button pressed");
         #endif
@@ -128,6 +142,7 @@ void RotaryEncoderInput::poll() {
         _buttonWasPressed = false;
         unsigned long pressDuration = now - _buttonPressStartMs;
         _lastButtonEventMs = now; // Track button event for rotation filtering
+        _pendingDelta = 0;        // Discard any post-release rotation
         
         #if INPUT_DEBUG
         Serial.print("[Rotary] button released after "); Serial.print(pressDuration); Serial.println("ms");

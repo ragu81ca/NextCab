@@ -16,7 +16,6 @@ public:
     Renderer(DisplayDriver &driver, const DisplayLayout &layout, const FontSet &fonts);
 
     // Public rendering entry points used by application code
-    void renderFoundSsids(const String &soFar);
     void renderHeartbeatCheck();
     void renderNewMenu(class MenuSystem& menuSystem);  // New table-driven menu system rendering
     void renderSpeed();

@@ -25,10 +25,11 @@ public:
 
 private:
     void buildConfiguredScreen();
+    void buildScannedScreen();
 
     Renderer &renderer_;
     WifiSsidManager &wifiManager_;
     WifiSelectionSource source_;
     ListSelectionScreen configuredScreen_;
-    int page_;
+    ListSelectionScreen scannedScreen_;
 };
