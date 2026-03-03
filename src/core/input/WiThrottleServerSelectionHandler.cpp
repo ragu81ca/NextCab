@@ -57,6 +57,11 @@ void WiThrottleServerSelectionHandler::onExit() {
 
 void WiThrottleServerSelectionHandler::setSource(WiThrottleServerSource source) {
     source_ = source;
+    // Rebuild and render the discovered list so rescans actually show results
+    if (source_ == WiThrottleServerSource::Discovered) {
+        buildDiscoveredScreen();
+        renderer_.renderListSelection(discoveredScreen_);
+    }
 }
 
 bool WiThrottleServerSelectionHandler::handle(const InputEvent &ev) {

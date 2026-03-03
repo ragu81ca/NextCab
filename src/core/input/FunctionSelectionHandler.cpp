@@ -40,6 +40,7 @@ void FunctionSelectionHandler::configureScreen() {
     s.totalItems     = MAX_FUNCTIONS;
     s.visibleRows    = renderer_.getLayout().functionItemsPerPage;
     s.halfPageSplit  = true;
+    s.zeroIndexed    = true;
     s.footerTemplate = "(%p) " + String(menu_text[menu_function_list]);
 
     s.itemLabel = [this](int gi, bool &invert) -> String {

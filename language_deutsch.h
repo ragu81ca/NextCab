@@ -27,16 +27,16 @@
   #define MENU_TEXT_FUNCTION_LIST                       "* Abbrechen   0-9   #Seite"                    // "* Cancel 0-9 #Pg"
 #endif
 #ifndef MENU_TEXT_SELECT_WIT_SERVICE
-  #define MENU_TEXT_SELECT_WIT_SERVICE                  "0-4       # andere IP       @ AUS"             // "0-4 # Entry E.btn OFF"
+  #define MENU_TEXT_SELECT_WIT_SERVICE                  "* Erneu  # Seite  @ AUS"                       // "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_WIT_ENTRY
-  #define MENU_TEXT_SELECT_WIT_ENTRY                    "0-9  * Entf  # Verbinde  @ AUS"                // "0-9 * Back # Go E.btn OFF"
+  #define MENU_TEXT_SELECT_WIT_ENTRY                    "0-9  * Entf  # Verbinde  @ AUS"                // "0-9  * Del  # Go  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS
-  #define MENU_TEXT_SELECT_SSIDS                        "0-9         # Suche         @ AUS"             // "0-9 # Search E.btn OFF"
+  #define MENU_TEXT_SELECT_SSIDS                        "* Erneu  # Seite  @ AUS"                       // "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS_FROM_FOUND
-  #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND             "0-4  9 Erneu  # Seite  @ AUS"                  // "0-4 9 Rescan # Pg E.btn OFF"
+  #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND             "* Erneu  # Seite  @ AUS"                       // "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_ENTER_SSID_PASSWORD
   #define MENU_TEXT_ENTER_SSID_PASSWORD                 "E Bchst @ Ausw # Verb * Zur."                  // "E Chrs E.btn Slct # Go * Bck"
@@ -88,10 +88,10 @@
   #define MSG_TRYING_TO_CONNECT                         "Versuche zu verbinden"                         // "Trying to Connect"
 #endif
 #ifndef MSG_CONNECTED
-  #define MSG_CONNECTED                                 "             Verbunden"                        // "Connected"
+  #define MSG_CONNECTED                                 "Verbunden"                        // "Connected"
 #endif
 #ifndef MSG_CONNECTING
-  #define MSG_CONNECTING                                "             Verbinden..."                     // "Connecting..."
+  #define MSG_CONNECTING                                "Verbinden..."                     // "Connecting..."
 #endif
 
 
@@ -114,10 +114,10 @@
   #define MSG_START_SLEEP                               "Herunterfahren.      @ Neustart"               // "Shutting Down. E.btn ON"
 #endif
 #ifndef MSG_THROTTLE_NUMBER
-  #define MSG_THROTTLE_NUMBER                           "             Regler #"                         // "Throttle #"
+  #define MSG_THROTTLE_NUMBER                           "Regler #"                         // "Throttle #"
 #endif
 #ifndef MSG_NO_LOCO_SELECTED
-  #define MSG_NO_LOCO_SELECTED                          "      Keine Lok ausgewählt"                    // "No Loco selected"
+  #define MSG_NO_LOCO_SELECTED                          "Keine Lok ausgewählt"                    // "No Loco selected"
 #endif
 #ifndef MSG_ENTER_PASSWORD
   #define MSG_ENTER_PASSWORD                            "Passwort eingeben"                             // "Enter Password"

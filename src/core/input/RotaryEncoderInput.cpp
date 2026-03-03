@@ -56,7 +56,6 @@ void RotaryEncoderInput::poll() {
     if (rotaryEncoder.encoderChanged()) {
         unsigned long now = millis();
         const unsigned long buttonBounceFilterMs = 120; // Ignore rotation for 120ms after button events
-        const unsigned long prePressGuardMs = 25;       // Buffer rotation before dispatch
         
         // Filter out mechanical bounce from button press/release
         if (now - _lastButtonEventMs > buttonBounceFilterMs) {
@@ -86,7 +85,15 @@ void RotaryEncoderInput::poll() {
             #endif
         }
 
-        // Dispatch buffered rotation after guard delay
+    }
+
+    // Dispatch buffered rotation after guard delay.
+    // Must be OUTSIDE the encoderChanged() gate so pending deltas
+    // flush even when the encoder has stopped moving.
+    {
+        unsigned long now = millis();
+        const unsigned long prePressGuardMs = 25;
+        const unsigned long buttonBounceFilterMs = 120;
         if (_pendingDelta != 0
             && now - _pendingDeltaMs >= prePressGuardMs
             && now - _lastButtonEventMs > buttonBounceFilterMs) {

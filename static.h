@@ -46,16 +46,16 @@ extern const String appName;
    #define MENU_TEXT_FUNCTION_LIST             "* Cancel      0-9      #Pg"
 #endif
 #ifndef MENU_TEXT_SELECT_WIT_SERVICE
-   #define MENU_TEXT_SELECT_WIT_SERVICE        "0-4      # Entry      E.btn OFF"
+   #define MENU_TEXT_SELECT_WIT_SERVICE        "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_WIT_ENTRY
-   #define MENU_TEXT_SELECT_WIT_ENTRY          "0-9   * Back  # Go   E.btn OFF"
+   #define MENU_TEXT_SELECT_WIT_ENTRY          "* Back  # Go  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS
-   #define MENU_TEXT_SELECT_SSIDS              "0-9     # Search      E.btn OFF"
+   #define MENU_TEXT_SELECT_SSIDS              "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_SELECT_SSIDS_FROM_FOUND
-   #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND   "0-4  9 Rescan  # Pg   E.btn OFF"
+   #define MENU_TEXT_SELECT_SSIDS_FROM_FOUND   "* Rescan  # Pg  E.btn OFF"
 #endif
 #ifndef MENU_TEXT_ENTER_SSID_PASSWORD
    #define MENU_TEXT_ENTER_SSID_PASSWORD       "E Chrs  E.btn Slct  # Go  * Bck"
@@ -166,10 +166,10 @@ enum ShowBattery : uint8_t {
   #define MSG_TRYING_TO_CONNECT         "Trying to Connect"
 #endif
 #ifndef MSG_CONNECTED
-  #define MSG_CONNECTED                 "             Connected"
+  #define MSG_CONNECTED                 "Connected"
 #endif
 #ifndef MSG_CONNECTING
-  #define MSG_CONNECTING                "             Connecting..."
+  #define MSG_CONNECTING                "Connecting..."
 #endif
 
 #ifndef MSG_ADDRESS_LABEL
@@ -191,10 +191,10 @@ enum ShowBattery : uint8_t {
    #define MSG_START_SLEEP              "Shutting Down.        E.btn ON"
 #endif
 #ifndef MSG_THROTTLE_NUMBER
-   #define MSG_THROTTLE_NUMBER          "          Throttle #"
+   #define MSG_THROTTLE_NUMBER          "Throttle #"
 #endif
 #ifndef MSG_NO_LOCO_SELECTED
-   #define MSG_NO_LOCO_SELECTED         "        No Loco selected"
+   #define MSG_NO_LOCO_SELECTED         "No Loco Selected"
 #endif
 #ifndef MSG_ENTER_PASSWORD
    #define MSG_ENTER_PASSWORD           "Enter Password"

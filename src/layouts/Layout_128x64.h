@@ -17,7 +17,7 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     .routeItemsPerPage    = 10,
     .ssidItemsPerPage     = 5,
     .menuItemsPerPage     = 9,
-    .maxLocosDisplayed    = 8,
+    .maxLocosDisplayed    = 10,  // matches MAX_LOCOS — fits in 2 columns (5+5)
 
     // ── Truncation limits ──
     .rosterNameMaxLength    = 0,    // 0 = no truncation (current code doesn't truncate roster names)

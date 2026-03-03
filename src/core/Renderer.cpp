@@ -43,10 +43,14 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 	bool isInputMode = (menuSys.getStackDepth() > 0 && currentItem && currentItem->type == MenuItemType::TEXT_INPUT);
 	
 	if (isInputMode) {
-		// Showing input prompt for TEXT_INPUT item
-		oledText[0] = currentItem->title;
-		oledText[2] = input + "_";  // Show cursor
-		oledText[layout.menuTextRow] = currentItem->instructions;
+		// Use the proper TextInputScreen rendering (centred text + blinking caret)
+		TextInputScreen &scr = menuSys.inputScreen();
+		scr.promptLine1 = currentItem->title;      // e.g. "Add Loco"
+		scr.inputText   = input;
+		scr.footerText  = currentItem->instructions; // e.g. "# End * Cancel"
+		scr.highlightPos = -1; // blinking cursor
+		renderTextInput(scr);
+		return;
 	} else {
 		// Display menu items contiguously, respecting layout.
 		// Items fill rows 0..n, jumping over menuTextRow (footer) into the
@@ -55,14 +59,19 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 		int row = 0;
 		for (uint8_t i = 0; i < menuSize && i < 10; i++) {
 			String itemNum = (i == 9) ? "0" : String(i + 1);
-			oledText[row] = itemNum + ": " + currentMenu[i].title;
+			bool enabled = currentMenu[i].isEnabled();
+			if (enabled) {
+				oledText[row] = itemNum + ": " + currentMenu[i].title;
+			} else {
+				oledText[row] = String("-  ") + currentMenu[i].title;
+			}
 			row++;
 			// If we hit the footer row, jump to the second column
 			if (row == layout.menuTextRow) {
 				row = layout.secondColumnStartRow;
 			}
 		}
-		oledText[layout.menuTextRow] = "* Cancel  # Select";
+		oledText[layout.menuTextRow] = "* Cancel";
 	}
 	
 	renderArrayInternal(false,false,true,false);
@@ -83,7 +92,6 @@ void Renderer::renderPagedList(const PagedListModel &model) {
 	clearArray();
 	// Use page capacity for layout; fall back to itemCount when capacity not set
 	int capacity = (model.pageCapacity > 0) ? model.pageCapacity : model.itemCount;
-	int halfPage = capacity / 2;
 	// halfPageSplit only makes sense when items overflow into col 2 (OLED).
 	// On TFT all items fit in column 0, so disable the split to avoid a
 	// mid-screen gap and place the footer at the canonical bottom row.
@@ -91,18 +99,18 @@ void Renderer::renderPagedList(const PagedListModel &model) {
 	// Optional header in row 0 — shifts item rows down by 1
 	int rowOffset = (model.headerText.length() > 0) ? 1 : 0;
 	if (rowOffset) oledText[0] = model.headerText;
+	int splitPoint = layout.menuTextRow - rowOffset;
 	for (int i = 0; i < model.itemCount; i++) {
 		const auto &item = model.items[i];
 		if (item.label.length() > 0) {
-			int row = useSplit ? ((i < halfPage) ? i : i + 1) : i;
+			int row = useSplit ? ((i < splitPoint) ? i : i + 1) : i;
 			row += rowOffset;
 			oledText[row] = String((i + 1) % 10) + ": " + item.label;
 			if (item.invert) oledTextInvert[row] = true;
 		}
 	}
-	// Place footer at the split gap when using split, else at the canonical menu row
-	int footerRow = useSplit ? (halfPage + rowOffset) : layout.menuTextRow;
-	oledText[footerRow] = model.footerText;
+	// Footer always at the canonical menu row (aligned with status bar)
+	oledText[layout.menuTextRow] = model.footerText;
 	renderArrayInternal(false, false, true, false, false, !useSplit);
 }
 
@@ -112,7 +120,6 @@ void Renderer::renderListSelection(ListSelectionScreen &screen) {
 	clearArray();
 
 	int capacity = screen.visibleRows;
-	int halfPage = capacity / 2;
 	// halfPageSplit only makes sense when items overflow into col 2 (OLED).
 	// On TFT all items fit in column 0, so disable the split.
 	bool useSplit = screen.halfPageSplit && (layout.secondColumnStartRow <= capacity);
@@ -121,22 +128,27 @@ void Renderer::renderListSelection(ListSelectionScreen &screen) {
 	int rowOffset = (screen.headerText.length() > 0) ? 1 : 0;
 	if (rowOffset) oledText[0] = screen.headerText;
 
+	// When splitting across columns, the footer sits at menuTextRow (the
+	// last row of column 1).  Items before it fill rows 0..menuTextRow-1
+	// (minus header offset), items after it continue from secondColumnStartRow.
+	int splitPoint = layout.menuTextRow - rowOffset;
+
 	for (int i = 0; i < capacity; i++) {
 		int gi = screen.globalIndex(i);
 		if (gi >= screen.totalItems) break;
 		bool invert = false;
 		String label = screen.itemLabel(gi, invert);
 		if (label.length() > 0) {
-			int row = useSplit ? ((i < halfPage) ? i : i + 1) : i;
+			int row = useSplit ? ((i < splitPoint) ? i : i + 1) : i;
 			row += rowOffset;
-			oledText[row] = String((i + 1) % 10) + ": " + label;
+			String idx = screen.zeroIndexed ? String(i % 10) : String((i + 1) % 10);
+			oledText[row] = idx + ": " + label;
 			if (invert) oledTextInvert[row] = true;
 		}
 	}
 
-	// Place footer at the split gap when using split, else at the canonical menu row
-	int footerRow = useSplit ? (halfPage + rowOffset) : layout.menuTextRow;
-	oledText[footerRow] = screen.footerText();
+	// Footer always at the canonical menu row (aligned with status bar)
+	oledText[layout.menuTextRow] = screen.footerText();
 	renderArrayInternal(false, false, true, false, false, !useSplit);
 }
 
@@ -296,7 +308,9 @@ void Renderer::renderTextInput(const TextInputScreen &screen) {
 	String dispText = screen.displayText();
 	int hlPos = screen.highlightPos; // -1 = no highlight, >=0 = invert that char
 	int inputY = startY + row * rh;
-	if (inputY > layout.screenHeight - 2) inputY = layout.screenHeight - 2;
+	// Clamp so the input line doesn't overlap the status bar / footer
+	int maxInputY = layout.statusBarY - 2;
+	if (inputY > maxInputY) inputY = maxInputY;
 
 	if (hlPos >= 0 && hlPos < (int)dispText.length()) {
 		// ── Inverted-cursor mode: draw prefix normally, highlight char inverted ──
@@ -324,7 +338,7 @@ void Renderer::renderTextInput(const TextInputScreen &screen) {
 		// Draw filled box behind the highlighted character
 		int hlX = inputX + prefixW;
 		display.setDrawColor(1);
-		display.drawBox(hlX - pad, inputY - fontAsc, hlCharW + pad * 2, rh);
+		display.drawBox(hlX - pad, inputY - fontAsc - 1, hlCharW + pad * 2, rh);
 
 		// Draw the highlighted character in inverted colour
 		display.setDrawColor(0);
@@ -440,7 +454,7 @@ void Renderer::renderAllLocos(bool hideLeadLoco) {
 	char currentChar = throttleManager.getCurrentThrottleChar(); 
 	int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
 	int maxLocos = layout.maxLocosDisplayed;
-	int halfPage = maxLocos / 2;
+	int splitPoint = layout.menuTextRow;
 	
 	// Check if we need to show S/L suffixes
 	bool needSuffixes = checkNeedSuffixes(currentChar, numLocos);
@@ -448,7 +462,7 @@ void Renderer::renderAllLocos(bool hideLeadLoco) {
 	// Render the locos
 	if (numLocos > 0) { 
 		for (int index=0; ((index < numLocos) && (i < maxLocos)); index++) { 
-			j = (i<halfPage) ? i : i+2; 
+			j = (i<splitPoint) ? i : i+2; 
 			loco = wiThrottleProtocol.getLocomotiveAtPosition(currentChar, index); 
 			
 			if (i>=startAt) {
@@ -501,10 +515,20 @@ void Renderer::renderArrayInternal(bool isThreeColumns, bool isPassword, bool se
 		}
 		// Draw base text
 		int drawX = x;
-		if (centerText && !oledTextInvert[i] && textPart.length() > 0) {
+		// Centre body text but NOT the footer row (menuTextRow) — it uses
+		// its own left/right layout for "* Menu  # Fn" style strings.
+		if (centerText && i != layout.menuTextRow && !oledTextInvert[i] && textPart.length() > 0) {
 			int textW = display.getUTF8Width(cLine);
 			drawX = (layout.screenWidth - textW) / 2;
 			if (drawX < 0) drawX = 0;
+		}
+		// Truncate text to fit within the screen from the current x position
+		int availW = layout.screenWidth - x;
+		if (!centerText && display.getUTF8Width(cLine) > availW) {
+			while (textPart.length() > 0 && display.getUTF8Width(textPart.c_str()) > availW) {
+				textPart.remove(textPart.length() - 1);
+			}
+			cLine = textPart.c_str();
 		}
 		display.drawUTF8(drawX, drawY, cLine);
 		// Draw signal bars if sentinel present

@@ -26,6 +26,12 @@ void MenuSystem::handleKey(char key) {
     if (!_active) return;
     
     if (key == '*') {
+        // In TEXT_INPUT mode: backspace first, then cancel when empty
+        if (isInInputMode() && _inputBuffer.length() > 0) {
+            _inputBuffer.remove(_inputBuffer.length() - 1);
+            renderer.renderNewMenu(*this);
+            return;
+        }
         // Cancel - go back one level or exit
         if (_stackDepth > 0) {
             popMenu();
@@ -37,8 +43,12 @@ void MenuSystem::handleKey(char key) {
     }
     
     if (key == '#') {
-        // Execute current selection
-        executeCurrentItem();
+        // In TEXT_INPUT mode, '#' submits the accumulated input
+        if (isInInputMode()) {
+            executeCurrentItem();
+            return;
+        }
+        // On menu screens, '#' is reserved for future page-next; does nothing.
         return;
     }
     
@@ -67,6 +77,9 @@ void MenuSystem::selectItem(uint8_t index) {
     if (!menu || index >= getCurrentMenuSize()) return;
     
     const MenuItem& item = menu[index];
+    
+    // Skip disabled items
+    if (!item.isEnabled()) return;
     
     switch (item.type) {
         case MenuItemType::ACTION:
@@ -206,5 +219,17 @@ void MenuSystem::popMenu() {
     if (_stackDepth > 0) {
         _stackDepth--;
         _inputBuffer = "";
+    }
+}
+
+bool MenuSystem::isInInputMode() const {
+    const MenuItem* c = getCurrentItem();
+    return _active && _stackDepth > 0 && c && c->type == MenuItemType::TEXT_INPUT;
+}
+
+void MenuSystem::tickInput() {
+    if (isInInputMode()) {
+        _inputScreen.advance();
+        renderer.renderNewMenu(*this);
     }
 }

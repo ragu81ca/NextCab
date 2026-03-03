@@ -254,12 +254,13 @@ namespace MenuDefinitions {
     // Main menu (replicates items 0-9 from menuText array)
     // Items 1-9 followed by item 0 (Function) to match keypad layout
     const MenuItem mainMenuItems[] = {
-        MenuItem::input(1, "Add Loco", "# End * Cancel",
+        MenuItem::input(1, "Add Loco", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleAddLoco),
         
-        MenuItem::list(2, "Drop Loco", "1-9 Select 0 All * Cancel",
+        MenuItem::list(2, "Drop Loco", "* Cancel  # All",
                       nullptr,  // Handler not used for LIST items
-                      MenuHandlers::renderDropLocoList),
+                      MenuHandlers::renderDropLocoList,
+                      []() { return wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0; }),
         
         MenuItem::action(3, "Toggle Dir", "N/A",
                         MenuHandlers::handleToggleDirection),
@@ -267,24 +268,25 @@ namespace MenuDefinitions {
         MenuItem::action(4, "X SpeedStep", "N/A",
                         MenuHandlers::handleSpeedStep),
         
-        MenuItem::input(5, "Throw Point", "# List or Enter ID",
+        MenuItem::input(5, "Throw Point", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleThrowPoint),
         
-        MenuItem::input(6, "Close Point", "# List or Enter ID",
+        MenuItem::input(6, "Close Point", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleClosePoint),
         
-        MenuItem::input(7, "Route", "# List or Enter ID",
+        MenuItem::input(7, "Route", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleRoute),
         
         MenuItem::action(8, "Track Power", "N/A",
                         MenuHandlers::handleTrackPower),
         
-        MenuItem::submenu(9, "Extras", "0-9 Select * Cancel",
+        MenuItem::submenu(9, "Extras", "* Cancel  0-9 Select",
                          extrasMenuItems, extrasMenuSize),
         
-        MenuItem::list(0, "Function", "0-9 Select * Cancel",
+        MenuItem::list(0, "Function", "* Cancel  0-9 Select",
                       MenuHandlers::handleFunction,
-                      MenuHandlers::renderFunctionList)
+                      MenuHandlers::renderFunctionList,
+                      []() { return wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0; })
     };
     const uint8_t mainMenuSize = 10;
 }

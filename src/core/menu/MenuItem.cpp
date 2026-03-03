@@ -2,7 +2,8 @@
 #include "MenuItem.h"
 
 MenuItem MenuItem::action(uint8_t id, const char* title, const char* instructions,
-                         std::function<void(MenuContext&)> handler) {
+                         std::function<void(MenuContext&)> handler,
+                         std::function<bool()> enabled) {
     MenuItem item;
     item.id = id;
     item.title = title;
@@ -10,13 +11,15 @@ MenuItem MenuItem::action(uint8_t id, const char* title, const char* instruction
     item.type = MenuItemType::ACTION;
     item.handler = handler;
     item.listRenderer = nullptr;
+    item.enabledCheck = enabled;
     item.submenuItems = nullptr;
     item.submenuCount = 0;
     return item;
 }
 
 MenuItem MenuItem::input(uint8_t id, const char* title, const char* instructions,
-                        std::function<void(MenuContext&)> handler) {
+                        std::function<void(MenuContext&)> handler,
+                        std::function<bool()> enabled) {
     MenuItem item;
     item.id = id;
     item.title = title;
@@ -24,6 +27,7 @@ MenuItem MenuItem::input(uint8_t id, const char* title, const char* instructions
     item.type = MenuItemType::TEXT_INPUT;
     item.handler = handler;
     item.listRenderer = nullptr;
+    item.enabledCheck = enabled;
     item.submenuItems = nullptr;
     item.submenuCount = 0;
     return item;
@@ -31,7 +35,8 @@ MenuItem MenuItem::input(uint8_t id, const char* title, const char* instructions
 
 MenuItem MenuItem::list(uint8_t id, const char* title, const char* instructions,
                        std::function<void(MenuContext&)> handler,
-                       std::function<void()> listRenderer) {
+                       std::function<void()> listRenderer,
+                       std::function<bool()> enabled) {
     MenuItem item;
     item.id = id;
     item.title = title;
@@ -39,6 +44,7 @@ MenuItem MenuItem::list(uint8_t id, const char* title, const char* instructions,
     item.type = MenuItemType::LIST;
     item.handler = handler;
     item.listRenderer = listRenderer;
+    item.enabledCheck = enabled;
     item.submenuItems = nullptr;
     item.submenuCount = 0;
     return item;

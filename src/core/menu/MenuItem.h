@@ -33,20 +33,30 @@ struct MenuItem {
     // Optional renderer for LIST types (e.g., renderRoster, renderFunctionList)
     std::function<void()> listRenderer;
     
+    // Optional guard: if set and returns false, item is shown as disabled
+    // and cannot be selected. Evaluated at render time.
+    std::function<bool()> enabledCheck;
+    
+    // Check if the item is currently enabled (default: always enabled)
+    bool isEnabled() const { return !enabledCheck || enabledCheck(); }
+    
     // Optional submenu (for SUBMENU type)
     const MenuItem* submenuItems;
     uint8_t submenuCount;
     
     // Constructor helpers for different types
     static MenuItem action(uint8_t id, const char* title, const char* instructions,
-                          std::function<void(MenuContext&)> handler);
+                          std::function<void(MenuContext&)> handler,
+                          std::function<bool()> enabled = nullptr);
     
     static MenuItem input(uint8_t id, const char* title, const char* instructions,
-                         std::function<void(MenuContext&)> handler);
+                         std::function<void(MenuContext&)> handler,
+                         std::function<bool()> enabled = nullptr);
     
     static MenuItem list(uint8_t id, const char* title, const char* instructions,
                         std::function<void(MenuContext&)> handler,
-                        std::function<void()> listRenderer);
+                        std::function<void()> listRenderer,
+                        std::function<bool()> enabled = nullptr);
     
     static MenuItem submenu(uint8_t id, const char* title, const char* instructions,
                            const MenuItem* items, uint8_t count);

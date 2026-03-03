@@ -371,6 +371,7 @@ void buildThrottleScreen(ThrottleScreen &screen) {
     else setMenuTextForOled(menu_menu_hash_is_functions);
   } else {
     setAppnameForOled();
+    oledText[activeLayout.menuTextRow] = "* Menu";
   }
   // Copy current oledText into screen model menu lines
   for (int i = 0; i < ThrottleScreen::MAX_MENU_LINES; i++) {
@@ -386,6 +387,7 @@ void displayUpdateFromWit(int multiThrottleIndex) {
   debug_println("");
   if ( inputManager.isInOperationMode() && (!menuIsShowing) 
   && (multiThrottleIndex==throttleManager.getCurrentThrottleIndex()) ) {
+  connectionManager.clearConnectedSplash();
   renderer.renderSpeed();
   }
 }
@@ -577,7 +579,7 @@ void setup() {
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_13,0); //1 = High, 0 = Low
 #endif
 
-  ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST; // Start with configured networks list
+  ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE; // Always scan for available networks first
 
   initialiseAdditionalButtons();
 
@@ -732,6 +734,15 @@ void loop() {
       
     case SystemState::Operating:
       // Normal operation - controlling locos
+
+      // Auto-dismiss the "Connected" info splash after ~3 s
+      if (connectionManager.isShowingConnectedSplash()) {
+        if (millis() >= connectionManager.connectedSplashEndTime()) {
+          connectionManager.clearConnectedSplash();
+          renderer.renderSpeed();
+        }
+        // While splash is visible, still process protocol traffic below
+      }
       
       // Check TCP connection health - detect WiFi/connection drops early
       if (!client.connected()) {
@@ -758,6 +769,16 @@ void loop() {
       heartbeatMonitor.noteActivity(millis() / 1000, false);
       
       heartbeatMonitor.loop();       // backstop for truly stuck states
+
+      // Drive menu TEXT_INPUT caret blink when active
+      if (menuSystem.isInInputMode()) {
+        static unsigned long lastMenuInputTick = 0;
+        unsigned long now = millis();
+        if (now - lastMenuInputTick >= 125) {
+          lastMenuInputTick = now;
+          menuSystem.tickInput();
+        }
+      }
       break;
   }
   
@@ -1168,7 +1189,7 @@ void selectEditConsistList(int selection) {
 // *********************************************************************************
 
 void setAppnameForOled() {
-  oledText[0] = appName; oledText[activeLayout.secondColumnStartRow] = appVersion; 
+  oledText[0] = appName + " " + appVersion;
 }
 
 void receivingServerInfoOled(int index, int maxExpected) {

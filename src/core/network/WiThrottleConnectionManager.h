@@ -85,6 +85,13 @@ public:
     bool&       ipAndPortChanged()   { return witServerIpAndPortChanged_; }
     const String& ipAndPortConstructed() const { return witServerIpAndPortConstructed_; }
 
+    // ── Connected splash timer ──
+    // Returns true while the "Connected" info screen is being displayed
+    // (first ~3 s after successful connection).
+    bool isShowingConnectedSplash() const { return connectedSplashEnd_ > 0; }
+    unsigned long connectedSplashEndTime() const { return connectedSplashEnd_; }
+    void clearConnectedSplash()          { connectedSplashEnd_ = 0; }
+
 private:
     // ── External references (set by begin()) ──
     WiFiClient*                         client_                    = nullptr;
@@ -130,4 +137,7 @@ private:
 
     // ── Inactivity timer ──
     double startWaitForSelection_ = 0;
+
+    // ── Connected splash ──
+    unsigned long connectedSplashEnd_ = 0;
 };

@@ -38,6 +38,7 @@ public:
     String headerText;             // optional header displayed above items
     String footerTemplate;         // use %p for page, %t for total pages
     bool   halfPageSplit  = false;  // put footer in middle row, items above & below
+    bool   zeroIndexed    = false;  // when true, key '0'→item 0 and labels start at 0
 
     // Data source — called by Renderer to get label for each visible item
     ItemLabelFn    itemLabel;

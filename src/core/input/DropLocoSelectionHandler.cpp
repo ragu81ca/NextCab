@@ -23,8 +23,7 @@ void DropLocoSelectionHandler::configureScreen() {
     s.totalItems     = numLocos;
     s.visibleRows    = renderer_.getLayout().maxLocosDisplayed;
     s.halfPageSplit  = true;
-    s.headerText     = "Drop Loco";
-    s.footerTemplate = "1-9 Select 0 All * Cancel";
+    s.footerTemplate = "* Cancel  # All";
 
     s.itemLabel = [this, needSuffixes](int gi, bool &invert) -> String {
         char tc = throttleManager.getCurrentThrottleChar();
@@ -52,7 +51,7 @@ void DropLocoSelectionHandler::configureScreen() {
 }
 
 bool DropLocoSelectionHandler::handleExtraKey(char key) {
-    if (key == '0') {
+    if (key == '#') {
         locoManager.releaseAllLocos(throttleManager.getCurrentThrottleIndex());
         inputManager.setMode(InputMode::Operation);
         return true;

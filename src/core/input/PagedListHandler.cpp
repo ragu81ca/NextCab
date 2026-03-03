@@ -60,7 +60,12 @@ bool PagedListHandler::handle(const InputEvent &ev) {
         // ── Item selection (1-based: '1'→0 … '9'→8, '0'→9) ───────────
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9': {
-            int offset = (key == '0') ? 9 : (key - '1');
+            int offset;
+            if (screen_.zeroIndexed) {
+                offset = key - '0';  // 0-based: '0'→0, '1'→1, ..., '9'→9
+            } else {
+                offset = (key == '0') ? 9 : (key - '1');  // 1-based: '1'→0, ..., '0'→9
+            }
             int index  = offset + (screen_.currentPage * screen_.visibleRows);
             if (screen_.onSelect) screen_.onSelect(index);
             return true;

@@ -110,7 +110,7 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
         switch (key) {
             case '1': case '2': case '3': case '4': case '5': 
             case '6': case '7': case '8': case '9': {
-                int offset = (key == '0') ? 9 : (key - '1');
+                int offset = key - '1';
                 int index = offset + (configuredScreen_.currentPage * configuredScreen_.visibleRows);
                 if (configuredScreen_.onSelect) configuredScreen_.onSelect(index);
                 return true;
@@ -151,19 +151,9 @@ bool WifiSelectionHandler::handle(const InputEvent &ev) {
                 }
                 return true;
 
-            case '0':
-                wifiManager_.browseSsids();
-                return true;
-
             case '*':
-                if (wifiManager_.foundCount() == 0) {
-                    // No results — rescan
-                    wifiManager_.browseSsids();
-                } else if (wifiManager_.configuredCount() > 0) {
-                    setSource(WifiSelectionSource::Configured);
-                    buildConfiguredScreen();
-                    renderer_.renderListSelection(configuredScreen_);
-                }
+                // Rescan for available networks
+                wifiManager_.browseSsids();
                 return true;
 
             default:

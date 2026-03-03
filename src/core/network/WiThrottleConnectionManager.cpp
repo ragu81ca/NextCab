@@ -107,39 +107,52 @@ void WiThrottleConnectionManager::browseService() {
         renderer_->renderBattery();
         delay(500);
     } else {
-        // MDNS.queryService() blocks for ~2 s, so we can't animate during
+        // MDNS.queryService() blocks for ~3 s, so we can't animate during
         // the query itself.  Instead, query every 2 s and animate the
         // spinner at 125 ms in between queries.
+        //
+        // We do NOT exit on first success — a single query may only find a
+        // subset of servers (mDNS response timing, packet loss, etc.).
+        // After the first hit we keep scanning for a follow-up window so
+        // additional servers have time to appear.
         unsigned long lastQuery = 0;
-        while ((noOfWitServices_ == 0) && ((nowTime - startTime) <= 10000)) {
+        unsigned long firstFoundTime = 0;
+        foundWitServersCount_ = 0;
+        while ((nowTime - startTime) <= 10000) {
             if (nowTime - lastQuery >= 2000) {
-                noOfWitServices_ = MDNS.queryService(service, proto);
+                int found = MDNS.queryService(service, proto);
+                debug_printf(" found=%d", found);
+                if (found > 0 && firstFoundTime == 0) firstFoundTime = nowTime;
+                // Each queryService() replaces previous results, so copy
+                // into our arrays whenever a query returns MORE services.
+                if (found > (int)foundWitServersCount_) {
+                    foundWitServersCount_ = min(found, (int)maxFoundWitServers);
+                    for (int i = 0; i < (int)foundWitServersCount_; ++i) {
+                        foundWitServersNames_[i] = MDNS.hostname(i);
+                        foundWitServersIPs_[i]   = ESPMDNS_IP_ATTRIBUTE_NAME;
+                        foundWitServersPorts_[i] = MDNS.port(i);
+                        if (MDNS.hasTxt(i, "jmri")) {
+                            String node = MDNS.txt(i, "node");
+                            node.toLowerCase();
+                            if (foundWitServersNames_[i].equals(node)) {
+                                foundWitServersNames_[i] = "JMRI  (v" + MDNS.txt(i, "jmri") + ")";
+                            }
+                        }
+                    }
+                }
                 lastQuery = millis();
-                debug_print(".");
             }
+            // Once we've found at least one service, keep scanning for 4 s
+            // more so a second query can discover additional servers.
+            if (firstFoundTime > 0 && (nowTime - firstFoundTime) >= 4000) break;
             ws.advance();
             renderer_->renderWait(ws);
             renderer_->renderBattery();
             delay(125);
             nowTime = millis();
         }
+        noOfWitServices_ = foundWitServersCount_;
         debug_println("");
-    }
-
-    foundWitServersCount_ = noOfWitServices_;
-    if (noOfWitServices_ > 0) {
-        for (int i = 0; (i < noOfWitServices_) && (i < maxFoundWitServers); ++i) {
-            foundWitServersNames_[i] = MDNS.hostname(i);
-            foundWitServersIPs_[i]   = ESPMDNS_IP_ATTRIBUTE_NAME;
-            foundWitServersPorts_[i] = MDNS.port(i);
-            if (MDNS.hasTxt(i, "jmri")) {
-                String node = MDNS.txt(i, "node");
-                node.toLowerCase();
-                if (foundWitServersNames_[i].equals(node)) {
-                    foundWitServersNames_[i] = "JMRI  (v" + MDNS.txt(i, "jmri") + ")";
-                }
-            }
-        }
     }
 
     if ((selectedSsid.substring(0, 6) == "DCCEX_") && (selectedSsid.length() == 12)) {
@@ -231,7 +244,7 @@ void WiThrottleConnectionManager::connectServer() {
         delay(5000);
 
         systemStateManager_->setState(SystemState::WifiConnected);
-        ssidSelectionSource = SSID_CONNECTION_SOURCE_LIST;
+        ssidSelectionSource = SSID_CONNECTION_SOURCE_BROWSE;
         witServerIpAndPortChanged_ = true;
 
     } else {
@@ -263,14 +276,12 @@ void WiThrottleConnectionManager::connectServer() {
           ts.addBody(selectedWitServerIP_.toString() + " : " + String(selectedWitServerPort_));
           ts.addBody(selectedWitServerName_);
           ts.addBody(MSG_CONNECTED);
-          if (!hashShowsFunctionsInsteadOfKeyDefs) {
-              ts.footerText = menu_text[menu_menu];
-          } else {
-              ts.footerText = menu_text[menu_menu_hash_is_functions];
-          }
+          ts.footerText = "* Menu";
           renderer_->renderTitle(ts);
           renderer_->renderBattery();
           displayDriver.sendBuffer(); }
+
+        connectedSplashEnd_ = millis() + 3000;
 
         if (onStartupCommands_) onStartupCommands_();
     }
@@ -301,6 +312,7 @@ void WiThrottleConnectionManager::enterManualServer() {
 
 void WiThrottleConnectionManager::disconnect() {
     debug_println("disconnectWitServer()");
+    connectedSplashEnd_ = 0;
 
     if (HEARTBEAT_ENABLED) {
         heartbeatMonitor_->setEnabled(false);
