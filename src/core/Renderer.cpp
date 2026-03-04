@@ -162,12 +162,9 @@ int Renderer::populateTitleArray(const TitleScreen &screen) {
 	// Row 0: title (always at top)
 	oledText[0] = screen.title;
 
-	// Subtitle goes at secondColumnStartRow on small displays (2-column),
-	// or row 1 on large single-column displays where secondColumnStartRow
-	// would be off-screen for a title layout.
+	// Subtitle always at row 1, just below the title.
 	if (screen.subtitle.length() > 0) {
-		int subRow = (layout.menuTextRow <= 5) ? layout.secondColumnStartRow : 1;
-		oledText[subRow] = screen.subtitle;
+		oledText[1] = screen.subtitle;
 	}
 
 	// Vertically centre the body lines between row 2 and menuTextRow-1.
