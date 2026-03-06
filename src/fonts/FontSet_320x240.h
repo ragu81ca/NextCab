@@ -13,10 +13,14 @@
   extern "C" {
     extern const uint8_t u8g2_font_helvR12_te[];
     extern const uint8_t u8g2_font_logisoso42_tr[];
+    extern const uint8_t u8g2_font_logisoso78_tn[];
     extern const uint8_t u8g2_font_helvB14_tr[];
+    extern const uint8_t u8g2_font_helvB18_tr[];
+    extern const uint8_t u8g2_font_helvB24_tr[];
     extern const uint8_t u8g2_font_courR14_tf[];
     extern const uint8_t u8g2_font_helvR08_tr[];
     extern const uint8_t u8g2_font_open_iconic_all_2x_t[];
+    extern const uint8_t u8g2_font_open_iconic_all_4x_t[];
     extern const uint8_t u8g2_font_helvR10_tr[];
   }
 #else
@@ -27,11 +31,13 @@
 // These can be refined once the physical display is available for testing.
 const FontSet FONTS_320x240 = {
     .defaultFont        = u8g2_font_helvR12_te,      // ~12px proportional
-    .speed              = u8g2_font_logisoso42_tr,    // ~42px speed digits
-    .direction          = u8g2_font_helvB14_tr,       // ~14px bold direction
+    .speed              = u8g2_font_logisoso42_tr,    // ~42px speed digits (menus etc.)
+    .speedLarge         = u8g2_font_logisoso78_tn,    // ~78px speed digits (throttle screen)
+    .direction          = u8g2_font_helvB24_tr,       // ~24px bold direction
     .password           = u8g2_font_courR14_tf,       // ~14px monospace password
     .throttleNumber     = u8g2_font_helvB14_tr,       // ~14px bold throttle #
-    .functionIndicators = u8g2_font_helvR08_tr,       // ~8px function indicators
-    .glyphs             = u8g2_font_open_iconic_all_2x_t, // 2x glyphs (16px)
+    .functionIndicators = u8g2_font_helvR10_tr,       // ~10px function indicators (50% larger)
+    .glyphs             = u8g2_font_open_iconic_all_4x_t, // 4x glyphs (32px)
+    .batteryGlyphs      = u8g2_font_open_iconic_all_2x_t, // 2x for battery (16px, fits top bar)
     .nextThrottle       = u8g2_font_helvR10_tr,       // ~10px next throttle info
 };

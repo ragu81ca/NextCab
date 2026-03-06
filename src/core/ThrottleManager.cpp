@@ -64,7 +64,7 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	// When momentum is "off", it uses instant rates (999.0) for immediate response
 	
 	// Input layer devices now handle their own internal state; no synchronization callback needed.
-	renderer.renderSpeed();
+	writeSpeedIfVisible(throttle);
 }
 
 void ThrottleManager::updateMomentum() {
@@ -162,7 +162,7 @@ void ThrottleManager::speedEstopAll() {
 		speedSet(i,0);
 		currentSpeed[i] = 0;
 	}
-	renderer.renderSpeed();
+	writeSpeedIfVisible(currentThrottleIndex);
 }
 
 void ThrottleManager::speedEstopCurrent() {
@@ -171,7 +171,7 @@ void ThrottleManager::speedEstopCurrent() {
 	// Bypass momentum for emergency stop
 	momentum_.emergencyStop(currentThrottleIndex);
 	speedSet(currentThrottleIndex,0);
-	renderer.renderSpeed();
+	writeSpeedIfVisible(currentThrottleIndex);
 }
 
 void ThrottleManager::changeDirection(int throttle, Direction direction) {
@@ -192,7 +192,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 		Serial.print(throttle);
 		Serial.print(" to ");
 		Serial.println(direction == Forward ? "Forward" : "Reverse");
-		renderer.renderSpeed(); // Update display to show new direction + braking indicator
+		writeSpeedIfVisible(throttle); // Update display to show new direction + braking indicator
 		return;
 	}
 	
@@ -208,7 +208,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 			Serial.print(throttle);
 			Serial.print(" - restored to ");
 			Serial.println(currentDirection[throttle] == Forward ? "Forward" : "Reverse");
-			renderer.renderSpeed();
+			writeSpeedIfVisible(throttle);
 			return;
 		}
 	}
@@ -228,7 +228,7 @@ void ThrottleManager::changeDirection(int throttle, Direction direction) {
 		}
 		proto->setDirection(tChar, leadLoco, direction);
 	}
-	renderer.renderSpeed();
+	writeSpeedIfVisible(throttle);
 }
 
 void ThrottleManager::toggleDirection(int throttle) {
@@ -251,7 +251,7 @@ void ThrottleManager::setFunction(int throttle, int funcNum, bool state, bool fo
 	proto->setFunction(tChar, leadLoco, funcNum, state, force);
 	
 	// Update OLED to reflect function state change
-	renderer.renderSpeed();
+	writeSpeedIfVisible(throttle);
 	
 	#ifdef MOMENTUM_DEBUG
 	Serial.print("[ThrottleManager] T");
@@ -269,7 +269,7 @@ void ThrottleManager::nextThrottle() {
 	currentThrottleIndex++;
 	if (currentThrottleIndex >= maxThrottles) currentThrottleIndex = 0;
 	currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-	if (currentThrottleIndex!=was) renderer.renderSpeed();
+	if (currentThrottleIndex!=was) writeSpeedIfVisible(currentThrottleIndex);
 }
 
 void ThrottleManager::selectThrottle(int idx) {
@@ -277,7 +277,7 @@ void ThrottleManager::selectThrottle(int idx) {
 	int was = currentThrottleIndex;
 	currentThrottleIndex = idx;
 	currentThrottleIndexChar = getMultiThrottleChar(currentThrottleIndex);
-	if (currentThrottleIndex!=was) renderer.renderSpeed();
+	if (currentThrottleIndex!=was) writeSpeedIfVisible(currentThrottleIndex);
 }
 
 void ThrottleManager::changeNumberOfThrottles(bool increase) {
@@ -289,14 +289,14 @@ void ThrottleManager::changeNumberOfThrottles(bool increase) {
 		if (maxThrottles<1) maxThrottles = 1;
 		if (currentThrottleIndex>=maxThrottles) nextThrottle();
 	}
-	renderer.renderSpeed();
+	writeSpeedIfVisible(currentThrottleIndex);
 }
 
 void ThrottleManager::cycleSpeedStep() {
 	currentSpeedStepIndex++;
 	if (currentSpeedStepIndex >= 3) currentSpeedStepIndex = 0;
 	globalSpeedStep = speedStepLevels[currentSpeedStepIndex];
-	renderer.renderSpeed();
+	writeSpeedIfVisible(currentThrottleIndex);
 }
 
 
@@ -426,7 +426,7 @@ void ThrottleManager::directFunction(int throttle, int funcNum, bool pressed, bo
 	char tChar = getMultiThrottleChar(throttle);
 	if (proto->getNumberOfLocomotives(tChar) > 0) {
 		dispatchToConsist(throttle, funcNum, pressed, force);
-		renderer.renderSpeed();
+		writeSpeedIfVisible(throttle);
 	}
 }
 
@@ -446,6 +446,6 @@ void ThrottleManager::toggleFunction(int throttle, int funcNum, bool pressed, bo
 		} else {
 			dispatchToConsist(throttle, funcNum, pressed, false);
 		}
-		renderer.renderSpeed();
+		writeSpeedIfVisible(throttle);
 	}
 }

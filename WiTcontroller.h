@@ -74,9 +74,6 @@ extern bool hashShowsFunctionsInsteadOfKeyDefs;
 // getDisplayLocoString now in LocoManager
 int getDisplaySpeed(int multiThrottleIndex);
 
-class ThrottleScreen; // forward declaration
-void buildThrottleScreen(ThrottleScreen &screen); // populate screen model from global state
-
 // function prototypes
 
 void displayUpdateFromWit(int);
@@ -91,9 +88,6 @@ void additionalButtonLoop(void);
 void setup(void);
 void loop(void);
 
-void doKeyPress(char, bool);
-void doDirectCommand (char, bool);
-void doDirectAction(int);
 void doMenu(void);
 void resetMenu(void);
 

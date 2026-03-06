@@ -1,15 +1,21 @@
 #include "OperationModeHandler.h"
+#include "InputManager.h"
 #include "../Renderer.h"
 #include "../ThrottleManager.h"
-#include "../../../actions.h" // for SPEED_STOP_THEN_TOGGLE_DIRECTION / DIRECTION_TOGGLE constants
+#include "../menu/MenuSystem.h"
+#include "../../../actions.h"
 #include "../../../static.h"
+#include "../../../WiTcontroller.h" // for extern globals (buttonActions, hash/oled flags)
 
-extern ThrottleManager throttleManager; // provided by sketch
-extern Renderer renderer; // global renderer
+extern ThrottleManager throttleManager;
+extern Renderer renderer;
+extern int buttonActions[];
+extern bool oledDirectCommandsAreBeingDisplayed;
+extern bool hashShowsFunctionsInsteadOfKeyDefs;
 
 void OperationModeHandler::onEnter() {
     // Render speed screen when entering operation mode
-    renderer.renderSpeed();
+    renderer_.renderSpeed();
 }
 
 void OperationModeHandler::onExit() {
@@ -71,7 +77,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // Double-click cycles momentum levels for the CURRENT throttle: Off -> Low -> Med -> High -> Off
             int idx = throttleManager.getCurrentThrottleIndex();
             throttleManager.momentum().cycleMomentumLevel(idx);
-            renderer.renderSpeed(); // Update display to show new momentum indicator
+            renderer_.renderSpeed(); // Update display to show new momentum indicator
             #if INPUT_DEBUG
             Serial.println("[OperationModeHandler] EncoderDoubleClick: momentum level cycled");
             #endif
@@ -82,7 +88,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
                 throttleManager.momentum().setBraking(idx, true);
-                renderer.renderSpeed(); // Update display to show brake indicator
+                renderer_.renderSpeed(); // Update display to show brake indicator
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHold: braking activated");
                 #endif
@@ -94,7 +100,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
                 throttleManager.momentum().setBraking(idx, false);
-                renderer.renderSpeed(); // Update display to hide brake indicator
+                renderer_.renderSpeed(); // Update display to hide brake indicator
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHoldRelease: braking deactivated");
                 #endif
@@ -145,7 +151,86 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
                     return false; // not a loco-centric action we handle here
             }
         }
+
+        // ── Keypad press events ──────────────────────────────────────────
+        case InputEventType::KeypadChar:
+        case InputEventType::KeypadSpecial: {
+            char key = ev.cvalue;
+
+            // If menu is already showing, route to menu system
+            if (menu_.isActive()) {
+                menu_.handleKey(key);
+                return true;
+            }
+
+            // '*' activates menu
+            if (key == '*') {
+                menu_.showMainMenu();
+                return true;
+            }
+
+            // '#' toggles direct-command display or opens function list
+            if (key == '#') {
+                if (!hashShowsFunctionsInsteadOfKeyDefs) {
+                    if (!oledDirectCommandsAreBeingDisplayed) {
+                        renderer_.renderDirectCommands();
+                    } else {
+                        oledDirectCommandsAreBeingDisplayed = false;
+                        renderer_.renderSpeed();
+                    }
+                } else {
+                    if (wiThrottleProtocol.getNumberOfLocomotives(
+                            throttleManager.getCurrentThrottleChar()) > 0) {
+                        input_.setMode(InputMode::FunctionSelection);
+                    }
+                }
+                return true;
+            }
+
+            // Digits 0-9 and A-D execute the configured direct command
+            executeDirectCommand(key, true);
+            return true;
+        }
+
+        // ── Keypad release events ────────────────────────────────────────
+        case InputEventType::KeypadCharRelease:
+        case InputEventType::KeypadSpecialRelease: {
+            char key = ev.cvalue;
+
+            // Ignore releases while menu is active
+            if (menu_.isActive()) return true;
+
+            // Only process releases for digits and A-D (momentary functions)
+            if ((key >= '0' && key <= '9') || (key >= 'A' && key <= 'D')) {
+                executeDirectCommand(key, false);
+            }
+            return true;
+        }
+
         default:
             return false; // not consumed
     }
+}
+
+// ── Direct command execution ─────────────────────────────────────────────
+void OperationModeHandler::executeDirectCommand(char key, bool pressed) {
+    int buttonAction = 0;
+    if (key <= '9') {
+        buttonAction = buttonActions[key - '0'];
+    } else {
+        buttonAction = buttonActions[key - 55]; // A=10, B=11, C=12, D=13
+    }
+    if (buttonAction == FUNCTION_NULL) return;
+
+    if (buttonAction >= FUNCTION_0 && buttonAction <= FUNCTION_31) {
+        // Function toggle/momentary — forward press and release
+        throttle_.directFunction(throttle_.getCurrentThrottleIndex(), buttonAction, pressed);
+    } else if (pressed) {
+        // Non-function actions fire on press only
+        InputEvent actEv;
+        actEv.timestamp = millis();
+        actEv.type = InputEventType::Action;
+        actEv.ivalue = buttonAction;
+        actEv.cvalue = 0;
+        input_.dispatch(actEv);    }
 }

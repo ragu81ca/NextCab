@@ -45,7 +45,7 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     // ── Speed screen zones ──
     .speedX           = 22,   // drawStr(22+(55-width), 45, ...)
     .speedY           = 45,
-    .directionX       = 79,
+    .directionX       = 85,
     .directionY       = 36,
     .throttleNumberX  = 2,
     .throttleNumberBoxW = 12,
@@ -57,6 +57,7 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     .functionIndicatorBoxW    = 5,
     .functionIndicatorBoxH    = 7,
     .functionIndicatorSpacing = 4,    // i*4 spacing
+    .functionIndicatorTextYOffset = 7, // y+6+1 from original code
 
     // ── Track power / heartbeat / speed step / momentum / brake ──
     .trackPowerBoxX      = 0,
@@ -75,10 +76,11 @@ constexpr DisplayLayout LAYOUT_128x64 = {
     .speedStepGlyphY     = 38,
     .speedStepTextX      = 9,
     .speedStepTextY      = 37,
-    .momentumTextX       = 13,
-    .momentumTextY       = 38,
-    .brakeTextX          = 22,
-    .brakeTextY          = 38,
+
+    // ── Momentum train indicator (loco + 0/1/2 cars, above speed step) ──
+    .momentumX     = 0,
+    .momentumY     = 23,
+    .momentumScale = 1,
 
     // ── Next throttle info ──
     .nextThrottleNumberX = 119,  // 85+34

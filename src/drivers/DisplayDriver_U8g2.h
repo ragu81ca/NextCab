@@ -21,6 +21,7 @@ public:
 
     void setFont(const uint8_t* font) override { _u8g2.setFont(font); }
     void setDrawColor(uint8_t color) override  { _u8g2.setDrawColor(color); }
+    void setFontMode(uint8_t mode) override    { _u8g2.setFontMode(mode); }
 
     void drawStr(int x, int y, const char* str) override     { _u8g2.drawStr(x, y, str); }
     void drawUTF8(int x, int y, const char* str) override    { _u8g2.drawUTF8(x, y, str); }
@@ -32,6 +33,7 @@ public:
 
     void drawBox(int x, int y, int w, int h) override            { _u8g2.drawBox(x, y, w, h); }
     void drawRBox(int x, int y, int w, int h, int r) override    { _u8g2.drawRBox(x, y, w, h, r); }
+    void drawFrame(int x, int y, int w, int h) override          { _u8g2.drawFrame(x, y, w, h); }
     void drawHLine(int x, int y, int w) override                 { _u8g2.drawHLine(x, y, w); }
     void drawLine(int x1, int y1, int x2, int y2) override       { _u8g2.drawLine(x1, y1, x2, y2); }
 

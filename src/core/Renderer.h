@@ -22,9 +22,6 @@ public:
     void renderSpeed();
     void renderDirectCommands();
     void renderBattery();
-    void renderSpeedStepMultiplier();
-    void renderMomentumIndicator();
-    void renderBrakeIndicator();
     void renderArray(bool isThreeColumns, bool isPassword, bool sendBuffer=true, bool drawTopLine=false);
     void clearArray();
     // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
@@ -51,6 +48,11 @@ public:
     /// Render the main throttle operating screen from a pre-built model.
     /// Replaces the old renderSpeed() which reached into globals directly.
     void renderThrottleScreen(const ThrottleScreen &screen);
+
+    /// Populate a ThrottleScreen model from current system state.
+    /// Formerly a free function in WiTcontroller.ino; now a Renderer member
+    /// since it directly populates oledText[] for the menu footer.
+    void buildThrottleScreen(ThrottleScreen &screen);
 
     // Access layout for code that needs content capacity values
     const DisplayLayout& getLayout() const { return layout; }

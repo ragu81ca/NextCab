@@ -116,7 +116,7 @@ static bool additionalButtonsConfigured = false;
 // Expect: additionalButtonPin[], additionalButtonType[], additionalButtonActions[], maxAdditionalButtons.
 struct AdditionalButtonDef buttonDefsStatic[MAX_ADDITIONAL_BUTTONS];
 // Instantiate mode handlers
-OperationModeHandler operationModeHandler(throttleManager);
+OperationModeHandler operationModeHandler(throttleManager, menuSystem, inputManager, renderer);
 static void onPasswordCommit();
 static void onPasswordCancel();
 PasswordEntryModeHandler passwordModeHandler(32, onPasswordCommit); // arbitrary max len
@@ -280,105 +280,6 @@ bool additionalButtonOverrideDefaultLatching = ADDITIONAL_BUTTON_OVERRIDE_DEFAUL
 unsigned long additionalButtonDebounceDelay = ADDITIONAL_BUTTON_DEBOUNCE_DELAY;    // the debounce time
 
 // *********************************************************************************
-
-// Build a ThrottleScreen model from current global state.
-// All data is pre-formatted — the Renderer only lays it out.
-void buildThrottleScreen(ThrottleScreen &screen) {
-  screen.clear();
-  int currentIdx = throttleManager.getCurrentThrottleIndex();
-  char currentChar = throttleManager.getCurrentThrottleChar();
-  int numLocos = wiThrottleProtocol.getNumberOfLocomotives(currentChar);
-
-  screen.throttleNumber = currentIdx + 1;
-  screen.maxThrottles = throttleManager.getMaxThrottles();
-  screen.locoCount = numLocos;
-
-  // ── Loco / consist display string ──
-  if (numLocos > 0) {
-    String sep = " ";
-    String sLocos;
-    for (int i = 0; i < numLocos; i++) {
-      sLocos += sep + locoManager.getDisplayLocoString(currentIdx, i);
-      sep = CONSIST_SPACE_BETWEEN_LOCOS;
-    }
-    screen.locoDisplayString = sLocos;
-
-    // Speed & direction
-    screen.speedDisplay = String(throttleManager.getDisplaySpeed(currentIdx));
-    Direction dir = throttleManager.getDirection(currentIdx);
-    screen.directionDisplay = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
-  }
-
-  // ── Next throttle preview ──
-  if (screen.maxThrottles > 1 && numLocos > 0) {
-    int nextIdx = -1;
-    for (int i = currentIdx + 1; i < screen.maxThrottles; i++) {
-      if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { nextIdx = i; break; }
-    }
-    if (nextIdx < 0) {
-      for (int i = 0; i < currentIdx; i++) {
-        if (wiThrottleProtocol.getNumberOfLocomotives(getMultiThrottleChar(i)) > 0) { nextIdx = i; break; }
-      }
-    }
-    if (nextIdx >= 0) {
-      screen.hasNextThrottle = true;
-      screen.nextThrottleNumber = String(nextIdx + 1);
-      int sp = throttleManager.getDisplaySpeed(nextIdx);
-      Direction nextDir = throttleManager.getDirection(nextIdx);
-      String sd = String(sp);
-      if (nextDir == Forward) sd += DIRECTION_FORWARD_TEXT_SHORT;
-      else sd = DIRECTION_REVERSE_TEXT_SHORT + sd;
-      sd = String("     ") + sd;
-      screen.nextThrottleSpeedDir = sd.substring(sd.length() - 5);
-    }
-  }
-
-  // ── Function states ──
-  for (int i = 0; i < MAX_FUNCTIONS; i++) {
-    screen.functionActive[i] = throttleManager.getFunctionState(currentIdx, i);
-  }
-
-  // ── System status ──
-  screen.trackPower = trackPower;
-  screen.heartbeatEnabled = heartbeatMonitor.enabled();
-  screen.currentSpeedStep = throttleManager.getSpeedStep();
-
-  // ── Momentum ──
-  if (throttleManager.momentum().isActive(currentIdx)) {
-    switch (throttleManager.momentum().getMomentumLevel(currentIdx)) {
-      case MomentumLevel::Low:    screen.momentumLevel = 1; break;
-      case MomentumLevel::Medium: screen.momentumLevel = 2; break;
-      case MomentumLevel::High:   screen.momentumLevel = 3; break;
-      default:                    screen.momentumLevel = 0; break;
-    }
-  }
-
-  // ── Brake / ramp state ──
-  if (throttleManager.momentum().isBraking(currentIdx)) {
-    screen.brakeState = 1;
-  } else {
-    int target = throttleManager.momentum().getTargetSpeed(currentIdx);
-    int actual = throttleManager.momentum().getActualSpeed(currentIdx);
-    if (target > actual + 1)      screen.brakeState = 2; // ramping up
-    else if (target + 1 < actual) screen.brakeState = 3; // ramping down
-  }
-
-  // ── Menu / key-label bar ──
-  // Clear the oledText array, then populate via legacy helpers.
-  renderer.clearArray();
-  if (numLocos > 0) {
-    if (!hashShowsFunctionsInsteadOfKeyDefs) setMenuTextForOled(menu_menu);
-    else setMenuTextForOled(menu_menu_hash_is_functions);
-  } else {
-    setAppnameForOled();
-    oledText[activeLayout.menuTextRow] = "* Menu";
-  }
-  // Copy current oledText into screen model menu lines
-  for (int i = 0; i < ThrottleScreen::MAX_MENU_LINES; i++) {
-    screen.menuLines[i] = oledText[i];
-    screen.menuInvert[i] = oledTextInvert[i];
-  }
-}
 
 void displayUpdateFromWit(int multiThrottleIndex) {
   debug_print("displayUpdateFromWit(): mode: "); debug_print((int)inputManager.getMode()); 
@@ -643,6 +544,7 @@ void setup() {
     Serial.printf("[I2C] Power pin %d set HIGH\n", PIN_I2C_POWER);
   #endif
   Wire.begin();
+  Wire.setClock(400000); // 400 kHz I2C speed for faster device response
   delay(50); // let bus settle
   Serial.println("[I2C] Bus initialised");
 #endif
@@ -802,148 +704,6 @@ void loop() {
 }
 
 // *********************************************************************************
-//  Key press and Menu
-// *********************************************************************************
-
-void doKeyPress(char key, bool pressed) {
-    // Prevent re-entrancy (e.g., from display operations during mode transitions)
-    static bool processing = false;
-    if (processing) return;
-    processing = true;
-    
-    debug_print("doKeyPress(): key: "); debug_print(key); 
-    debug_print(" pressed: "); debug_print(pressed);
-    debug_print(" mode: "); debug_println((int)inputManager.getMode());
-
-  if (pressed)  { //pressed
-    debug_println("doKeyPress(): PRESSED branch"); 
-    
-    // Route to menu system if in operation mode
-    if (inputManager.isInOperationMode()) {
-      if (menuSystem.isActive()) {
-        // Menu is already active, route key to menu system
-        menuSystem.handleKey(key);
-        processing = false;
-        return;
-      } else if (key == '*') {
-        // Menu not active, "*" should activate it
-        menuSystem.showMainMenu();
-        processing = false;
-        return;
-      }
-    }
-    
-    // Route list selection modes through InputManager
-    if (inputManager.isInSelectionMode()) {
-      InputEvent ev;
-      ev.timestamp = millis();
-      if (key >= '0' && key <= '9') {
-        ev.type = InputEventType::KeypadChar;
-        ev.ivalue = key - '0';
-        ev.cvalue = key;
-      } else {
-        ev.type = InputEventType::KeypadSpecial;
-        ev.ivalue = 0;
-        ev.cvalue = key;
-      }
-      inputManager.dispatch(ev);
-      processing = false;
-      return;
-    }
-    
-    // Handle Operation mode (only if not in a selection mode)
-    if (inputManager.getMode() == InputMode::Operation) {
-      debug_print("doKeyPress(): key operation... "); debug_println(key);
-
-      switch (key) {
-        case '#': // show functions or direct commands
-          if (!hashShowsFunctionsInsteadOfKeyDefs) {
-            if (!oledDirectCommandsAreBeingDisplayed) {
-              renderer.renderDirectCommands();
-            } else {
-              oledDirectCommandsAreBeingDisplayed = false;
-              renderer.renderSpeed();
-            }
-          } else {
-            if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) {
-              inputManager.setMode(InputMode::FunctionSelection);
-            }
-          }
-          break;
-
-        case '0': case '1': case '2': case '3': case '4': 
-        case '5': case '6': case '7': case '8': case '9': 
-          doDirectCommand(key, true);
-          break;
-          
-        default:  // A, B, C, D
-          doDirectCommand(key, true);
-          break;
-      }
-      processing = false;
-      return;
-    }
-
-  } else {  // released
-    debug_println("doKeyPress(): RELEASED branch"); 
-    
-    // Route to menu system if in operation mode and menu is active
-    if (inputManager.isInOperationMode() && menuSystem.isActive()) {
-      // Menu is active, don't process key releases through legacy handlers
-      debug_println("doKeyPress(): Menu active, ignoring key release");
-      processing = false;
-      return;
-    }
-    
-    debug_print("doKeyPress(): Checking Operation mode for release... mode=");
-    debug_println((int)inputManager.getMode());
-    if (inputManager.getMode() == InputMode::Operation) {
-      debug_print("doKeyPress(): In Operation mode, key='"); debug_print(key); debug_println("'");
-      if ((key>='0') && (key<='D')) { // only process releases for the numeric keys + A,B,C,D
-        debug_println("doKeyPress(): Operation - Process key release");
-        doDirectCommand(key, false);
-      } else {
-        debug_println("doKeyPress(): Non-Operation - Don't process key release");
-      }
-    }
-  }
-  
-  processing = false;
-}
-
-void doDirectCommand(char key, bool pressed) {
-  debug_print("doDirectCommand(): key: "); debug_print(key); 
-  debug_print(" pressed: "); debug_println(pressed);
-  int buttonAction = 0 ;
-  if (key<=57) {
-    buttonAction = buttonActions[(key - '0')];
-  } else {
-    buttonAction = buttonActions[(key - 55)]; // A, B, C, D
-  }
-  debug_print("doDirectCommand(): Action: "); debug_println(buttonAction);
-  if (buttonAction!=FUNCTION_NULL) {
-    if ( (buttonAction>=FUNCTION_0) && (buttonAction<=FUNCTION_31) ) {
-      debug_print("doDirectCommand(): Calling doDirectFunction with fn="); 
-      debug_print(buttonAction); debug_print(" pressed="); debug_println(pressed);
-  throttleManager.directFunction(throttleManager.getCurrentThrottleIndex(), buttonAction, pressed);
-  } else {
-      if (pressed) { // only process these on key press
-        InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
-        inputManager.dispatch(ev);
-      }
-    }
-  }
-  // debug_println("doDirectCommand(): end"); 
-}
-
-// Legacy doDirectAdditionalButtonCommand removed: state machine now emits canonical AdditionalButton events
-
-
-void doDirectAction(int buttonAction) {
-  // Unified path: dispatch as InputEvent Action so mode handlers / fallback handle it.
-  InputEvent ev; ev.timestamp = millis(); ev.type = InputEventType::Action; ev.ivalue = buttonAction; ev.cvalue = 0;
-  inputManager.dispatch(ev);
-}
 
 static void onPasswordCommit() {
   // Accept the entered password and connect
@@ -1103,9 +863,21 @@ void doOneStartupCommand(String cmd) {
     char firstKey = cmd.charAt(0);
     for(int j=0; j<cmd.length(); j++) {
       char jKey = cmd.charAt(j);
-      doKeyPress(jKey, true);
-      if (firstKey != '*') { 
-        doKeyPress(jKey, false);
+      // Simulate keypad press
+      InputEvent press;
+      press.timestamp = millis();
+      press.type = (jKey >= '0' && jKey <= '9') ? InputEventType::KeypadChar : InputEventType::KeypadSpecial;
+      press.cvalue = jKey;
+      press.ivalue = (jKey >= '0' && jKey <= '9') ? (jKey - '0') : 0;
+      inputManager.dispatch(press);
+      if (firstKey != '*') {
+        // Simulate keypad release
+        InputEvent release;
+        release.timestamp = millis();
+        release.type = (jKey >= '0' && jKey <= '9') ? InputEventType::KeypadCharRelease : InputEventType::KeypadSpecialRelease;
+        release.cvalue = jKey;
+        release.ivalue = press.ivalue;
+        inputManager.dispatch(release);
       }
     }
   }

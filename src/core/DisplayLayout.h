@@ -61,6 +61,7 @@ struct DisplayLayout {
     int functionIndicatorBoxW;    // width per function indicator box
     int functionIndicatorBoxH;    // height per function indicator box
     int functionIndicatorSpacing; // horizontal spacing between indicators
+    int functionIndicatorTextYOffset; // y offset from box top to text baseline
 
     // ── Track power / heartbeat / speed step / momentum / brake indicators ──
     int trackPowerBoxX;
@@ -79,10 +80,11 @@ struct DisplayLayout {
     int speedStepGlyphY;
     int speedStepTextX;
     int speedStepTextY;
-    int momentumTextX;
-    int momentumTextY;
-    int brakeTextX;
-    int brakeTextY;
+
+    // ── Momentum train indicator (loco + 0/1/2 cars) ──
+    int momentumX;             // left edge of locomotive
+    int momentumY;             // top edge of locomotive
+    int momentumScale;         // pixel scale: 1 for OLED (8px loco), 2 for TFT (16px)
 
     // ── Next throttle info ──
     int nextThrottleNumberX;

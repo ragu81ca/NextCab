@@ -71,10 +71,16 @@ public:
 
     /// Brake / ramp state for the momentum arrow indicator:
     ///   0 = idle (no indicator)
-    ///   1 = braking ("B")
-    ///   2 = ramping up (↑ arrow)
-    ///   3 = ramping down (↓ arrow)
+    ///   1 = braking (red tint on TFT, inverted box on OLED)
+    ///   2 = ramping up (progress bar)
+    ///   3 = ramping down (progress bar)
     int brakeState = 0;
+
+    /// Actual speed (momentum-smoothed) for ramp progress bar.
+    int actualSpeed = 0;
+
+    /// Target speed for ramp progress bar.
+    int targetSpeed = 0;
 
     // ── Menu text ───────────────────────────────────────────────────────
     /// Footer/menu-bar text lines (rendered in the bottom status area).
@@ -102,6 +108,8 @@ public:
         currentSpeedStep    = 1;
         momentumLevel      = 0;
         brakeState         = 0;
+        actualSpeed        = 0;
+        targetSpeed        = 0;
         for (int i = 0; i < MAX_MENU_LINES; i++) {
             menuLines[i]  = "";
             menuInvert[i] = false;

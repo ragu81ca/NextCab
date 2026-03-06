@@ -43,6 +43,8 @@ public:
         } else {
             Serial.println("[TFT] No PSRAM detected, direct mode");
         }
+
+        _u8f.setFontMode(1);           // transparent mode: don't draw background behind text
     }
 
     void clearBuffer() override {
@@ -89,6 +91,18 @@ public:
         _u8f.setBackgroundColor((color == 0) ? _fgColor : _bgColor);
     }
 
+    void setFontMode(uint8_t mode) override {
+        _u8f.setFontMode(mode);
+    }
+
+    void setTextBackgroundColor(uint16_t color) override {
+        _u8f.setBackgroundColor(color);
+    }
+
+    void setForegroundColor(uint16_t color) override {
+        _u8f.setForegroundColor(color);
+    }
+
     // ── Text drawing ──
     void drawStr(int x, int y, const char* str) override {
         _u8f.setCursor(x, y);
@@ -128,6 +142,11 @@ public:
         canvas().fillRoundRect(x, y, w, h, r, c);
     }
 
+    void drawFrame(int x, int y, int w, int h) override {
+        uint16_t c = (_drawColor == 0) ? _bgColor : _fgColor;
+        canvas().drawRect(x, y, w, h, c);
+    }
+
     void drawHLine(int x, int y, int w) override {
         uint16_t c = (_drawColor == 0) ? _bgColor : _fgColor;
         canvas().drawFastHLine(x, y, w, c);
@@ -136,6 +155,14 @@ public:
     void drawLine(int x1, int y1, int x2, int y2) override {
         uint16_t c = (_drawColor == 0) ? _bgColor : _fgColor;
         canvas().drawLine(x1, y1, x2, y2, c);
+    }
+
+    void fillRect(int x, int y, int w, int h, uint16_t color) override {
+        canvas().fillRect(x, y, w, h, color);
+    }
+
+    void fillRoundRect(int x, int y, int w, int h, int r, uint16_t color) override {
+        canvas().fillRoundRect(x, y, w, h, r, color);
     }
 
     // ── Color configuration (can be called before begin) ──

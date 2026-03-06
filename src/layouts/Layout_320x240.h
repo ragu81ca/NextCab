@@ -43,49 +43,53 @@ constexpr DisplayLayout LAYOUT_320x240 = {
     .menuTextRow  = 11,  // last row of first column (12 rows per col)
     .secondColumnStartRow = 12,  // first row of second column
 
-    // ── Speed screen zones ── (scaled proportionally)
-    .speedX           = 70,
-    .speedY           = 140,
-    .directionX       = 200,
-    .directionY       = 100,
+    // ── Speed screen zones ── (scaled for 78px speed font)
+    .speedX           = 60,
+    .speedY           = 160,
+    .directionX       = 228,
+    .directionY       = 100,   // approximate; renderer computes exact top-alignment
     .throttleNumberX  = 4,
     .throttleNumberBoxW = 24,
     .throttleNumberBoxH = 30,
 
-    // ── Function indicators ──
-    .functionIndicatorStartX  = 24,
+    // ── Function indicators (50% larger than OLED) ──
+    .functionIndicatorStartX  = 26,
     .functionIndicatorY       = 24,
-    .functionIndicatorBoxW    = 8,
-    .functionIndicatorBoxH    = 12,
-    .functionIndicatorSpacing = 9,
+    .functionIndicatorBoxW    = 12,
+    .functionIndicatorBoxH    = 18,
+    .functionIndicatorSpacing = 14,
+    .functionIndicatorTextYOffset = 14, // vertically centred in 18px box with 10px font
 
-    // ── Track power / heartbeat / speed step / momentum / brake ──
+    // ── Track power / heartbeat / speed step (32px glyphs, hugging status bar) ──
+    //    Status bar at y=218. Track power box 34px tall, 2px gap above bar.
     .trackPowerBoxX      = 0,
-    .trackPowerBoxY      = 150,
-    .trackPowerBoxW      = 18,
-    .trackPowerBoxH      = 18,
+    .trackPowerBoxY      = 182,    // 218 - 2 - 34
+    .trackPowerBoxW      = 34,
+    .trackPowerBoxH      = 34,
     .trackPowerGlyphX    = 2,
-    .trackPowerGlyphY    = 166,
-    .heartbeatGlyphX     = 26,
-    .heartbeatGlyphY     = 166,
-    .heartbeatStrikeX1   = 26,
-    .heartbeatStrikeY1   = 164,
-    .heartbeatStrikeX2   = 40,
-    .heartbeatStrikeY2   = 150,
+    .trackPowerGlyphY    = 214,    // baseline inside box
+    .heartbeatGlyphX     = 40,
+    .heartbeatGlyphY     = 214,
+    .heartbeatStrikeX1   = 40,
+    .heartbeatStrikeY1   = 212,
+    .heartbeatStrikeX2   = 68,
+    .heartbeatStrikeY2   = 186,
     .speedStepGlyphX     = 2,
-    .speedStepGlyphY     = 120,
-    .speedStepTextX      = 18,
-    .speedStepTextY      = 118,
-    .momentumTextX       = 26,
-    .momentumTextY       = 120,
-    .brakeTextX          = 44,
-    .brakeTextY          = 120,
+    .speedStepGlyphY     = 178,    // just above track power box
+    .speedStepTextX      = 34,
+    .speedStepTextY      = 174,
+
+    // ── Momentum train indicator (loco + 0/1/2 cars, below function indicators) ──
+    //    Function indicators end at y ≈ 43 (y=24+1+18). Train at +2px gap.
+    .momentumX     = 2,
+    .momentumY     = 45,
+    .momentumScale = 2,
 
     // ── Next throttle info ──
     .nextThrottleNumberX = 290,
-    .nextThrottleNumberY = 100,
+    .nextThrottleNumberY = 120,
     .nextThrottleSpeedX  = 260,
-    .nextThrottleSpeedY  = 140,
+    .nextThrottleSpeedY  = 180,
 
     // ── Wi-Fi signal bars ──
     .wifiBarWidth     = 4,
