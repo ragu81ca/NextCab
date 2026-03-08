@@ -1,10 +1,14 @@
 #include "RouteSelectionHandler.h"
+#include "InputManager.h"
 #include "../Renderer.h"
 #include "../ServerDataStore.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
+#include "../../core/protocol/WiThrottleDelegate.h"
 
 extern ServerDataStore serverDataStore;
+extern InputManager inputManager;
+extern WiThrottleProtocol wiThrottleProtocol;
 
 RouteSelectionHandler::RouteSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
@@ -24,7 +28,15 @@ void RouteSelectionHandler::configureScreen() {
         return name;
     };
 
-    s.onSelect = [](int index) { selectRouteList(index); };
+    s.onSelect = [this](int index) {
+        if (index >= 0 && index < serverDataStore.routeListSize()) {
+            String route = serverDataStore.routeSysName(index);
+            debug_print("Route Selected: "); debug_println(route);
+            wiThrottleProtocol.setRoute(route);
+            renderer_.renderSpeed();
+            inputManager.setMode(InputMode::Operation);
+        }
+    };
 
     s.onBeforeRender = []() {
         lastOledScreen = last_oled_screen_route_list;

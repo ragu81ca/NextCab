@@ -196,6 +196,7 @@ void LocoManager::restoreLocos() {
     if (name.length() == 0) return;
 
     locosRestoredForCurrentServer_ = true;
+    restoringLocos_ = true;  // suppress auto-save while replaying stored locos
 
     ServerConfig cfg = configStore_->findServerConfig(name);
 
@@ -226,6 +227,7 @@ void LocoManager::restoreLocos() {
             }
         }
     }
+    restoringLocos_ = false;
 #endif
 }
 
@@ -276,6 +278,12 @@ void LocoManager::notifyLocoChanged(const LocoChangeEvent &event) {
 void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
     int t = event.throttleIndex;
     if (t < 0 || t >= WIT_MAX_THROTTLES) return;
+
+    // Auto-save locos whenever the roster changes (skip during restore to
+    // avoid N redundant writes of the data we just loaded).
+    if (!restoringLocos_) {
+        saveLocos();
+    }
 
     if (event.type == LocoChangeType::Acquired) {
         if (!configStore_ || event.address.length() == 0) return;

@@ -6,6 +6,7 @@
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
 #include "../ui/TitleScreen.h"
+#include "../../core/protocol/WiThrottleDelegate.h"
 
 extern InputManager inputManager;
 extern UIState uiState;
@@ -53,10 +54,16 @@ void FunctionSelectionHandler::configureScreen() {
         return (label.length() > 0) ? (String(gi) + "-" + label) : String(gi);
     };
 
-    s.onSelect = [](int index) {
-        selectFunctionList(index);
+    s.onSelect = [this](int index) {
+        if (index >= 0 && index < MAX_FUNCTIONS) {
+            int currentIdx = throttleManager.getCurrentThrottleIndex();
+            String function = throttleManager.getFunctionLabel(currentIdx, index);
+            debug_print("Function Selected: "); debug_println(function);
+            throttleManager.toggleFunction(currentIdx, index, true, true);
+            uiState.functionHasBeenSelected = true;
+            renderer_.renderSpeed();
+        }
         // Return to operation mode so encoder can control speed
-        extern InputManager inputManager;
         inputManager.setMode(InputMode::Operation);
     };
 

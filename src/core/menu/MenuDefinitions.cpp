@@ -32,7 +32,6 @@ extern void powerToggle();
 extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
-extern void selectEditConsistList(int);
 extern SystemStateManager systemStateManager;
 
 // ==================== Menu Handlers ====================
@@ -169,10 +168,6 @@ namespace MenuHandlers {
         toggleDropBeforeAquire();
     }
     
-    void handleSaveLocos(MenuContext& ctx) {
-        locoManager.saveLocos();
-    }
-    
     // List renderers (thin wrappers around existing functions)
     void renderRosterList() {
         // Switch to RosterSelection mode which will render the list via onEnter
@@ -237,12 +232,9 @@ namespace MenuDefinitions {
                         MenuHandlers::handleSleep),
         
         MenuItem::action(9, "1 Loco Tgl", "N/A",
-                        MenuHandlers::handleDropBeforeAcquireToggle),
-        
-        MenuItem::action(0, "Save Locos", "N/A",
-                        MenuHandlers::handleSaveLocos)
+                        MenuHandlers::handleDropBeforeAcquireToggle)
     };
-    const uint8_t extrasMenuSize = 10;
+    const uint8_t extrasMenuSize = 9;
     
     // Main menu (replicates items 0-9 from menuText array)
     // Items 1-9 followed by item 0 (Function) to match keypad layout

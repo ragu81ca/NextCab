@@ -1,10 +1,14 @@
 #include "TurnoutSelectionHandler.h"
+#include "InputManager.h"
 #include "../Renderer.h"
 #include "../ServerDataStore.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
+#include "../../core/protocol/WiThrottleDelegate.h"
 
 extern ServerDataStore serverDataStore;
+extern InputManager inputManager;
+extern WiThrottleProtocol wiThrottleProtocol;
 
 TurnoutSelectionHandler::TurnoutSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer), action_(TurnoutThrow) {}
@@ -26,7 +30,15 @@ void TurnoutSelectionHandler::configureScreen() {
 
     // Capture action_ by value so the lambda is self-contained
     TurnoutAction action = action_;
-    s.onSelect = [action](int index) { selectTurnoutList(index, action); };
+    s.onSelect = [this, action](int index) {
+        if (index >= 0 && index < serverDataStore.turnoutListSize()) {
+            String turnout = serverDataStore.turnoutSysName(index);
+            debug_print("Turnout Selected: "); debug_println(turnout);
+            wiThrottleProtocol.setTurnout(turnout, action);
+            renderer_.renderSpeed();
+            inputManager.setMode(InputMode::Operation);
+        }
+    };
 
     s.onBeforeRender = []() {
         lastOledScreen = last_oled_screen_turnout_list;

@@ -107,12 +107,6 @@ void powerToggle(void);
 void nextThrottle(void);
 void reconnect(void);
 
-void selectRoster(int);
-void selectTurnoutList(int, TurnoutAction);
-void selectRouteList(int);
-void selectFunctionList(int);
-void selectEditConsistList(int);
-
 // *********************************************************************************
 //  oLED functions
 // *********************************************************************************

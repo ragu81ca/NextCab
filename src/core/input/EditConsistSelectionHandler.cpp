@@ -55,6 +55,8 @@ void EditConsistSelectionHandler::configureScreen() {
             String loco = wiThrottleProtocol.getLocomotiveAtPosition(
                 throttleManager.getCurrentThrottleChar(), index);
             locoManager.toggleLocoFacing(throttleManager.getCurrentThrottleIndex(), loco);
+            renderer_.renderSpeed();
+            menuCommandStarted = false;
         }
         inputManager.setMode(InputMode::Operation);
     };

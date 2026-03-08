@@ -1,10 +1,17 @@
 #include "RosterSelectionHandler.h"
+#include "InputManager.h"
 #include "../Renderer.h"
 #include "../ServerDataStore.h"
+#include "../ThrottleManager.h"
+#include "../LocoManager.h"
 #include "../../../static.h"
 #include "../../../WiTcontroller.h"
+#include "../../core/protocol/WiThrottleDelegate.h"
 
 extern ServerDataStore serverDataStore;
+extern InputManager inputManager;
+extern ThrottleManager throttleManager;
+extern LocoManager locoManager;
 
 RosterSelectionHandler::RosterSelectionHandler(Renderer &renderer)
     : PagedListHandler(renderer) {}
@@ -24,7 +31,16 @@ void RosterSelectionHandler::configureScreen() {
         return name + " (" + serverDataStore.rosterAddress(index) + ")";
     };
 
-    s.onSelect = [](int index) { selectRoster(index); };
+    s.onSelect = [this](int index) {
+        if (index >= 0 && index < serverDataStore.rosterSize()) {
+            int sortedIdx = serverDataStore.rosterSortedIndex(index);
+            String loco = String(serverDataStore.rosterLength(sortedIdx)) + serverDataStore.rosterAddress(sortedIdx);
+            debug_print("add Loco: "); debug_println(loco);
+            locoManager.acquireLoco(throttleManager.getCurrentThrottleIndex(), loco);
+            renderer_.renderSpeed();
+            inputManager.setMode(InputMode::Operation);
+        }
+    };
 
     s.onBeforeRender = []() {
         lastOledScreen = last_oled_screen_roster;

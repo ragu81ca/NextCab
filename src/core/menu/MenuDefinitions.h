@@ -24,7 +24,6 @@ namespace MenuHandlers {
     void handleDisconnect(MenuContext& ctx);
     void handleSleep(MenuContext& ctx);
     void handleDropBeforeAcquireToggle(MenuContext& ctx);
-    void handleSaveLocos(MenuContext& ctx);
     
     // List renderers
     void renderRosterList();

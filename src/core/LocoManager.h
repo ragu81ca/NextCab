@@ -100,6 +100,7 @@ private:
     bool   dropBeforeAcquire_ = true;
     String serverType_;
     bool   locosRestoredForCurrentServer_ = false;
+    bool   restoringLocos_ = false;  // suppress auto-save during restore
 
     // ── Callback infrastructure ─────────────────────────────────────────
     std::vector<LocoChangeCallback> locoChangeCallbacks_;
