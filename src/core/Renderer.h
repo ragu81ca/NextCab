@@ -27,6 +27,13 @@ public:
     // Public wrapper that renders and records the all-locos screen (replaces former public renderAllLocos)
     void renderAllLocosScreen(bool hideLeadLoco);
 
+    // OLED helper functions (migrated from WiTcontroller.ino)
+    void setAppnameForOled();
+    void receivingServerInfoOled(int index, int maxExpected);
+    void setMenuTextForOled(int menuTextIndex);
+    void refreshOled();
+    void displayUpdateFromWit(int multiThrottleIndex);
+
     /// Draw a paginated list from a pre-built model. Domain-free — the handler
     /// builds the items, the Renderer just draws them.
     void renderPagedList(const PagedListModel &model);

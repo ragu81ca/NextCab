@@ -14,23 +14,20 @@
 #define debug_printf(...) Serial.printf(__VA_ARGS__)
 #endif
 
-void refreshOled();
-void receivingServerInfoOled(int index, int total);
 void doOneStartupCommand(String cmd);
 
+// refreshOled, receivingServerInfoOled, displayUpdateFromWit now in Renderer
 // Speed/direction/function arrays migrated to ThrottleManager\n// Roster/turnout/route data migrated to ServerDataStore
 extern TrackPower trackPower;
 extern long lastSpeedSentTime;
 extern int lastSpeedThrottleIndex;
 extern int currentThrottleIndex;
 // serverType now in locoManager
-extern String broadcastMessageText;
-extern long broadcastMessageTime;
+// broadcastMessageText/Time now in uiState
 
 int getMultiThrottleIndex(char multiThrottle);
 char getMultiThrottleChar(int multiThrottleIndex);
 // stealLoco now in LocoManager
-void displayUpdateFromWit(int multiThrottleIndex);
 
 #ifndef ROSTER_SORT_SEQUENCE
 #define ROSTER_SORT_SEQUENCE 0

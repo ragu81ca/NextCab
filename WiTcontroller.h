@@ -65,6 +65,11 @@ extern int additionalButtonActions[];
 #define lastOledBoolParameter uiState.lastBoolParam
 #define lastOledTurnoutParameter uiState.lastTurnoutParam
 
+// broadcast / server-info overlay state (migrated to UIState)
+#define broadcastMessageText uiState.broadcastMessageText
+#define broadcastMessageTime uiState.broadcastMessageTime
+#define lastReceivingServerDetailsTime uiState.lastReceivingServerDetailsTime
+
 // extern AiEsp32RotaryEncoder rotaryEncoder;
 
 extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
@@ -75,7 +80,7 @@ extern bool hashShowsFunctionsInsteadOfKeyDefs;
 
 // function prototypes
 
-void displayUpdateFromWit(int);
+// displayUpdateFromWit now in Renderer
 // Legacy SSID functions removed; handled by WifiSsidManager
 
 // WiThrottle server connection functions now in WiThrottleConnectionManager
@@ -93,15 +98,8 @@ void resetMenu(void);
 // Speed/direction/power/throttle wrappers eliminated — callers use managers directly
 // (ThrottleManager, LocoManager, SystemActionHandler, HeartbeatMonitor)
 
-// *********************************************************************************
-//  oLED functions
-// *********************************************************************************
-
-void setAppnameForOled(void);
-void receivingServerInfoOled(int, int);
-void setMenuTextForOled(int);
-void refreshOled();
-// Legacy OLED menu/all-locos helpers migrated into Renderer (renderMenu, renderAllLocos)
+// OLED helper functions moved to Renderer:
+// setAppnameForOled, receivingServerInfoOled, setMenuTextForOled, refreshOled, displayUpdateFromWit
 
 void deepSleepStart();
 void deepSleepStart(int);

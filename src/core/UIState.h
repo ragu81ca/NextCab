@@ -17,6 +17,12 @@ struct UIState {
 	TurnoutAction lastTurnoutParam=TurnoutToggle;
 	bool directCommandsDisplayed=false;
 	bool hashShowsFunctions=false;
+
+	// Broadcast / server-info overlay state (formerly .ino globals)
+	String broadcastMessageText = "";
+	long   broadcastMessageTime = 0;
+	long   lastReceivingServerDetailsTime = 0;
+
 	void clearLines(){ for(int i=0;i<RENDER_MODEL_MAX_ROWS;i++){ lines[i]=""; invert[i]=false; } }
 };
 

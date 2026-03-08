@@ -12,10 +12,14 @@
 #include "protocol/WiThrottleDelegate.h"
 #include "menu/MenuSystem.h"
 #include "menu/MenuItem.h"
+#include "input/InputManager.h"
+#include "network/WiThrottleConnectionManager.h"
 
 // u8g2 display instance declared in static.cpp with type depending on OLED configuration (see static.h)
 extern BatteryMonitor batteryMonitor; 
 extern HeartbeatMonitor heartbeatMonitor;
+extern InputManager inputManager;
+extern WiThrottleConnectionManager connectionManager;
 // Global instance now defined in WiTcontroller.ino to avoid multiple definition.
 
 Renderer::Renderer(DisplayDriver &d, const DisplayLayout &l, const FontSet &f)
@@ -965,4 +969,92 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	}
 
 	display.sendBuffer();
+}
+
+// *********************************************************************************
+//  OLED helper methods (migrated from WiTcontroller.ino)
+// *********************************************************************************
+
+void Renderer::setAppnameForOled() {
+  oledText[0] = appName + " " + appVersion;
+}
+
+void Renderer::receivingServerInfoOled(int index, int maxExpected) {
+  debug_print("receivingServerInfoOled(): LastSent: ");
+  debug_println(lastReceivingServerDetailsTime);
+  if (index < (maxExpected-1) ) {
+    if (millis()-lastReceivingServerDetailsTime >= 2000) {  // refresh it every X seconds if needed
+      if (broadcastMessageText == "") broadcastMessageText = MSG_RECEIVING_SERVER_DETAILS;
+      lastReceivingServerDetailsTime = millis();
+      broadcastMessageTime = millis();
+      setMenuTextForOled(menu_menu);
+      // Only refresh if user is in operation mode - prevents race condition with selection/password modes
+      if (inputManager.isInOperationMode()) {
+        refreshOled();
+      }
+    } // else do nothing
+  } else {
+    lastReceivingServerDetailsTime = 0;
+    broadcastMessageTime = 0;
+    broadcastMessageText = "";
+    // Only refresh if user is in operation mode - prevents race condition with selection/password modes
+    if (inputManager.isInOperationMode()) {
+      refreshOled();
+    }
+  }
+}
+
+void Renderer::setMenuTextForOled(int menuTextIndex) {
+  debug_print("setMenuTextForOled(): ");
+  debug_println(menuTextIndex);
+  oledText[layout.menuTextRow] = menu_text[menuTextIndex];
+  if (broadcastMessageText != "") {
+    if (millis()-broadcastMessageTime < 10000) {
+      oledText[layout.menuTextRow] = broadcastMessageText;
+    } else {
+      broadcastMessageText = "";
+      broadcastMessageTime = 0;
+    }
+  }
+}
+
+void Renderer::refreshOled() {
+  debug_print("refreshOled(): ");
+  debug_println(lastOledScreen);
+  switch (lastOledScreen) {
+    case last_oled_screen_speed:
+      renderSpeed();
+      break;
+    case last_oled_screen_roster:
+    case last_oled_screen_turnout_list:
+    case last_oled_screen_route_list:
+    case last_oled_screen_function_list:
+    case last_oled_screen_edit_consist:
+      // List screens are now rendered by their handlers — re-enter current mode
+      inputManager.forceMode(inputManager.getMode());
+      break;
+    case last_oled_screen_menu:
+    case last_oled_screen_extra_submenu:
+      // Old menu system removed - fallback to speed screen
+      renderSpeed();
+      break;
+    case last_oled_screen_all_locos:
+      renderAllLocosScreen(lastOledBoolParameter);
+      break;
+    case last_oled_screen_direct_commands:
+      renderDirectCommands();
+      break;
+  }
+}
+
+void Renderer::displayUpdateFromWit(int multiThrottleIndex) {
+  debug_print("displayUpdateFromWit(): mode: "); debug_print((int)inputManager.getMode());
+  debug_print(" menuIsShowing "); debug_print(menuIsShowing);
+  debug_print(" multiThrottleIndex "); debug_print(multiThrottleIndex);
+  debug_println("");
+  if ( inputManager.isInOperationMode() && (!menuIsShowing)
+  && (multiThrottleIndex==throttleManager.getCurrentThrottleIndex()) ) {
+    connectionManager.clearConnectedSplash();
+    renderSpeed();
+  }
 }

@@ -151,13 +151,10 @@ double startWaitForSelection;
 
 // migrated: page, functionPage, functionHasBeenSelected now in uiState
 
-// Broadcast msessage
-String broadcastMessageText = "";
-long broadcastMessageTime = 0;
-long lastReceivingServerDetailsTime = 0;
+// Broadcast message state migrated to UIState (macros in WiTcontroller.h)
 
 // remember oLED state
-// migrated: lastOled* variables now in uiState (except lastOledIntParameter retained locally if still needed)
+// migrated: lastOled* variables now in uiState
 int lastOledIntParameter = 0; // TODO: consider moving this as presenters evolve
 
 // turnout / route arrays removed — now in serverDataStore
@@ -280,18 +277,6 @@ bool additionalButtonOverrideDefaultLatching = ADDITIONAL_BUTTON_OVERRIDE_DEFAUL
 unsigned long additionalButtonDebounceDelay = ADDITIONAL_BUTTON_DEBOUNCE_DELAY;    // the debounce time
 
 // *********************************************************************************
-
-void displayUpdateFromWit(int multiThrottleIndex) {
-  debug_print("displayUpdateFromWit(): mode: "); debug_print((int)inputManager.getMode()); 
-  debug_print(" menuIsShowing "); debug_print(menuIsShowing);
-  debug_print(" multiThrottleIndex "); debug_print(multiThrottleIndex);
-  debug_println("");
-  if ( inputManager.isInOperationMode() && (!menuIsShowing) 
-  && (multiThrottleIndex==throttleManager.getCurrentThrottleIndex()) ) {
-  connectionManager.clearConnectedSplash();
-  renderer.renderSpeed();
-  }
-}
 
 #include "src/core/protocol/WiThrottleDelegate.h"
 static WiThrottleDelegate myDelegate; // delegate class (file renamed)
@@ -704,84 +689,8 @@ void doOneStartupCommand(String cmd) {
   }
 }
 
-// *********************************************************************************
-//  oLED functions
-// *********************************************************************************
-
-void setAppnameForOled() {
-  oledText[0] = appName + " " + appVersion;
-}
-
-void receivingServerInfoOled(int index, int maxExpected) {
-  debug_print("receivingServerInfoOled(): LastSent: ");
-  debug_println(lastReceivingServerDetailsTime);
-  if (index < (maxExpected-1) ) {
-    if (millis()-lastReceivingServerDetailsTime >= 2000) {  // refresh it every X seconds if needed
-      if (broadcastMessageText == "") broadcastMessageText = MSG_RECEIVING_SERVER_DETAILS;
-      lastReceivingServerDetailsTime = millis();
-      broadcastMessageTime = millis();
-      setMenuTextForOled(menu_menu);
-      // Only refresh if user is in operation mode - prevents race condition with selection/password modes
-      if (inputManager.isInOperationMode()) {
-        refreshOled();
-      }
-    } // else do nothing
-  } else {
-    lastReceivingServerDetailsTime = 0;
-    broadcastMessageTime = 0;
-    broadcastMessageText = "";
-    // Only refresh if user is in operation mode - prevents race condition with selection/password modes
-    if (inputManager.isInOperationMode()) {
-      refreshOled();
-    }
-  }
-}
-
-void setMenuTextForOled(int menuTextIndex) {
-  debug_print("setMenuTextForOled(): ");
-  debug_println(menuTextIndex);
-  oledText[activeLayout.menuTextRow] = menu_text[menuTextIndex];
-  if (broadcastMessageText != "") {
-    if (millis()-broadcastMessageTime < 10000) {
-      oledText[activeLayout.menuTextRow] = broadcastMessageText;
-    } else {
-      broadcastMessageText = "";
-      broadcastMessageTime = 0;
-    }
-  }
-}
-
-void refreshOled() {
-     debug_print("refreshOled(): ");
-     debug_println(lastOledScreen);
-  switch (lastOledScreen) {
-    case last_oled_screen_speed:
-  renderer.renderSpeed();
-      break;
-    case last_oled_screen_roster:
-    case last_oled_screen_turnout_list:
-    case last_oled_screen_route_list:
-    case last_oled_screen_function_list:
-    case last_oled_screen_edit_consist:
-      // List screens are now rendered by their handlers — re-enter current mode
-      inputManager.forceMode(inputManager.getMode());
-      break;
-    case last_oled_screen_menu:
-    case last_oled_screen_extra_submenu:
-      // Old menu system removed - fallback to speed screen
-      renderer.renderSpeed();
-      break;
-    case last_oled_screen_all_locos:
-  renderer.renderAllLocosScreen(lastOledBoolParameter);
-      break;
-    case last_oled_screen_direct_commands:
-  renderer.renderDirectCommands();
-      break;
-  }
-}
-
-
-// Legacy free-function OLED wrappers fully removed; use renderer methods directly.
+// OLED helper functions moved to Renderer (setAppnameForOled, receivingServerInfoOled,
+// setMenuTextForOled, refreshOled, displayUpdateFromWit)
 
 // *********************************************************************************
 

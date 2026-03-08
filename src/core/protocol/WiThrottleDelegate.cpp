@@ -2,6 +2,7 @@
 #include "../ThrottleManager.h" // full definition for method calls
 #include "../ServerDataStore.h"
 #include "../LocoManager.h"
+#include "../Renderer.h"
 #include "../../../WiTcontroller.h" // extern throttleManager instance declaration
 #include "../heartbeat/HeartbeatMonitor.h"
 extern HeartbeatMonitor heartbeatMonitor;
@@ -31,12 +32,12 @@ void WiThrottleDelegate::receivedServerDescription(String description) {
 
 void WiThrottleDelegate::receivedMessage(String message) {
     noteServerActivity();
-    if ((!message.equals("Connected")) && (!message.equals("Connecting.."))) { broadcastMessageText = String(message); broadcastMessageTime = millis(); refreshOled(); }
+    if ((!message.equals("Connected")) && (!message.equals("Connecting.."))) { broadcastMessageText = String(message); broadcastMessageTime = millis(); renderer.refreshOled(); }
 }
 
 void WiThrottleDelegate::receivedAlert(String message) {
     noteServerActivity();
-    if ((!message.equals("Connected")) && (!message.equals("Connecting..")) && (!message.equals("Steal from other WiThrottle or JMRI throttle Required"))) { broadcastMessageText = String(message); broadcastMessageTime = millis(); refreshOled(); }
+    if ((!message.equals("Connected")) && (!message.equals("Connecting..")) && (!message.equals("Steal from other WiThrottle or JMRI throttle Required"))) { broadcastMessageText = String(message); broadcastMessageTime = millis(); renderer.refreshOled(); }
 }
 
 void WiThrottleDelegate::receivedSpeedMultiThrottle(char multiThrottle, int speed) {
@@ -54,14 +55,14 @@ void WiThrottleDelegate::receivedSpeedMultiThrottle(char multiThrottle, int spee
         if ((throttleManager.getLastSpeedThrottleIndex() != idx) || ((millis() - throttleManager.getLastSpeedSentTime()) > 500)) {
             // Directly set internal array (avoid triggering outbound command) then refresh
             throttleManager.speeds()[idx] = speed;
-            displayUpdateFromWit(idx);
+            renderer.displayUpdateFromWit(idx);
         }
     }
 }
 void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, Direction dir) {
     noteServerActivity();
     int idx = getMultiThrottleIndex(multiThrottle);
-    if (throttleManager.directions()[idx] != dir) { throttleManager.directions()[idx] = dir; displayUpdateFromWit(idx); }
+    if (throttleManager.directions()[idx] != dir) { throttleManager.directions()[idx] = dir; renderer.displayUpdateFromWit(idx); }
 }
 
 void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, String loco, Direction dir) { 
@@ -72,7 +73,7 @@ void WiThrottleDelegate::receivedDirectionMultiThrottle(char multiThrottle, Stri
 void WiThrottleDelegate::receivedFunctionStateMultiThrottle(char multiThrottle, uint8_t func, bool state) {
     noteServerActivity();
     int idx = getMultiThrottleIndex(multiThrottle);
-    if (throttleManager.getFunctionState(idx, func) != state) { throttleManager.setFunctionState(idx, func, state); displayUpdateFromWit(idx); }
+    if (throttleManager.getFunctionState(idx, func) != state) { throttleManager.setFunctionState(idx, func, state); renderer.displayUpdateFromWit(idx); }
 }
 
 void WiThrottleDelegate::receivedRosterFunctionListMultiThrottle(char multiThrottle, String functions[MAX_FUNCTIONS]) {
@@ -83,7 +84,7 @@ void WiThrottleDelegate::receivedRosterFunctionListMultiThrottle(char multiThrot
 
 void WiThrottleDelegate::receivedTrackPower(TrackPower state) {
     noteServerActivity();
-    if (trackPower != state) { trackPower = state; displayUpdateFromWit(-1); refreshOled(); }
+    if (trackPower != state) { trackPower = state; renderer.displayUpdateFromWit(-1); renderer.refreshOled(); }
 }
 
 void WiThrottleDelegate::receivedRosterEntries(int size) { 
@@ -98,7 +99,7 @@ void WiThrottleDelegate::receivedRosterEntry(int index, String name, int address
     if (index == serverDataStore.rosterSize() - 1) {
         locoManager.restoreLocos();
     }
-    receivingServerInfoOled(index, serverDataStore.rosterSize());
+    renderer.receivingServerInfoOled(index, serverDataStore.rosterSize());
 #if ACQUIRE_ROSTER_ENTRY_IF_ONLY_ONE
     if ((serverDataStore.rosterSize() == 1) && (index == 0)) { doOneStartupCommand("*1#0"); }
 #endif
@@ -111,7 +112,7 @@ void WiThrottleDelegate::receivedTurnoutEntries(int size) {
 void WiThrottleDelegate::receivedTurnoutEntry(int index, String sysName, String userName, int state) {
     noteServerActivity();
     serverDataStore.addTurnoutEntry(index, sysName, userName, state);
-    receivingServerInfoOled(index, serverDataStore.turnoutListSize());
+    renderer.receivingServerInfoOled(index, serverDataStore.turnoutListSize());
 }
 
 void WiThrottleDelegate::receivedRouteEntries(int size) { 
@@ -122,7 +123,7 @@ void WiThrottleDelegate::receivedRouteEntries(int size) {
 void WiThrottleDelegate::receivedRouteEntry(int index, String sysName, String userName, int state) {
     noteServerActivity();
     serverDataStore.addRouteEntry(index, sysName, userName, state);
-    receivingServerInfoOled(index, serverDataStore.routeListSize());
+    renderer.receivingServerInfoOled(index, serverDataStore.routeListSize());
 }
 void WiThrottleDelegate::addressStealNeeded(String address, String entry) { locoManager.stealLoco(throttleManager.getCurrentThrottleChar(), address); }
 void WiThrottleDelegate::addressStealNeededMultiThrottle(char multiThrottle, String address, String entry) { locoManager.stealLoco(multiThrottle, address); }
