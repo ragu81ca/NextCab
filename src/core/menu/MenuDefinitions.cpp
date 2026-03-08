@@ -24,14 +24,10 @@ extern LocoManager locoManager;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
 extern HeartbeatMonitor heartbeatMonitor;
 extern WiThrottleConnectionManager connectionManager;
+extern TrackPower trackPower;
 
 // Forward declarations from main sketch
-extern void toggleDirection(int multiThrottleIndex);
-extern void cycleSpeedStep();
-extern void powerToggle();
 extern void deepSleepStart();
-extern void changeNumberOfThrottles(bool increase);
-extern void toggleDropBeforeAquire();
 extern SystemStateManager systemStateManager;
 
 // ==================== Menu Handlers ====================
@@ -67,11 +63,11 @@ namespace MenuHandlers {
     }
     
     void handleToggleDirection(MenuContext& ctx) {
-        toggleDirection(throttleManager.getCurrentThrottleIndex());
+        throttleManager.toggleDirection(throttleManager.getCurrentThrottleIndex());
     }
     
     void handleSpeedStep(MenuContext& ctx) {
-        cycleSpeedStep();
+        throttleManager.cycleSpeedStep();
     }
     
     void handleThrowPoint(MenuContext& ctx) {
@@ -107,7 +103,14 @@ namespace MenuHandlers {
     }
     
     void handleTrackPower(MenuContext& ctx) {
-        powerToggle();
+        if (trackPower == PowerOn) {
+            wiThrottleProtocol.setTrackPower(PowerOff);
+            trackPower = PowerOff;
+        } else {
+            wiThrottleProtocol.setTrackPower(PowerOn);
+            trackPower = PowerOn;
+        }
+        renderer.renderSpeed();
     }
     
     void handleFunction(MenuContext& ctx) {
@@ -145,11 +148,11 @@ namespace MenuHandlers {
     }
     
     void handleIncreaseThrottles(MenuContext& ctx) {
-        changeNumberOfThrottles(true);
+        throttleManager.changeNumberOfThrottles(true);
     }
     
     void handleDecreaseThrottles(MenuContext& ctx) {
-        changeNumberOfThrottles(false);
+        throttleManager.changeNumberOfThrottles(false);
     }
     
     void handleDisconnect(MenuContext& ctx) {
@@ -165,7 +168,7 @@ namespace MenuHandlers {
     }
     
     void handleDropBeforeAcquireToggle(MenuContext& ctx) {
-        toggleDropBeforeAquire();
+        locoManager.toggleDropBeforeAcquire();
     }
     
     // List renderers (thin wrappers around existing functions)

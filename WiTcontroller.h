@@ -71,8 +71,7 @@ extern WiThrottleProtocol wiThrottleProtocol; // protocol instance
 // Additional globals used by Renderer (migrated rendering logic)
 extern bool oledDirectCommandsAreBeingDisplayed;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
-// getDisplayLocoString now in LocoManager
-int getDisplaySpeed(int multiThrottleIndex);
+// getDisplaySpeed now in ThrottleManager, getDisplayLocoString in LocoManager
 
 // function prototypes
 
@@ -91,21 +90,8 @@ void loop(void);
 void doMenu(void);
 void resetMenu(void);
 
-// getLocoWithLength, releaseAllLocos, releaseOneLocoByIndex, toggleLocoFacing now in LocoManager
-void speedEstop(void);
-void speedDown(int, int);
-void speedUp(int, int);
-void speedSet(int, int);
-void toggleAdditionalMultiplier(void);
-void toggleHeartbeatCheck(void);
-void toggleDirection(int);
-// toggleLocoFacing now in LocoManager
-void changeDirection(int, Direction);
-
-void powerOnOff(TrackPower);
-void powerToggle(void);
-void nextThrottle(void);
-void reconnect(void);
+// Speed/direction/power/throttle wrappers eliminated — callers use managers directly
+// (ThrottleManager, LocoManager, SystemActionHandler, HeartbeatMonitor)
 
 // *********************************************************************************
 //  oLED functions

@@ -128,7 +128,7 @@ RouteSelectionHandler routeSelectionHandler(renderer);
 FunctionSelectionHandler functionSelectionHandler(renderer);
 DropLocoSelectionHandler dropLocoSelectionHandler(renderer);
 EditConsistSelectionHandler editConsistSelectionHandler(renderer);
-SystemActionHandler systemActionHandler(throttleManager);
+SystemActionHandler systemActionHandler(throttleManager, renderer, batteryMonitor, wiThrottleProtocol);
 
 // server variables
 // bool ssidConnected = false;
@@ -646,119 +646,14 @@ static void onPasswordCancel() {
 //  Actions
 // *********************************************************************************
 
-// Preferences read flag (referenced during disconnect/reconnect)
-// (definition moved earlier near top of file)
-
-// Function reset helpers — delegated to ThrottleManager
-
-// getLocoWithLength, stealLoco, toggleLocoFacing, getLocoFacing,
-// getDisplayLocoString, releaseAllLocos, releaseOneLoco, releaseOneLocoByIndex,
-// toggleDropBeforeAquire — all migrated to LocoManager
-
-void speedEstop() {
-  throttleManager.speedEstopAll();
-}
-
-void speedEstopCurrentLoco() {
-  throttleManager.speedEstopCurrent();
-}
-
-void speedDown(int multiThrottleIndex, int amt) {
-  throttleManager.speedDown(multiThrottleIndex, amt);
-}
-
-void speedUp(int multiThrottleIndex, int amt) {
-  throttleManager.speedUp(multiThrottleIndex, amt);
-}
-
-void speedSet(int multiThrottleIndex, int amt) {
-  throttleManager.speedSet(multiThrottleIndex, amt);
-}
-
-int getDisplaySpeed(int multiThrottleIndex) {
-  return throttleManager.getDisplaySpeed(multiThrottleIndex);
-}
-
-// Speed step cycling now handled directly by ThrottleManager
-void cycleSpeedStep() { throttleManager.cycleSpeedStep(); }
-
-void toggleHeartbeatCheck() {
-  heartbeatMonitor.toggleEnabled();
-  debug_print("Heartbeat Check: "); debug_println(heartbeatMonitor.enabled() ? "Enabled" : "Disabled");
-  wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled());
-  writeHeartbeatCheck();
-}
-
-void toggleDropBeforeAquire() {
-  locoManager.toggleDropBeforeAcquire();
-}
-
-void toggleDirection(int multiThrottleIndex) {
-  throttleManager.toggleDirection(multiThrottleIndex);
-}
-
-void changeDirection(int multiThrottleIndex, Direction direction) {
-  throttleManager.changeDirection(multiThrottleIndex, direction);
-}
-
-// Function dispatch — delegated to ThrottleManager
-// (doDirectFunction, doFunction, doFunctionWhichLocosInConsist removed)
-
-void powerOnOff(TrackPower powerState) {
-  debug_println("powerOnOff()");
-  wiThrottleProtocol.setTrackPower(powerState);
-  trackPower = powerState;
-  renderer.renderSpeed();
-}
-
-void powerToggle() {
-  debug_println("PowerToggle()");
-  if (trackPower==PowerOn) {
-    powerOnOff(PowerOff);
-  } else {
-    powerOnOff(PowerOn);
-  }
-}
-
-void nextThrottle() {
-  throttleManager.nextThrottle();
-}
-
-void throttle(int throttleIndex) {
-  throttleManager.selectThrottle(throttleIndex);
-}
-
-void changeNumberOfThrottles(bool increase) {
-  throttleManager.changeNumberOfThrottles(increase);
-}
-
-void batteryShowToggle() {
-  debug_println("batteryShowToggle()");
-  batteryMonitor.toggleDisplayMode();
-  renderer.renderSpeed();
-}
-
-void stopThenToggleDirection() {
-  if (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) {
-    if (throttleManager.getCurrentSpeed(throttleManager.getCurrentThrottleIndex()) != 0) {
-      // wiThrottleProtocol.setSpeed(currentThrottleIndexChar, 0);
-  speedSet(throttleManager.getCurrentThrottleIndex(),0);
-    } else {
-  if (toggleDirectionOnEncoderButtonPressWhenStationary) toggleDirection(throttleManager.getCurrentThrottleIndex());
-    }
-  throttleManager.speeds()[throttleManager.getCurrentThrottleIndex()] = 0;
-  }
-}
-
-void reconnect() {
-  { TitleScreen ts;
-    ts.setAppHeader(appName, appVersion);
-    ts.addBody(MSG_DISCONNECTED);
-    renderer.renderTitle(ts); }
-  delay(5000);
-  locoManager.resetRestoreGuard();
-  connectionManager.disconnect();
-}
+// Legacy free functions removed — callers now use managers directly:
+// speedEstop/Current, speedDown/Up/Set, getDisplaySpeed → ThrottleManager
+// cycleSpeedStep, toggleDirection, changeDirection, nextThrottle → ThrottleManager
+// changeNumberOfThrottles → ThrottleManager
+// powerOnOff, powerToggle, batteryShowToggle → SystemActionHandler (inlined)
+// toggleDropBeforeAcquire → LocoManager
+// toggleHeartbeatCheck → HeartbeatMonitor + MenuDefinitions
+// stopThenToggleDirection, reconnect → dead code (unused)
 
 // compareStrings() moved to ServerDataStore
 
@@ -887,9 +782,6 @@ void refreshOled() {
 
 
 // Legacy free-function OLED wrappers fully removed; use renderer methods directly.
-
-// Thin wrappers retained temporarily for in-progress migration paths
-inline void writeHeartbeatCheck() { renderer.renderHeartbeatCheck(); }
 
 // *********************************************************************************
 

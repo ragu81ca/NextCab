@@ -1,13 +1,18 @@
 #pragma once
 #include "IModeHandler.h"
 #include "../ThrottleManager.h"
+#include "../Renderer.h"
+#include "../BatteryMonitor.h"
 #include "InputEvents.h"
 #include "../../../actions.h"
+#include <WiThrottleProtocol.h>
 
 // Handles non-locomotive programmable actions: power, sleep, throttle selection, battery toggle, etc.
 class SystemActionHandler : public IModeHandler {
 public:
-    SystemActionHandler(ThrottleManager &throttle) : throttle_(throttle) {}
+    SystemActionHandler(ThrottleManager &throttle, Renderer &renderer,
+                        BatteryMonitor &battery, WiThrottleProtocol &proto)
+        : throttle_(throttle), renderer_(renderer), battery_(battery), proto_(proto) {}
     bool handle(const InputEvent &ev) override {
         if (ev.type != InputEventType::Action) return false;
         switch (ev.ivalue) {
@@ -33,9 +38,24 @@ public:
     void onExit() override {}
 private:
     ThrottleManager &throttle_;
-    // External system functions (declared in WiTcontroller.h)
-    void powerOnOff(TrackPower p);
-    void powerToggle();
-    void batteryShowToggle();
+    Renderer &renderer_;
+    BatteryMonitor &battery_;
+    WiThrottleProtocol &proto_;
+
+    void powerOnOff(TrackPower p) {
+        extern TrackPower trackPower;
+        proto_.setTrackPower(p);
+        trackPower = p;
+        renderer_.renderSpeed();
+    }
+    void powerToggle() {
+        extern TrackPower trackPower;
+        powerOnOff(trackPower == PowerOn ? PowerOff : PowerOn);
+    }
+    void batteryShowToggle() {
+        battery_.toggleDisplayMode();
+        renderer_.renderSpeed();
+    }
+    // Deep sleep remains in .ino (hardware-specific GPIO/wakeup config)
     void deepSleepStart();
 };
