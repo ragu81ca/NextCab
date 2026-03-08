@@ -6,11 +6,6 @@
 #include "MomentumController.h"
 #include "SoundController.h"
 
-// Define maximum number of throttles (can be overridden at compile time)
-#ifndef WIT_MAX_THROTTLES
-#define WIT_MAX_THROTTLES 6
-#endif
-
 class ThrottleManager {
 public:
 	ThrottleManager();

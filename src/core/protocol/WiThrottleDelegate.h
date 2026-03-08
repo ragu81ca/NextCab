@@ -16,7 +16,6 @@
 
 void refreshOled();
 void receivingServerInfoOled(int index, int total);
-void setupPreferences(bool forceClear);
 void doOneStartupCommand(String cmd);
 
 // Speed/direction/function arrays migrated to ThrottleManager\n// Roster/turnout/route data migrated to ServerDataStore

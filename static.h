@@ -889,3 +889,9 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 #ifndef CONSIST_RELEASE_BY_INDEX
    #define CONSIST_RELEASE_BY_INDEX true
 #endif
+
+// Maximum number of throttles the controller can manage simultaneously.
+// Can be overridden at compile time via build flags.
+#ifndef WIT_MAX_THROTTLES
+   #define WIT_MAX_THROTTLES 6
+#endif

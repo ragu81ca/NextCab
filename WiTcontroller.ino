@@ -316,83 +316,7 @@ WiThrottleProtocol wiThrottleProtocol;
 // Identity now managed by connectionManager; bridge for WifiSsidManager's extern
 // connectionManager.hostname() is only valid after computeIdentity(), which runs in setup().
 
-// *********************************************************************************
-//   Server-associated loco persistence (via ConfigStore / LittleFS)
-//
-//   Locos are stored per-server (IP:port) in servers.json so they are only
-//   restored when reconnecting to the same WiThrottle server.
-
-// Called from WiThrottleDelegate after roster entries are received, or on
-// reconnect.  Restores previously-acquired locos for this server.
-// Guard: only runs once per connection (reset on disconnect).
-static bool locosRestoredForCurrentServer = false;
-
-void setupPreferences(bool forceClear) {
-    if (forceClear) {
-        locosRestoredForCurrentServer = false;
-        return;
-    }
-
-    if (!RESTORE_ACQUIRED_LOCOS) return;
-    if (locosRestoredForCurrentServer) return;
-
-    String host = connectionManager.selectedIP().toString();
-    int    port = connectionManager.selectedPort();
-    if (host.length() == 0 || port == 0) return;
-
-    locosRestoredForCurrentServer = true;
-
-    ServerConfig cfg = configStore.findServerConfig(host, port);
-
-    // Apply turnout/route prefixes if stored (DCC-EX heuristic may override later)
-    if (cfg.turnoutPrefix.length() > 0) serverDataStore.setTurnoutPrefix(cfg.turnoutPrefix);
-    if (cfg.routePrefix.length() > 0)   serverDataStore.setRoutePrefix(cfg.routePrefix);
-
-    // Restore locos
-    for (int t = 0; t < (int)cfg.throttleLocos.size() && t < throttleManager.getMaxThrottles(); t++) {
-        char throttleChar = '0' + t;
-        for (const auto& addr : cfg.throttleLocos[t]) {
-            if (addr.length() > 0) {
-                wiThrottleProtocol.addLocomotive(throttleChar, addr);
-                wiThrottleProtocol.getDirection(throttleChar, addr);
-                wiThrottleProtocol.getSpeed(throttleChar);
-            }
-        }
-    }
-
-    Serial.printf("[Locos] Restored %d throttle(s) of locos for %s:%d\n",
-                  (int)cfg.throttleLocos.size(), host.c_str(), port);
-}
-
-// Called from menu "Save Locos" action.  Saves current locos + prefixes for this server.
-void writePreferences() {
-    String host = connectionManager.selectedIP().toString();
-    int    port = connectionManager.selectedPort();
-    if (host.length() == 0 || port == 0) return;
-
-    ServerConfig cfg;
-    cfg.host           = host;
-    cfg.port           = port;
-    cfg.turnoutPrefix  = serverDataStore.turnoutPrefix();
-    cfg.routePrefix    = serverDataStore.routePrefix();
-
-    int maxT = throttleManager.getMaxThrottles();
-    cfg.throttleLocos.resize(maxT);
-    for (int t = 0; t < maxT; t++) {
-        char throttleChar = '0' + t;
-        int numLocos = wiThrottleProtocol.getNumberOfLocomotives(throttleChar);
-        for (int j = 0; j < numLocos; j++) {
-            String loco = wiThrottleProtocol.getLocomotiveAtPosition(throttleChar, j);
-            if (loco.length() > 0) {
-                cfg.throttleLocos[t].push_back(loco);
-            }
-        }
-    }
-
-    configStore.saveServer(cfg);
-    Serial.printf("[Locos] Saved locos for %s:%d\n", host.c_str(), port);
-}
-
+// Loco persistence (save/restore) now lives in LocoManager.
 
 // *********************************************************************************
 //   Rotary Encoder (moved into RotaryEncoderInput abstraction)
@@ -486,7 +410,9 @@ void setup() {
 
   // Function arrays + speed/direction initialized inside throttleManager.begin()
   throttleManager.begin(&wiThrottleProtocol);
-  locoManager.begin(&wiThrottleProtocol, &throttleManager, &serverDataStore, &renderer, &uiState);
+  locoManager.begin(&wiThrottleProtocol, &throttleManager, &serverDataStore, &renderer, &uiState,
+                    &configStore, &connectionManager);
+  throttleManager.sound().begin(&throttleManager, &wiThrottleProtocol, &locoManager);
   locoManager.setDropBeforeAcquire(DROP_BEFORE_ACQUIRE);
   uiState.functionPage = 0;
   // Wire up generic input manager mode & action handlers
@@ -830,7 +756,7 @@ void reconnect() {
     ts.addBody(MSG_DISCONNECTED);
     renderer.renderTitle(ts); }
   delay(5000);
-  setupPreferences(true);  // reset loco-restore guard
+  locoManager.resetRestoreGuard();
   connectionManager.disconnect();
 }
 
@@ -891,17 +817,11 @@ void selectRoster(int selection) {
   debug_print("selectRoster() "); debug_println(selection);
 
   if ((selection>=0) && (selection < serverDataStore.rosterSize())) {
-    if ( (locoManager.dropBeforeAcquire()) && (wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar())>0) ) {
-      wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
-    }
     int index = serverDataStore.rosterSortedIndex(selection);
     String loco = String(serverDataStore.rosterLength(index)) + serverDataStore.rosterAddress(index);
     
     debug_print("add Loco: "); debug_println(loco);
-  wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
-  wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
-  wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
-  throttleManager.resetFunctionStates(throttleManager.getCurrentThrottleIndex());
+  locoManager.acquireLoco(throttleManager.getCurrentThrottleIndex(), loco);
   renderer.renderSpeed();
     inputManager.setMode(InputMode::Operation);
   }

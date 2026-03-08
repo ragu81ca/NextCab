@@ -1,9 +1,12 @@
 // SoundController.h - Event-driven diesel locomotive sound management
 #pragma once
 #include <Arduino.h>
+#include "../../static.h"
 
 // Forward declarations
 class ThrottleManager;
+class LocoManager;
+class WiThrottleProtocol;
 
 // Sound events that can trigger sound functions
 enum class SoundEvent {
@@ -40,8 +43,8 @@ class SoundController {
 public:
     SoundController();
     
-    // Initialize with reference to throttle manager
-    void begin(ThrottleManager* throttleMgr);
+    // Initialize with references to throttle manager, protocol, and loco manager
+    void begin(ThrottleManager* throttleMgr, WiThrottleProtocol* proto, LocoManager* locoMgr);
     
     // Called from main loop to handle non-blocking function pulses
     void update();
@@ -68,30 +71,25 @@ public:
     bool isAnyNotching() const;
     
 private:
-    static constexpr int SOUND_MAX_THROTTLES = 6;
-    
-    // Configuration
-    SoundConfig config_;
-    
     // Per-throttle, per-function state for non-blocking function pulses
-    bool functionPulseActive_[SOUND_MAX_THROTTLES][32];  // Support F0-F31
-    unsigned long functionPulseStart_[SOUND_MAX_THROTTLES][32];
-    unsigned long lastFunctionTime_[SOUND_MAX_THROTTLES][32];
+    bool functionPulseActive_[WIT_MAX_THROTTLES][32];  // Support F0-F31
+    unsigned long functionPulseStart_[WIT_MAX_THROTTLES][32];
+    unsigned long lastFunctionTime_[WIT_MAX_THROTTLES][32];
     
     // Internal notch simulation (1-8, diesel locomotive sound effects only)
     // Steam locomotives would require completely different sound patterns
-    int currentNotch_[SOUND_MAX_THROTTLES];
-    int targetNotch_[SOUND_MAX_THROTTLES];
-    unsigned long lastNotchTime_[SOUND_MAX_THROTTLES];
+    int currentNotch_[WIT_MAX_THROTTLES];
+    int targetNotch_[WIT_MAX_THROTTLES];
+    unsigned long lastNotchTime_[WIT_MAX_THROTTLES];
     
     // Speed tracking for effort-based notch calculation (prime mover overshoot)
-    int targetSpeed_[SOUND_MAX_THROTTLES];
-    int actualSpeed_[SOUND_MAX_THROTTLES];
+    int targetSpeed_[WIT_MAX_THROTTLES];
+    int actualSpeed_[WIT_MAX_THROTTLES];
     
     // Idle recovery: extra throttle-down pulses to ensure decoder reaches idle
     // Digitrax decoders can miss individual DCC function packets, so we send
     // redundant F7 pulses after the normal notch-down sequence completes
-    int idleFlushRemaining_[SOUND_MAX_THROTTLES];
+    int idleFlushRemaining_[WIT_MAX_THROTTLES];
     static constexpr int IDLE_FLUSH_COUNT = 3;
     
     // Time between notch transitions (ms)
@@ -102,10 +100,16 @@ private:
     
     // Reference to throttle manager for function calls
     ThrottleManager* throttleMgr_;
+    WiThrottleProtocol* proto_;
+    LocoManager* locoMgr_;
     
-    // Internal methods
+    // Configuration (global defaults — per-loco configs override when available)
+    SoundConfig config_;
+    
+    // Internal methods — per-loco aware dispatch
     void triggerFunction(int throttle, uint8_t funcNum, const char* reason);
     void triggerFunctionImmediate(int throttle, uint8_t funcNum, bool state);
+    void turnOffFunction(int throttle, uint8_t funcNum);
     bool canTriggerFunction(int throttle, uint8_t funcNum);
     
     // Internal notch simulation for sound effects only

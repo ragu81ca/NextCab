@@ -88,7 +88,7 @@ void WiThrottleDelegate::receivedTrackPower(TrackPower state) {
 
 void WiThrottleDelegate::receivedRosterEntries(int size) { 
     noteServerActivity();
-    serverDataStore.setRosterSize(size); if (size == 0) { setupPreferences(false); } 
+    serverDataStore.setRosterSize(size); if (size == 0) { locoManager.restoreLocos(); } 
 }
 
 void WiThrottleDelegate::receivedRosterEntry(int index, String name, int address, char length) {
@@ -96,7 +96,7 @@ void WiThrottleDelegate::receivedRosterEntry(int index, String name, int address
     serverDataStore.addRosterEntry(index, name, address, length);
     // When last entry arrives, addRosterEntry triggers sort internally
     if (index == serverDataStore.rosterSize() - 1) {
-        setupPreferences(false);
+        locoManager.restoreLocos();
     }
     receivingServerInfoOled(index, serverDataStore.rosterSize());
 #if ACQUIRE_ROSTER_ENTRY_IF_ONLY_ONE

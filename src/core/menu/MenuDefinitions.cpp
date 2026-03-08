@@ -29,8 +29,6 @@ extern WiThrottleConnectionManager connectionManager;
 extern void toggleDirection(int multiThrottleIndex);
 extern void cycleSpeedStep();
 extern void powerToggle();
-extern void writePreferences();
-extern void setupPreferences(bool forceClear);
 extern void deepSleepStart();
 extern void changeNumberOfThrottles(bool increase);
 extern void toggleDropBeforeAquire();
@@ -43,13 +41,8 @@ namespace MenuHandlers {
     
     void handleAddLoco(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            if (locoManager.dropBeforeAcquire() && wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0) {
-                wiThrottleProtocol.releaseLocomotive(throttleManager.getCurrentThrottleChar(), "*");
-            }
             String loco = locoManager.getLocoWithLength(ctx.input);
-            wiThrottleProtocol.addLocomotive(throttleManager.getCurrentThrottleChar(), loco);
-            wiThrottleProtocol.getDirection(throttleManager.getCurrentThrottleChar(), loco);
-            wiThrottleProtocol.getSpeed(throttleManager.getCurrentThrottleChar());
+            locoManager.acquireLoco(throttleManager.getCurrentThrottleIndex(), loco);
         } else {
             // No input - show roster list via InputManager
             inputManager.setMode(InputMode::RosterSelection);
@@ -162,7 +155,7 @@ namespace MenuHandlers {
     
     void handleDisconnect(MenuContext& ctx) {
         if (systemStateManager.isOperating()) {
-            setupPreferences(true);  // reset loco-restore guard
+            locoManager.resetRestoreGuard();
             systemStateManager.setState(SystemState::WifiConnected);
             connectionManager.disconnect();
         }
@@ -177,7 +170,7 @@ namespace MenuHandlers {
     }
     
     void handleSaveLocos(MenuContext& ctx) {
-        writePreferences();
+        locoManager.saveLocos();
     }
     
     // List renderers (thin wrappers around existing functions)

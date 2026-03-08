@@ -1,9 +1,12 @@
 // SoundController.cpp - Event-driven diesel locomotive sound management
 #include "SoundController.h"
 #include "ThrottleManager.h"
+#include "LocoManager.h"
+#include <WiThrottleProtocol.h>
+#include "../../WiTcontroller.h"  // getMultiThrottleChar
 
-SoundController::SoundController() : throttleMgr_(nullptr) {
-    for (int i = 0; i < SOUND_MAX_THROTTLES; i++) {
+SoundController::SoundController() : throttleMgr_(nullptr), proto_(nullptr), locoMgr_(nullptr) {
+    for (int i = 0; i < WIT_MAX_THROTTLES; i++) {
         for (int f = 0; f < 32; f++) {
             functionPulseActive_[i][f] = false;
             functionPulseStart_[i][f] = 0;
@@ -18,8 +21,10 @@ SoundController::SoundController() : throttleMgr_(nullptr) {
     }
 }
 
-void SoundController::begin(ThrottleManager* throttleMgr) {
+void SoundController::begin(ThrottleManager* throttleMgr, WiThrottleProtocol* proto, LocoManager* locoMgr) {
     throttleMgr_ = throttleMgr;
+    proto_ = proto;
+    locoMgr_ = locoMgr;
     Serial.println("[SoundController] Initialized - Diesel locomotive sound simulation");
 }
 
@@ -29,13 +34,12 @@ void SoundController::update() {
     unsigned long now = millis();
     
     // Handle non-blocking function pulses for all throttles and functions
-    for (int throttle = 0; throttle < SOUND_MAX_THROTTLES; throttle++) {
+    for (int throttle = 0; throttle < WIT_MAX_THROTTLES; throttle++) {
         for (int funcNum = 0; funcNum < 32; funcNum++) {
             if (functionPulseActive_[throttle][funcNum]) {
                 if (now - functionPulseStart_[throttle][funcNum] >= config_.pulseduration) {
-                    // Time to turn OFF the function - always use direct control
-                    // We must bypass roster settings to ensure precise timing for sound simulation
-                    throttleMgr_->setFunction(throttle, funcNum, false, true); // Force OFF
+                    // Time to turn OFF the function
+                    turnOffFunction(throttle, funcNum);
                     debugPrint(throttle, funcNum, "OFF", "diesel sound pulse complete");
                     
                     functionPulseActive_[throttle][funcNum] = false;
@@ -50,21 +54,33 @@ void SoundController::update() {
 
 void SoundController::onBrakeStateChange(int throttle, bool braking) {
     if (!config_.enabled) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
     
     Serial.print("[SoundController] T");
     Serial.print(throttle);
     Serial.print(" Brake: ");
     Serial.println(braking ? "APPLIED" : "RELEASED");
     
-    if (config_.brakeFunction != 0) {
-        // Brake function is typically latching (ON when braking, OFF when not)
+    // Send brake function to each sound-enabled loco using its configured function,
+    // or fall back to global default on lead loco
+    if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
+        char tChar = getMultiThrottleChar(throttle);
+        for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
+            int func = (cfg.funcBrake >= 0) ? cfg.funcBrake : config_.brakeFunction;
+            if (func > 0) {
+                proto_->setFunction(tChar, cfg.address, func, braking, true);
+                debugPrint(throttle, func, braking ? "ON" : "OFF", "per-loco brake");
+            }
+        }
+    } else if (config_.brakeFunction != 0) {
+        // Fallback: legacy single-loco behavior
         triggerFunctionImmediate(throttle, config_.brakeFunction, braking);
     }
 }
 
 void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
     if (!config_.enabled) return;
-    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
     
     targetSpeed_[throttle] = newSpeed;
     
@@ -87,7 +103,7 @@ void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
 
 void SoundController::onActualSpeedUpdate(int throttle, int actualSpeed) {
     if (!config_.enabled) return;
-    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
     
     actualSpeed_[throttle] = actualSpeed;
     
@@ -131,10 +147,28 @@ void SoundController::triggerFunction(int throttle, uint8_t funcNum, const char*
     
     debugPrint(throttle, funcNum, "TRIGGER", reason);
     
-    // Always use direct function control for diesel sound simulation
-    // We must bypass roster latching settings to ensure precise ON/OFF timing
-    throttleMgr_->setFunction(throttle, funcNum, true, true); // Force ON
-    debugPrint(throttle, funcNum, "ON", "diesel sound simulation");
+    // Dispatch to all sound-enabled locos using per-loco function numbers,
+    // or fall back to lead-loco with global function number
+    if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
+        char tChar = getMultiThrottleChar(throttle);
+        for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
+            // Determine which per-loco function to fire
+            int locoFunc = funcNum;  // default to the global function number
+            if (funcNum == config_.throttleUpFunction && cfg.funcThrottleUp >= 0) {
+                locoFunc = cfg.funcThrottleUp;
+            } else if (funcNum == config_.throttleDownFunction && cfg.funcThrottleDown >= 0) {
+                locoFunc = cfg.funcThrottleDown;
+            } else if (funcNum == config_.brakeFunction && cfg.funcBrake >= 0) {
+                locoFunc = cfg.funcBrake;
+            }
+            proto_->setFunction(tChar, cfg.address, locoFunc, true, true);
+            debugPrint(throttle, locoFunc, "ON", "per-loco sound");
+        }
+    } else {
+        // Fallback: legacy single-loco behavior
+        throttleMgr_->setFunction(throttle, funcNum, true, true);
+        debugPrint(throttle, funcNum, "ON", "diesel sound simulation");
+    }
     
     // Track pulse state for automatic OFF timing
     functionPulseActive_[throttle][funcNum] = true;
@@ -146,13 +180,33 @@ void SoundController::triggerFunction(int throttle, uint8_t funcNum, const char*
 void SoundController::triggerFunctionImmediate(int throttle, uint8_t funcNum, bool state) {
     if (funcNum == 0 || !throttleMgr_) return;
     
-    // Always use direct function control - bypass roster settings for sound simulation
-    throttleMgr_->setFunction(throttle, funcNum, state, true); // Force state
+    // Fallback: send to lead loco via ThrottleManager
+    throttleMgr_->setFunction(throttle, funcNum, state, true);
     debugPrint(throttle, funcNum, state ? "ON" : "OFF", "immediate diesel sound");
 }
 
+void SoundController::turnOffFunction(int throttle, uint8_t funcNum) {
+    // Mirror the same per-loco dispatch used in triggerFunction, but with state=false
+    if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
+        char tChar = getMultiThrottleChar(throttle);
+        for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
+            int locoFunc = funcNum;
+            if (funcNum == config_.throttleUpFunction && cfg.funcThrottleUp >= 0) {
+                locoFunc = cfg.funcThrottleUp;
+            } else if (funcNum == config_.throttleDownFunction && cfg.funcThrottleDown >= 0) {
+                locoFunc = cfg.funcThrottleDown;
+            } else if (funcNum == config_.brakeFunction && cfg.funcBrake >= 0) {
+                locoFunc = cfg.funcBrake;
+            }
+            proto_->setFunction(tChar, cfg.address, locoFunc, false, true);
+        }
+    } else {
+        throttleMgr_->setFunction(throttle, funcNum, false, true);
+    }
+}
+
 bool SoundController::canTriggerFunction(int throttle, uint8_t funcNum) {
-    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return false;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return false;
     if (funcNum >= 32) return false; // Support F0-F31
     if (!throttleMgr_) return false;
     
@@ -235,7 +289,7 @@ int SoundController::calculateEffortNotch(int targetSpeed, int actualSpeed) cons
 }
 
 void SoundController::updateNotchSounds(int throttle, unsigned long now) {
-    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
     
     // Diesel locomotive notch simulation: move gradually between engine power settings
     // Check if we need to change notch position (with rate limiting)
@@ -299,7 +353,7 @@ void SoundController::updateNotchSounds(int throttle, unsigned long now) {
 
 bool SoundController::isNotching(int throttle) const {
     if (!config_.enabled) return false;
-    if (throttle < 0 || throttle >= SOUND_MAX_THROTTLES) return false;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return false;
     
     // We're notching if current notch differs from target
     return currentNotch_[throttle] != targetNotch_[throttle];
@@ -308,7 +362,7 @@ bool SoundController::isNotching(int throttle) const {
 bool SoundController::isAnyNotching() const {
     if (!config_.enabled) return false;
     
-    for (int i = 0; i < SOUND_MAX_THROTTLES; i++) {
+    for (int i = 0; i < WIT_MAX_THROTTLES; i++) {
         if (currentNotch_[i] != targetNotch_[i]) {
             return true;
         }

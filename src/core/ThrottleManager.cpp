@@ -23,7 +23,7 @@ void ThrottleManager::begin(WiThrottleProtocol *p) {
 	for (int i = 0; i < WIT_MAX_THROTTLES; i++) resetFunctionStates(i);
 
 	momentum_.begin(this, &sound_); // Pass both ThrottleManager and SoundController to momentum
-	sound_.begin(this); // Initialize sound controller with reference to ThrottleManager
+	// Note: sound_.begin() is called separately from setup() after LocoManager is available
 }
 
 
