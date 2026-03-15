@@ -285,9 +285,28 @@ void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
         saveLocos();
     }
 
+    // Update consist size in momentum controller for acceleration scaling
+    if (proto_ && throttle_) {
+        char tChar = getMultiThrottleChar(t);
+        int locoCount = proto_->getNumberOfLocomotives(tChar);
+        throttle_->momentum().setConsistSize(t, locoCount);
+    }
+
     if (event.type == LocoChangeType::Acquired) {
         if (!configStore_ || event.address.length() == 0) return;
         LocoConfig cfg = configStore_->loadLocoConfig(event.address);
+
+        // Propagate loco type to momentum controller.  For a consist the
+        // first acquired loco sets the type; later additions don't override.
+        if (throttle_) {
+            if (soundConfigs_[t].empty()) {
+                // First loco on this throttle — set loco type
+                throttle_->momentum().setLocoType(t, cfg.locoType);
+                Serial.printf("[Locos] T%d: loco type set to %d for %s\n",
+                              t, static_cast<int>(cfg.locoType), event.address.c_str());
+            }
+        }
+
         if (cfg.soundThrottle) {
             soundConfigs_[t].push_back(cfg);
             Serial.printf("[Locos] T%d: sound throttle enabled for %s\n",

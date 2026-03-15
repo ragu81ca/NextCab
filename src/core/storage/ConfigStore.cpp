@@ -308,9 +308,11 @@ static LocoConfig parseLocoFile(const String& address, const String& content) {
     }
 
     cfg.soundThrottle    = doc["soundThrottle"]    | false;
+    cfg.locoType         = static_cast<LocoType>(doc["locoType"] | 0);  // 0 = Diesel (default)
     cfg.funcThrottleUp   = doc["funcThrottleUp"]   | -1;
     cfg.funcThrottleDown = doc["funcThrottleDown"] | -1;
     cfg.funcBrake        = doc["funcBrake"]        | -1;
+    cfg.funcServiceBrake = doc["funcServiceBrake"] | -1;
     return cfg;
 }
 
@@ -328,9 +330,11 @@ void ConfigStore::saveLocoConfig(const LocoConfig& cfg) {
 
     JsonDocument doc;
     doc["soundThrottle"]    = cfg.soundThrottle;
+    doc["locoType"]         = static_cast<int>(cfg.locoType);
     doc["funcThrottleUp"]   = cfg.funcThrottleUp;
     doc["funcThrottleDown"] = cfg.funcThrottleDown;
     doc["funcBrake"]        = cfg.funcBrake;
+    doc["funcServiceBrake"] = cfg.funcServiceBrake;
 
     String output;
     serializeJsonPretty(doc, output);

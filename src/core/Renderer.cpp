@@ -671,7 +671,14 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 		// Speed & direction
 		screen.speedDisplay = String(throttleManager.getDisplaySpeed(currentIdx));
 		Direction dir = throttleManager.getDirection(currentIdx);
-		screen.directionDisplay = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
+		
+		// Service brake: show "Brk" instead of Fwd/Rev when engaged
+		if (throttleManager.momentum().isServiceBraking(currentIdx)) {
+			screen.directionDisplay = DIRECTION_SERVICE_BRAKE_TEXT;
+			screen.serviceBrakeActive = true;
+		} else {
+			screen.directionDisplay = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
+		}
 	}
 
 	// ── Next throttle preview ──
@@ -721,7 +728,8 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 	// ── Brake / ramp state ──
 	screen.actualSpeed = throttleManager.momentum().getActualSpeed(currentIdx);
 	screen.targetSpeed = throttleManager.momentum().getTargetSpeed(currentIdx);
-	if (throttleManager.momentum().isBraking(currentIdx)) {
+	if (throttleManager.momentum().isBraking(currentIdx) || 
+	    throttleManager.momentum().isServiceBraking(currentIdx)) {
 		screen.brakeState = 1;
 	} else {
 		if (screen.targetSpeed > screen.actualSpeed + 1)      screen.brakeState = 2; // ramping up

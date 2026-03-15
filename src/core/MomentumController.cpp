@@ -1,16 +1,30 @@
 // MomentumController.cpp - Implementation of throttle momentum/inertia simulation
 #include "MomentumController.h"
-#include "ThrottleManager.h"
-#include "SoundController.h"
+
+#ifdef UNIT_TEST
+  // Test stubs — lightweight replacements for heavy production headers.
+  // Explicit relative paths bypass compiler file-relative resolution.
+  #include "../../test/stubs/SoundController.h"
+  #include "../../test/stubs/ThrottleManager.h"
+  #include "../../test/stubs/storage/ConfigStore.h"
+#else
+  #include "ThrottleManager.h"
+  #include "SoundController.h"
+  #include "storage/ConfigStore.h"  // LocoType enum
+#endif
+
 #include <math.h>
 
-MomentumController::MomentumController() 
-    : throttleMgr_(nullptr), soundCtrl_(nullptr) {
+MomentumController::MomentumController(ClockFn clock) 
+    : throttleMgr_(nullptr), soundCtrl_(nullptr), clock_(clock ? clock : millis) {
     for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
         momentumLevel_[i] = MomentumLevel::Off;
         targetSpeed_[i] = 0;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
+        serviceBraking_[i] = false;
+        consistSize_[i] = 1;
+        locoType_[i] = LocoType::Diesel;
         lastUpdate_[i] = 0;
         pendingDirectionChange_[i] = false;
         pendingDirection_[i] = Forward;
@@ -25,7 +39,7 @@ void MomentumController::begin(ThrottleManager* throttleMgr, SoundController* so
 
 void MomentumController::update() {
     // Always process momentum updates - when "off", rates are set to 999.0 for instant changes
-    unsigned long now = millis();
+    unsigned long now = clock_();
     
     // When momentum is off, use faster update rate for immediate response
     unsigned long updateInterval = isAnyActive() ? UPDATE_INTERVAL_MS : 50; // 50ms when off, 500ms when active
@@ -39,6 +53,23 @@ void MomentumController::update() {
         
         int target = targetSpeed_[throttle];
         float actual = actualSpeed_[throttle];
+        
+        // Service braking: when the operator holds the encoder while throttle > 0,
+        // continuously decelerate as though applying brakes, but leave the displayed
+        // target speed untouched.  The deceleration rate and minimum effective speed
+        // depend on the locomotive type (diesel/steam/electric).
+        bool serviceActive = serviceBraking_[throttle] && target > 0;
+        if (serviceActive) {
+            const BrakeProfile& profile = getBrakeProfile(throttle);
+            if ((int)round(actual) <= profile.minSpeed) {
+                // Below effective threshold — hold at current speed
+                serviceActive = false;  // let normal logic handle this tick
+            } else {
+                // Override target to 0 so the momentum system decelerates;
+                // the brake rate below will be used instead of decel rate.
+                target = max(0, profile.minSpeed);
+            }
+        }
         
         // Sound leads movement: If sound controller is still notching for this throttle,
         // delay the actual speed change so engine sound transitions complete first.
@@ -82,8 +113,12 @@ void MomentumController::update() {
         
         // Get base rate based on momentum level and direction (per-throttle)
         float baseRate;
-        if (braking_[throttle] && !accelerating) {
-            baseRate = getBrakeRate(throttle); // Faster decel when braking
+        if (serviceActive && !accelerating) {
+            // Service braking: use loco-type-specific deceleration rate
+            const BrakeProfile& profile = getBrakeProfile(throttle);
+            baseRate = profile.decelRate;
+        } else if (braking_[throttle] && !accelerating) {
+            baseRate = getBrakeRate(throttle); // Faster decel when braking (throttle=0 hold)
         } else if (accelerating) {
             baseRate = getAccelRate(throttle);
         } else {
@@ -98,6 +133,13 @@ void MomentumController::update() {
         // Apply curve for natural feel (speed-dependent tractive effort / resistance)
         if (accelerating) {
             delta = applyAccelCurve(delta, actual);
+            // Consist size bonus: each additional loco contributes ~15% more tractive effort.
+            // This silently makes larger consists accelerate faster, just like real railroads.
+            int consist = consistSize_[throttle];
+            if (consist > 1) {
+                float consistBonus = 1.0f + (consist - 1) * 0.15f;
+                delta *= consistBonus;
+            }
         } else {
             delta = applyDecelCurve(delta, actual);
         }
@@ -265,6 +307,95 @@ bool MomentumController::isBraking(int throttle) const {
     return braking_[throttle];
 }
 
+void MomentumController::setServiceBraking(int throttle, bool active) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    
+    bool wasActive = serviceBraking_[throttle];
+    
+    if (active && !wasActive) {
+        int actualSpeed = (int)round(actualSpeed_[throttle]);
+        const BrakeProfile& profile = getBrakeProfile(throttle);
+        
+        // Only engage if above minimum effective speed for this loco type
+        if (actualSpeed < profile.minSpeed) {
+            Serial.print("[Momentum] T");
+            Serial.print(throttle);
+            Serial.print(" Service brake ignored - speed too low (");
+            Serial.print(actualSpeed);
+            Serial.println(")");
+            return;
+        }
+        
+        serviceBraking_[throttle] = true;
+        
+        const char* typeNames[] = {"Diesel", "Steam", "Electric"};
+        int typeIdx = (int)locoType_[throttle];
+        Serial.print("[Momentum] T");
+        Serial.print(throttle);
+        Serial.print(" Service brake ENGAGED (");
+        Serial.print(typeNames[typeIdx]);
+        Serial.print(") - speed: ");
+        Serial.print(actualSpeed);
+        Serial.print(", decel rate: ");
+        Serial.println(profile.decelRate);
+        
+        // Notify sound controller
+        if (soundCtrl_) {
+            soundCtrl_->onServiceBrakeStateChange(throttle, true);
+        }
+    } else if (!active && wasActive) {
+        // Releasing service brake - momentum carries speed back to throttle setting
+        serviceBraking_[throttle] = false;
+        
+        Serial.print("[Momentum] T");
+        Serial.print(throttle);
+        Serial.println(" Service brake RELEASED - returning to target speed");
+        
+        // Notify sound controller
+        if (soundCtrl_) {
+            soundCtrl_->onServiceBrakeStateChange(throttle, false);
+        }
+    }
+}
+
+bool MomentumController::isServiceBraking(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
+    return serviceBraking_[throttle];
+}
+
+void MomentumController::setLocoType(int throttle, LocoType type) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    locoType_[throttle] = type;
+}
+
+LocoType MomentumController::getLocoType(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return LocoType::Diesel;
+    return locoType_[throttle];
+}
+
+const MomentumController::BrakeProfile& MomentumController::getBrakeProfile(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return BRAKE_PROFILES[0];
+    int idx = (int)locoType_[throttle];
+    if (idx < 0 || idx > 2) idx = 0;
+    return BRAKE_PROFILES[idx];
+}
+
+void MomentumController::setConsistSize(int throttle, int locoCount) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    if (locoCount < 1) locoCount = 1;
+    consistSize_[throttle] = locoCount;
+    
+    Serial.print("[Momentum] T");
+    Serial.print(throttle);
+    Serial.print(" Consist size set to ");
+    Serial.println(locoCount);
+}
+
+int MomentumController::getConsistSize(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 1;
+    return consistSize_[throttle];
+}
+
 // Acceleration rates (speed units per second)
 // Realistic momentum based on prototype physics:
 // Low = light passenger (12s), Medium = mixed freight (25s), High = heavy freight (50s)
@@ -305,6 +436,8 @@ float MomentumController::getBrakeRate(int throttle) const {
 // Acceleration curve - diesel-electric tractive effort decreases at higher speeds
 // At low speed the motors have maximum torque; at high speed, back-EMF reduces
 // available current. This makes acceleration brisk at first, then tapering off.
+// Consist size bonus: each additional loco contributes ~15% more tractive effort,
+// simulating the real-world benefit of multiple units in a consist.
 float MomentumController::applyAccelCurve(float delta, float actualSpeed) const {
     float speedFraction = actualSpeed / 126.0f;
     // Quadratic taper: 100% effort at speed 0, ~60% at speed 126
@@ -405,3 +538,6 @@ void MomentumController::clearPendingDirectionChange(int throttle) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
     pendingDirectionChange_[throttle] = false;
 }
+
+// Out-of-class definition required for constexpr array (C++14/17 ODR)
+constexpr MomentumController::BrakeProfile MomentumController::BRAKE_PROFILES[];

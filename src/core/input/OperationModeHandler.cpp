@@ -84,11 +84,25 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             return true;
         }
         case InputEventType::EncoderHold: {
-            // Hold activates braking on current locomotive
+            // Hold activates braking on current locomotive.
+            // If the throttle is set above zero, engage service braking: the train
+            // decelerates continuously while the encoder is held, with a sound cue
+            // appropriate to the loco type.  The displayed speed is unchanged;
+            // on release, momentum carries the train back to the set speed.
+            // If the throttle is already at zero, engage standard braking to
+            // accelerate deceleration to a full stop.
+            // These two modes are mutually exclusive — only one fires per hold.
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
-                throttleManager.momentum().setBraking(idx, true);
-                renderer_.renderSpeed(); // Update display to show brake indicator
+                int currentSpeed = throttle_.getCurrentSpeed(idx);
+                if (currentSpeed > 0 && throttleManager.momentum().isActive(idx)) {
+                    // Service braking only — no standard brake squeal
+                    throttleManager.momentum().setServiceBraking(idx, true);
+                } else {
+                    // Standard braking (throttle at zero or momentum off)
+                    throttleManager.momentum().setBraking(idx, true);
+                }
+                renderer_.renderSpeed();
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHold: braking activated");
                 #endif
@@ -96,11 +110,15 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             return true;
         }
         case InputEventType::EncoderHoldRelease: {
-            // Release deactivates braking on current locomotive
+            // Release deactivates whichever brake mode was engaged
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
-                throttleManager.momentum().setBraking(idx, false);
-                renderer_.renderSpeed(); // Update display to hide brake indicator
+                if (throttleManager.momentum().isServiceBraking(idx)) {
+                    throttleManager.momentum().setServiceBraking(idx, false);
+                } else {
+                    throttleManager.momentum().setBraking(idx, false);
+                }
+                renderer_.renderSpeed();
                 #if INPUT_DEBUG
                 Serial.println("[OperationModeHandler] EncoderHoldRelease: braking deactivated");
                 #endif

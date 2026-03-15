@@ -76,6 +76,9 @@ public:
     ///   3 = ramping down (progress bar)
     int brakeState = 0;
 
+    /// Service brake active — direction indicator shows "Brk" instead of Fwd/Rev.
+    bool serviceBrakeActive = false;
+
     /// Actual speed (momentum-smoothed) for ramp progress bar.
     int actualSpeed = 0;
 
@@ -108,6 +111,7 @@ public:
         currentSpeedStep    = 1;
         momentumLevel      = 0;
         brakeState         = 0;
+        serviceBrakeActive = false;
         actualSpeed        = 0;
         targetSpeed        = 0;
         for (int i = 0; i < MAX_MENU_LINES; i++) {

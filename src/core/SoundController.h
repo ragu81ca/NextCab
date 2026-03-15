@@ -18,12 +18,16 @@ enum class SoundEvent {
     DirectionChanged
 };
 
+// Sentinel value: function slot is not assigned to any DCC function.
+static constexpr int8_t SOUND_FUNC_NOT_SET = -1;
+
 // Sound function configuration for diesel locomotive sound simulation
 struct SoundConfig {
     bool enabled = true;
-    uint8_t throttleUpFunction = 6;      // F6 - diesel notch up sound
-    uint8_t throttleDownFunction = 7;    // F7 - diesel notch down sound
-    uint8_t brakeFunction = 9;           // F9 - brake sound
+    int8_t throttleUpFunction = 6;       // F6 - diesel notch up sound
+    int8_t throttleDownFunction = 7;     // F7 - diesel notch down sound
+    int8_t brakeFunction = 9;            // F9 - brake sound
+    int8_t serviceBrakeFunction = 5;     // F5 - Dynamic brake (hold-to-slow)
     
     // Pulse timing: ON duration for momentary function press
     // 300ms gives Digitrax and other decoders reliable time to register
@@ -51,6 +55,7 @@ public:
     
     // Event handlers - called by other controllers when state changes
     void onBrakeStateChange(int throttle, bool braking);
+    void onServiceBrakeStateChange(int throttle, bool active);
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
     void onActualSpeedUpdate(int throttle, int actualSpeed);
     void onDirectionChange(int throttle);
@@ -109,6 +114,7 @@ private:
     // Internal methods — per-loco aware dispatch
     void triggerFunction(int throttle, uint8_t funcNum, const char* reason);
     void triggerFunctionImmediate(int throttle, uint8_t funcNum, bool state);
+    void triggerServiceBrakeSound(int throttle, bool state);
     void turnOffFunction(int throttle, uint8_t funcNum);
     bool canTriggerFunction(int throttle, uint8_t funcNum);
     

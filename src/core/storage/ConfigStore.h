@@ -49,12 +49,22 @@ struct ServerConfig {
 
 // ── Tier 3: Per-loco settings (keyed by DCC address) ───────────────────
 // Address-global — a decoder's sound functions are the same on any server.
+
+/// Locomotive prime mover type — determines sound and physics behaviour.
+enum class LocoType : uint8_t {
+    Diesel   = 0,   // Default — diesel-electric sound & momentum curves
+    Steam    = 1,   // Future: steam chuff / cutoff behaviour
+    Electric = 2    // Future: electric traction motor behaviour
+};
+
 struct LocoConfig {
     String address;               // WiThrottle format, e.g. "L1234", "S3"
     bool   soundThrottle  = false;
+    LocoType locoType     = LocoType::Diesel;
     int    funcThrottleUp   = -1; // -1 = not configured
     int    funcThrottleDown = -1;
     int    funcBrake        = -1;
+    int    funcServiceBrake  = -1; // service brake sound function (hold-to-slow)
 };
 
 class ConfigStore {

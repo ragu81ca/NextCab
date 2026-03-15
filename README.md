@@ -1,21 +1,45 @@
 # NextCab
 
-NextCab is a modular, software-first fork of WiTcontroller.
+NextCab is a modular, software-first fork of WiTcontroller — a DIY WiFi throttle for model trains.
 
-It began as a personal exploration: what happens if a DCC throttle is treated as evolving software rather than fixed firmware?
+It began as a personal exploration: what happens if a DCC throttle is treated as evolving software rather than fixed firmware? This project is not commercial and has no fixed roadmap. It exists to explore what a modern, extensible, software-defined throttle can become.
 
-> **Experimental prerequisites (sound + momentum)**
->
-> NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder is assumed to be configured as follows:
->
-> 1. Automatic notching is **disabled**.
-> 2. **F6** = sound throttle down, **F7** = sound throttle up.
-> 3. **F9** is the brake sound.
-> 4. Decoder momentum is **disabled** (momentum is controlled by software).
+---
 
-Traditional throttles have remained largely unchanged for decades. WiTcontroller was an excellent starting point, but its architecture was originally built around a monolithic sketch. NextCab refactors that foundation into modular components and expands the interaction model with richer input behaviors and experimental control features.
+## Design Philosophy
 
-This project is not commercial and has no fixed roadmap. It exists to explore what a modern, extensible, software-defined throttle can become.
+### Drive Your Trains, Not Your Decoders
+
+NextCab's design philosophy can be summarized in one sentence: **drive your trains, not your decoders.**
+
+The core idea is that the decoder should be as dumb as possible. By moving the sophistication into the throttle, we gain two things:
+
+1. **The throttle understands intent.** A decoder only sees "set speed to 47" or "turn on F6." It has no idea *why*. The throttle, on the other hand, knows what the operator is trying to do — accelerate out of a siding, coast into a station, hold on a grade. Because it understands intent, it can adapt sound cues, momentum curves, and braking behavior on the fly to produce more realistic results than any static CV table.
+
+2. **It smooths out interoperability.** Every decoder manufacturer implements momentum differently, assigns different default function numbers, and handles edge cases in its own way. When the throttle owns these behaviors, those vendor differences disappear behind a single consistent interaction model. Swap a Tsunami for a LokSound and the throttle experience stays the same — no CV reprogramming required.
+
+Physical gestures map to railroad actions rather than DCC commands:
+
+- **Rotate** the encoder → the train speeds up or slows down
+- **Double-click** → cycle through momentum profiles to match operating style
+- **Hold** → apply the brakes, with behavior that varies by locomotive type
+- **Sound functions** fire automatically based on throttle events — no need to remember which F-key does what
+
+The DCC layer is still there, but the operator doesn't have to think about it. This approach makes model railroading more intuitive for newcomers while giving experienced operators realistic behavior without decoder reprogramming.
+
+### Physical Design
+
+NextCab was developed with a specific physical form factor in mind:
+
+https://www.thingiverse.com/thing:7029069
+
+This case design features a large rotary encoder positioned as the primary interaction point. Rather than treating the encoder as a simple speed dial, NextCab expands it into a richer control surface:
+
+- Single rotation → speed control
+- Double-click → on-the-fly momentum selection
+- Press-and-hold → service braking (loco-type-aware)
+
+While NextCab will run on other hardware configurations, its interaction model was designed around this larger encoder layout.
 
 ---
 
@@ -44,7 +68,7 @@ WiTcontroller remains an excellent DIY WiThrottle-compatible controller. NextCab
 
 ### New Control Features
 - On-the-fly momentum selection (via double-click throttle interaction)
-- Dedicated brake behavior (press-and-hold throttle)
+- Service braking with per-loco-type behavior (press-and-hold throttle)
 - Experimental throttle-driven sound control (decoupled from speed)
 - Foundation for future modifier layers ("shift" concepts)
 
@@ -64,6 +88,35 @@ Momentum is treated as an interaction mode, not a decoder constraint.
 
 This keeps realism optional — and reversible — without requiring CV changes.
 
+### Service Braking
+
+Hold the encoder to brake. What happens depends on the current throttle position:
+
+| Throttle | Gesture | Behavior |
+|----------|---------|----------|
+| Above zero | Hold encoder | **Service brake** — the train decelerates continuously while you hold, similar to applying the air brakes on a real locomotive. Release the encoder and the train coasts back to the set speed. |
+| At zero | Hold encoder | **Full stop brake** — accelerates the deceleration to bring the train to a complete stop quickly. |
+
+Service braking is loco-type-aware. Each locomotive type has a distinct brake profile that controls how aggressively speed is shed and the minimum speed before brakes disengage:
+
+| Loco Type | Deceleration | Min Speed | Character |
+|-----------|-------------|-----------|-----------|
+| Diesel | Moderate (4.0) | 20 | Balanced — reliable workhorse feel |
+| Steam | Gentle (3.0) | 20 | Heavier, more gradual — momentum of mass |
+| Electric | Strong (5.0) | 10 | Regenerative braking — crisp and responsive |
+
+The display shows **"Brk"** in place of the direction indicator while service braking is active. On OLED displays the speed value is rendered in inverted text; on TFT displays the speed bar color changes.
+
+If a brake sound function is configured for the locomotive (`funcServiceBrake` in the loco config), it will be activated automatically when braking engages and deactivated on release.
+
+### Consist Power Scaling
+
+When multiple locomotives are consisted together, each additional unit contributes roughly 15% more tractive effort during acceleration. This happens automatically — no configuration required.
+
+A two-unit consist accelerates slightly faster than a single locomotive. A four-unit consist pulls noticeably harder. Just like on real railroads, adding power to the head end makes a difference you can feel through the throttle.
+
+This only affects acceleration when momentum is enabled. Top speed and braking behavior remain unchanged.
+
 ---
 
 ## Compatibility
@@ -76,26 +129,6 @@ However, internal architecture and input handling have diverged significantly.
 
 ---
 
-## Physical Design Philosophy
-
-NextCab was developed with a specific physical form factor in mind:
-
-https://www.thingiverse.com/thing:7029069
-
-This case design features a large rotary encoder positioned as the primary interaction point. The software intentionally leverages that physical affordance.
-
-Rather than treating the encoder as a simple speed dial, NextCab expands it into a richer control surface:
-
-- Single rotation → speed control  
-- Double-click → on-the-fly momentum selection  
-- Press-and-hold → brake behavior  
-
-The goal is to make the encoder feel less like a knob and more like a dynamic control interface.
-
-While NextCab will run on other hardware configurations, its interaction model was designed around this larger encoder layout.
-
----
-
 ## Versioning
 
 NextCab uses independent semantic versioning starting from:
@@ -105,6 +138,17 @@ v0.1.0
 Although forked from WiTcontroller, version numbers are not continued from the original project due to architectural divergence.
 
 ## Prerequisites
+
+> **Sound and momentum prerequisites**
+>
+> NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder should be configured as follows:
+>
+> 1. Automatic notching is **disabled**.
+> 2. **F6** = sound throttle down, **F7** = sound throttle up.
+> 3. **F9** is the brake sound.
+> 4. Decoder momentum is **disabled** (momentum is controlled by software).
+>
+> The specific function numbers above are hard-coded defaults for now. Per-loco configuration (via the throttle UI or roster data) is planned, which will eliminate the need to match these exact assignments.
 
 1. Some basic soldering skills.
 
@@ -393,8 +437,6 @@ _(This area of documentation is still a work-in-progress. The original version o
 <hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
 
 ## Using NextCab
-
-### Be aware of...
 
 ### Architecture Summary
 

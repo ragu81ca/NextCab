@@ -129,6 +129,9 @@ enum ShowBattery : uint8_t {
 #ifndef DIRECTION_REVERSE_INDICATOR
   #define DIRECTION_REVERSE_INDICATOR    "'"
 #endif 
+#ifndef DIRECTION_SERVICE_BRAKE_TEXT
+  #define DIRECTION_SERVICE_BRAKE_TEXT   "Brk"
+#endif
 
 // const String function_states = "fn ";
 
@@ -312,6 +315,7 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
 
 // *******************************************************************************************************************
 
+#ifndef UNIT_TEST
 #ifndef FONT_DEFAULT
    #define FONT_DEFAULT u8g2_font_NokiaSmallPlain_te
 #endif
@@ -323,6 +327,7 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
 // #define FONT_TRACK_POWER u8g2_font_profont10_tf
 #define FONT_NEXT_THROTTLE u8g2_font_6x12_m_symbols
 #define FONT_GLYPHS u8g2_font_open_iconic_all_1x_t
+#endif // !UNIT_TEST
 
 // *******************************************************************************************************************
 
@@ -511,7 +516,7 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
 // OLED
 
 // Extern declaration for global display instance created in display_init.cpp
-#ifndef USE_TFT_ESPI
+#if !defined(USE_TFT_ESPI) && !defined(UNIT_TEST)
 // U8g2 / OLED path — declare the concrete U8G2 type so legacy code can reference u8g2
 #ifdef U8X8_HAVE_HW_SPI
     #include <SPI.h>                       // add to include path [Arduino install]\hardware\arduino\avr\libraries\SPI\src
@@ -533,7 +538,7 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 // Display object defined in display_init.cpp (concrete type chosen via OLED_TYPE macro or default).
 // Intentionally no extern declaration here to avoid type conflicts with user-specified constructor macro.
 
-#endif // !USE_TFT_ESPI
+#endif // !USE_TFT_ESPI && !UNIT_TEST
 
 // *******************************************************************************************************************
 // additional / optional commands

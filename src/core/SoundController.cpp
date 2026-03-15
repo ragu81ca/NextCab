@@ -66,15 +66,45 @@ void SoundController::onBrakeStateChange(int throttle, bool braking) {
     if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
         char tChar = getMultiThrottleChar(throttle);
         for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
-            int func = (cfg.funcBrake >= 0) ? cfg.funcBrake : config_.brakeFunction;
-            if (func > 0) {
+            int func = (cfg.funcBrake >= 0) ? cfg.funcBrake : (int)config_.brakeFunction;
+            if (func >= 0) {
                 proto_->setFunction(tChar, cfg.address, func, braking, true);
                 debugPrint(throttle, func, braking ? "ON" : "OFF", "per-loco brake");
             }
         }
-    } else if (config_.brakeFunction != 0) {
+    } else if (config_.brakeFunction != SOUND_FUNC_NOT_SET) {
         // Fallback: legacy single-loco behavior
         triggerFunctionImmediate(throttle, config_.brakeFunction, braking);
+    }
+}
+
+void SoundController::onServiceBrakeStateChange(int throttle, bool active) {
+    if (!config_.enabled) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+    
+    Serial.print("[SoundController] T");
+    Serial.print(throttle);
+    Serial.print(" Service Brake: ");
+    Serial.println(active ? "ENGAGED" : "RELEASED");
+    
+    triggerServiceBrakeSound(throttle, active);
+}
+
+void SoundController::triggerServiceBrakeSound(int throttle, bool state) {
+    // Send service brake function to each sound-enabled loco using its configured function,
+    // or fall back to global default on lead loco
+    if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
+        char tChar = getMultiThrottleChar(throttle);
+        for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
+            int func = (cfg.funcServiceBrake >= 0) ? cfg.funcServiceBrake : (int)config_.serviceBrakeFunction;
+            if (func >= 0) {
+                proto_->setFunction(tChar, cfg.address, func, state, true);
+                debugPrint(throttle, func, state ? "ON" : "OFF", "per-loco service brake");
+            }
+        }
+    } else if (config_.serviceBrakeFunction != SOUND_FUNC_NOT_SET) {
+        // Fallback: legacy single-loco behavior
+        triggerFunctionImmediate(throttle, config_.serviceBrakeFunction, state);
     }
 }
 
@@ -141,7 +171,7 @@ void SoundController::onDirectionChange(int throttle) {
 }
 
 void SoundController::triggerFunction(int throttle, uint8_t funcNum, const char* reason) {
-    if (funcNum == 0 || !canTriggerFunction(throttle, funcNum)) return;
+    if (funcNum == 0 || !canTriggerFunction(throttle, funcNum)) return;  // F0 (lights) excluded from notch pulses
     
     unsigned long now = millis();
     
@@ -160,6 +190,8 @@ void SoundController::triggerFunction(int throttle, uint8_t funcNum, const char*
                 locoFunc = cfg.funcThrottleDown;
             } else if (funcNum == config_.brakeFunction && cfg.funcBrake >= 0) {
                 locoFunc = cfg.funcBrake;
+            } else if (config_.serviceBrakeFunction >= 0 && funcNum == (uint8_t)config_.serviceBrakeFunction && cfg.funcServiceBrake >= 0) {
+                locoFunc = cfg.funcServiceBrake;
             }
             proto_->setFunction(tChar, cfg.address, locoFunc, true, true);
             debugPrint(throttle, locoFunc, "ON", "per-loco sound");
@@ -178,7 +210,7 @@ void SoundController::triggerFunction(int throttle, uint8_t funcNum, const char*
 }
 
 void SoundController::triggerFunctionImmediate(int throttle, uint8_t funcNum, bool state) {
-    if (funcNum == 0 || !throttleMgr_) return;
+    if (!throttleMgr_) return;
     
     // Fallback: send to lead loco via ThrottleManager
     throttleMgr_->setFunction(throttle, funcNum, state, true);
@@ -197,6 +229,8 @@ void SoundController::turnOffFunction(int throttle, uint8_t funcNum) {
                 locoFunc = cfg.funcThrottleDown;
             } else if (funcNum == config_.brakeFunction && cfg.funcBrake >= 0) {
                 locoFunc = cfg.funcBrake;
+            } else if (config_.serviceBrakeFunction >= 0 && funcNum == (uint8_t)config_.serviceBrakeFunction && cfg.funcServiceBrake >= 0) {
+                locoFunc = cfg.funcServiceBrake;
             }
             proto_->setFunction(tChar, cfg.address, locoFunc, false, true);
         }

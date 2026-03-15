@@ -6,6 +6,7 @@
 // Forward declarations
 class ThrottleManager;
 class SoundController;
+enum class LocoType : uint8_t;
 
 // Momentum levels (Off, Low, Medium, High)
 enum class MomentumLevel {
@@ -15,9 +16,14 @@ enum class MomentumLevel {
     High = 3
 };
 
+/// Function pointer type for clock source — defaults to millis(),
+/// injectable for unit testing.
+using ClockFn = unsigned long(*)();
+
 class MomentumController {
 public:
-    MomentumController();
+    /// Construct with an optional clock source (defaults to millis()).
+    explicit MomentumController(ClockFn clock = nullptr);
     
     // Initialize with references
     void begin(ThrottleManager* throttleMgr, SoundController* soundCtrl = nullptr);
@@ -49,9 +55,24 @@ public:
     // Check if ANY throttle has momentum active (for global decisions like update interval)
     bool isAnyActive() const;
     
-    // Brake control (for future stage 5)
+    // Brake control — accelerates deceleration when coasting (throttle at 0)
     void setBraking(int throttle, bool braking);
     bool isBraking(int throttle) const;
+    
+    // Service braking — hold-to-slow while throttle > 0.
+    // Continuously decelerates the actual speed while maintaining the displayed
+    // target. On release, momentum carries speed back up to the set throttle.
+    // Deceleration rate and minimum effective speed vary by locomotive type.
+    void setServiceBraking(int throttle, bool active);
+    bool isServiceBraking(int throttle) const;
+    
+    // Locomotive type — determines service brake characteristics
+    void setLocoType(int throttle, LocoType type);
+    LocoType getLocoType(int throttle) const;
+    
+    // Consist size affects acceleration (more locos = more tractive effort)
+    void setConsistSize(int throttle, int locoCount);
+    int getConsistSize(int throttle) const;
     
     // Direction change safety: request direction change while train is moving.
     // If already pending, this toggles it back (cancels the change).
@@ -70,6 +91,21 @@ public:
     // Clear pending direction change (called by ThrottleManager after applying)
     void clearPendingDirectionChange(int throttle);
     
+	/// Per-loco-type brake profile — determines service brake feel.
+	struct BrakeProfile {
+		float   decelRate;      // speed steps per second to subtract during service braking
+		int     minSpeed;       // stop braking effect below this speed
+	};
+	
+	// Brake profiles indexed by LocoType (Diesel=0, Steam=1, Electric=2)
+	static constexpr BrakeProfile BRAKE_PROFILES[] = {
+		{ 4.0f, 20 },   // Diesel:   moderate — rheostatic dynamic brake grids
+		{ 3.0f, 20 },   // Steam:    gentle — air brakes only, no dynamic braking
+		{ 5.0f, 10 },   // Electric: strong — regenerative braking, effective at low speeds
+	};
+	
+	const BrakeProfile& getBrakeProfile(int throttle) const;
+
 private:
     // Calculate rate of change based on momentum level for a specific throttle
     float getAccelRate(int throttle) const;
@@ -89,7 +125,10 @@ private:
 	// Per-throttle state
 	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126)
 	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth ramping)
-	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag
+	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag (throttle=0, accelerate stop)
+	bool serviceBraking_[MOMENTUM_MAX_THROTTLES];   // Service brake active flag (throttle>0, hold-to-slow)
+	int consistSize_[MOMENTUM_MAX_THROTTLES];        // Number of locos in consist (for accel scaling)
+	LocoType locoType_[MOMENTUM_MAX_THROTTLES];      // Locomotive type (for brake profile selection)
 	unsigned long lastUpdate_[MOMENTUM_MAX_THROTTLES]; // Last update time
 	
 	// Direction change safety: prevents direction change while train is moving.
@@ -106,6 +145,9 @@ private:
 	ThrottleManager* throttleMgr_;
 	SoundController* soundCtrl_;
 	
+	// Clock source — injectable for testing
+	ClockFn clock_;
+
     // Timing
     static constexpr unsigned long UPDATE_INTERVAL_MS = 100; // Update every 100ms (10Hz) - smooth ramp with elapsed-time delta
 };
