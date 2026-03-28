@@ -391,6 +391,90 @@ void Renderer::renderTextInput(const TextInputScreen &screen) {
 	display.sendBuffer();
 }
 
+// ── RadioSelectScreen renderer ──────────────────────────────────────────
+// Draws a centred title, vertically centred option list with the selected
+// item inverted, and a footer.  Options are centred horizontally; the
+// inversion box is sized to the text width (not full screen width).
+
+void Renderer::renderRadioSelect(const RadioSelectScreen &screen) {
+	display.clearBuffer();
+	display.setDrawColor(1);
+
+	int rh = layout.rowHeight;
+
+	// Top bar separator
+	if (display.colorDepth() >= 16) {
+		display.fillRect(0, layout.topBarHeight, layout.screenWidth, 1, COLOR_DIM_GREY);
+	} else {
+		display.drawHLine(0, layout.topBarHeight, layout.screenWidth);
+	}
+	renderBattery();
+
+	// Bottom status bar separator
+	if (display.colorDepth() >= 16) {
+		display.fillRect(0, layout.statusBarY, layout.screenWidth, 1, COLOR_DIM_GREY);
+	} else {
+		display.drawHLine(0, layout.statusBarY, layout.screenWidth);
+	}
+
+	display.setFont(fonts.defaultFont);
+
+	// ── Title (row 0, centred) ──
+	if (screen.title.length() > 0) {
+		const char *t = screen.title.c_str();
+		int tw = display.getUTF8Width(t);
+		int tx = (layout.screenWidth - tw) / 2;
+		if (tx < 0) tx = 0;
+		display.drawUTF8(tx, rh, t);
+	}
+
+	// ── Vertically centre the options between row 1 and the status bar ──
+	int contentTop    = layout.topBarHeight + rh;  // below title row
+	int contentBottom = layout.statusBarY;
+	int totalHeight   = screen.optionCount * rh;
+	int startY        = contentTop + (contentBottom - contentTop - totalHeight) / 2 + rh;
+	if (startY < contentTop + rh) startY = contentTop + rh;
+
+	int pad = 4;  // horizontal padding inside the inversion box
+
+	for (int i = 0; i < screen.optionCount; i++) {
+		const char *label = screen.options[i].c_str();
+		int labelW = display.getUTF8Width(label);
+		int lx = (layout.screenWidth - labelW) / 2;
+		if (lx < 0) lx = 0;
+		int ly = startY + i * rh;
+		if (ly > contentBottom - 2) break;  // don't draw into the status bar
+
+		if (i == screen.selectedIndex) {
+			// Draw inversion box sized to the text + padding, centred
+			int boxX = lx - pad;
+			if (boxX < 0) boxX = 0;
+			int boxW = labelW + pad * 2;
+			if (boxX + boxW > layout.screenWidth) boxW = layout.screenWidth - boxX;
+			display.setDrawColor(1);
+			display.drawBox(boxX, ly - rh + 3, boxW, rh);
+			display.setDrawColor(0);
+			display.drawUTF8(lx, ly, label);
+			display.setDrawColor(1);
+		} else {
+			display.drawUTF8(lx, ly, label);
+		}
+	}
+
+	// ── Footer (centred at canonical bottom row) ──
+	if (screen.footerText.length() > 0) {
+		const char *ft = screen.footerText.c_str();
+		int fw = display.getUTF8Width(ft);
+		int fx = (layout.screenWidth - fw) / 2;
+		if (fx < 0) fx = 0;
+		int fy = layout.menuTextRow * rh + rh;
+		if (fy > layout.screenHeight - 2) fy = layout.screenHeight - 2;
+		display.drawUTF8(fx, fy, ft);
+	}
+
+	display.sendBuffer();
+}
+
 void Renderer::renderFunctions() {
 	lastOledScreen = last_oled_screen_speed;
 	int currentIdx = throttleManager.getCurrentThrottleIndex();
