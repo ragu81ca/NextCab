@@ -312,7 +312,7 @@ static LocoConfig parseLocoFile(const String& address, const String& content) {
     cfg.funcThrottleUp   = doc["funcThrottleUp"]   | -1;
     cfg.funcThrottleDown = doc["funcThrottleDown"] | -1;
     cfg.funcBrake        = doc["funcBrake"]        | -1;
-    cfg.funcServiceBrake = doc["funcServiceBrake"] | -1;
+    cfg.funcDynamicBrake = doc["funcDynamicBrake"] | -1;
     return cfg;
 }
 
@@ -334,7 +334,7 @@ void ConfigStore::saveLocoConfig(const LocoConfig& cfg) {
     doc["funcThrottleUp"]   = cfg.funcThrottleUp;
     doc["funcThrottleDown"] = cfg.funcThrottleDown;
     doc["funcBrake"]        = cfg.funcBrake;
-    doc["funcServiceBrake"] = cfg.funcServiceBrake;
+    doc["funcDynamicBrake"] = cfg.funcDynamicBrake;
 
     String output;
     serializeJsonPretty(doc, output);

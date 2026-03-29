@@ -65,6 +65,7 @@ BatteryMonitor batteryMonitor;
 #include "src/core/input/DropLocoSelectionHandler.h"
 #include "src/core/input/EditConsistSelectionHandler.h"
 #include "src/core/input/SystemActionHandler.h"
+#include "src/core/input/LocoConfigWizardHandler.h"
 #include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
 #include "src/core/network/WiThrottleConnectionManager.h"
 #include "src/core/menu/MenuSystem.h"
@@ -129,6 +130,7 @@ FunctionSelectionHandler functionSelectionHandler(renderer);
 DropLocoSelectionHandler dropLocoSelectionHandler(renderer);
 EditConsistSelectionHandler editConsistSelectionHandler(renderer);
 SystemActionHandler systemActionHandler(throttleManager, renderer, batteryMonitor, wiThrottleProtocol);
+LocoConfigWizardHandler locoConfigWizardHandler(throttleManager, inputManager, renderer, configStore, locoManager);
 
 // server variables
 // bool ssidConnected = false;
@@ -412,6 +414,7 @@ void setup() {
   inputManager.setFunctionSelectionHandler(&functionSelectionHandler);
   inputManager.setDropLocoSelectionHandler(&dropLocoSelectionHandler);
   inputManager.setEditConsistHandler(&editConsistSelectionHandler);
+  inputManager.setLocoConfigWizardHandler(&locoConfigWizardHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::WifiSelection); // Start with WiFi selection at boot
   

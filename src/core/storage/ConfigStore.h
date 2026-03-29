@@ -64,7 +64,7 @@ struct LocoConfig {
     int    funcThrottleUp   = -1; // -1 = not configured
     int    funcThrottleDown = -1;
     int    funcBrake        = -1;
-    int    funcServiceBrake  = -1; // service brake sound function (hold-to-slow)
+    int    funcDynamicBrake  = -1; // dynamic brake sound function (hold-to-slow)
 };
 
 class ConfigStore {

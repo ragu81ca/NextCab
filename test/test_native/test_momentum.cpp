@@ -191,26 +191,26 @@ TEST_F(MomentumTest, EmergencyStopAll_StopsAllThrottles) {
 // Service braking — basic behavior
 // ============================================================================
 
-TEST_F(MomentumTest, ServiceBrake_DecreasesActualSpeed) {
+TEST_F(MomentumTest, DynamicBrake_DecreasesActualSpeed) {
     mc.setMomentumLevel(0, MomentumLevel::Medium);
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     int speed = runFor(0, 2000);
 
     EXPECT_LT(speed, 80);
     EXPECT_GT(speed, 0);
 }
 
-TEST_F(MomentumTest, ServiceBrake_TargetSpeedUnchanged) {
+TEST_F(MomentumTest, DynamicBrake_TargetSpeedUnchanged) {
     mc.setMomentumLevel(0, MomentumLevel::Medium);
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     runFor(0, 2000);
 
     // Display speed (target) should still show 80
@@ -219,40 +219,40 @@ TEST_F(MomentumTest, ServiceBrake_TargetSpeedUnchanged) {
     EXPECT_LT(mc.getActualSpeed(0), 80);
 }
 
-TEST_F(MomentumTest, ServiceBrake_ReleaseReturnsToTarget) {
+TEST_F(MomentumTest, DynamicBrake_ReleaseReturnsToTarget) {
     mc.setMomentumLevel(0, MomentumLevel::Medium);
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     runFor(0, 3000); // brake for 3 seconds
 
-    mc.setServiceBraking(0, false);
+    mc.setDynamicBraking(0, false);
     int finalSpeed = runUntilTarget(0, 30000);
 
     EXPECT_EQ(finalSpeed, 80); // should return to set speed
 }
 
-TEST_F(MomentumTest, ServiceBrake_WontEngageBelowMinSpeed) {
+TEST_F(MomentumTest, DynamicBrake_WontEngageBelowMinSpeed) {
     mc.setMomentumLevel(0, MomentumLevel::Low);
     mc.setLocoType(0, LocoType::Diesel); // minSpeed = 10
     mc.setTargetSpeed(0, 5);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     // Should refuse — speed is below the profile's minimum
-    EXPECT_FALSE(mc.isServiceBraking(0));
+    EXPECT_FALSE(mc.isDynamicBraking(0));
 }
 
-TEST_F(MomentumTest, ServiceBrake_EngagesAboveMinSpeed) {
+TEST_F(MomentumTest, DynamicBrake_EngagesAboveMinSpeed) {
     mc.setMomentumLevel(0, MomentumLevel::Low);
     mc.setLocoType(0, LocoType::Diesel); // minSpeed = 10
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
-    EXPECT_TRUE(mc.isServiceBraking(0));
+    mc.setDynamicBraking(0, true);
+    EXPECT_TRUE(mc.isDynamicBraking(0));
 }
 
 // ============================================================================
@@ -265,16 +265,16 @@ TEST_F(MomentumTest, ElectricBrakesHarderThanDiesel) {
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     int dieselSpeed = runFor(0, 2000);
-    mc.setServiceBraking(0, false);
+    mc.setDynamicBraking(0, false);
 
     // Reset for electric test on throttle 1
     mc.setMomentumLevel(1, MomentumLevel::Medium);
     mc.setLocoType(1, LocoType::Electric);
     mc.setTargetSpeed(1, 80);
     runUntilTarget(1);
-    mc.setServiceBraking(1, true);
+    mc.setDynamicBraking(1, true);
     int electricSpeed = runFor(1, 2000);
 
     // Electric should have shed more speed (lower actual)
@@ -287,7 +287,7 @@ TEST_F(MomentumTest, SteamBrakesGentlerThanDiesel) {
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
-    mc.setServiceBraking(0, true);
+    mc.setDynamicBraking(0, true);
     int dieselSpeed = runFor(0, 2000);
 
     // Steam on throttle 1
@@ -295,7 +295,7 @@ TEST_F(MomentumTest, SteamBrakesGentlerThanDiesel) {
     mc.setLocoType(1, LocoType::Steam);
     mc.setTargetSpeed(1, 80);
     runUntilTarget(1);
-    mc.setServiceBraking(1, true);
+    mc.setDynamicBraking(1, true);
     int steamSpeed = runFor(1, 2000);
 
     // Steam should have shed less speed (higher actual = gentler)
@@ -411,20 +411,20 @@ TEST_F(MomentumTest, LocoType_SetAndGet) {
 // Sound controller event dispatch
 // ============================================================================
 
-TEST_F(MomentumTest, ServiceBrake_NotifiesSound) {
+TEST_F(MomentumTest, DynamicBrake_NotifiesSound) {
     mc.setMomentumLevel(0, MomentumLevel::Medium);
     mc.setLocoType(0, LocoType::Diesel);
     mc.setTargetSpeed(0, 80);
     runUntilTarget(0);
 
-    mc.setServiceBraking(0, true);
-    EXPECT_EQ(stubSound.serviceBrakeCallCount, 1);
-    EXPECT_EQ(stubSound.lastServiceBrakeThrottle, 0);
-    EXPECT_TRUE(stubSound.lastServiceBrakeState);
+    mc.setDynamicBraking(0, true);
+    EXPECT_EQ(stubSound.dynamicBrakeCallCount, 1);
+    EXPECT_EQ(stubSound.lastDynamicBrakeThrottle, 0);
+    EXPECT_TRUE(stubSound.lastDynamicBrakeState);
 
-    mc.setServiceBraking(0, false);
-    EXPECT_EQ(stubSound.serviceBrakeCallCount, 2);
-    EXPECT_FALSE(stubSound.lastServiceBrakeState);
+    mc.setDynamicBraking(0, false);
+    EXPECT_EQ(stubSound.dynamicBrakeCallCount, 2);
+    EXPECT_FALSE(stubSound.lastDynamicBrakeState);
 }
 
 TEST_F(MomentumTest, StandardBrake_NotifiesSound) {
@@ -503,7 +503,7 @@ TEST_F(MomentumTest, InvalidThrottle_ReturnsDefaults) {
     EXPECT_EQ(mc.getActualSpeed(-1), 0);
     EXPECT_EQ(mc.getActualSpeed(99), 0);
     EXPECT_EQ(mc.getTargetSpeed(-1), 0);
-    EXPECT_FALSE(mc.isServiceBraking(-1));
+    EXPECT_FALSE(mc.isDynamicBraking(-1));
     EXPECT_FALSE(mc.isBraking(99));
     EXPECT_EQ(mc.getConsistSize(-1), 1);
     EXPECT_EQ(mc.getLocoType(-1), LocoType::Diesel);

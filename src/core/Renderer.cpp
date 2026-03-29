@@ -428,22 +428,40 @@ void Renderer::renderRadioSelect(const RadioSelectScreen &screen) {
 		display.drawUTF8(tx, rh, t);
 	}
 
-	// ── Vertically centre the options between row 1 and the status bar ──
+	// ── Content area geometry ──
 	int contentTop    = layout.topBarHeight + rh;  // below title row
 	int contentBottom = layout.statusBarY;
-	int totalHeight   = screen.optionCount * rh;
-	int startY        = contentTop + (contentBottom - contentTop - totalHeight) / 2 + rh;
-	if (startY < contentTop + rh) startY = contentTop + rh;
+	int maxVisible    = (contentBottom - contentTop) / rh;
+	if (maxVisible < 1) maxVisible = 1;
+	if (maxVisible > screen.optionCount) maxVisible = screen.optionCount;
+
+	// ── Viewport: keep selectedIndex visible, centred when possible ──
+	int viewStart = 0;
+	if (screen.optionCount > maxVisible) {
+		viewStart = screen.selectedIndex - maxVisible / 2;
+		if (viewStart < 0) viewStart = 0;
+		if (viewStart + maxVisible > screen.optionCount)
+			viewStart = screen.optionCount - maxVisible;
+	}
+	int viewEnd = viewStart + maxVisible;
+
+	// ── Vertically centre the visible items in the content area ──
+	// The inversion box extends from (ly - rh + 3) to (ly + 3), so the
+	// visual block is offset 3px below pure row-height math.  Account for
+	// that so the last item's box doesn't bleed into the status bar.
+	int totalHeight = maxVisible * rh;
+	int startY      = contentTop + (contentBottom - contentTop - totalHeight) / 2 + rh - 3;
+	if (startY < contentTop + rh - 3) startY = contentTop + rh - 3;
 
 	int pad = 4;  // horizontal padding inside the inversion box
 
-	for (int i = 0; i < screen.optionCount; i++) {
+	for (int vi = 0; vi < maxVisible; vi++) {
+		int i = viewStart + vi;
 		const char *label = screen.options[i].c_str();
 		int labelW = display.getUTF8Width(label);
 		int lx = (layout.screenWidth - labelW) / 2;
 		if (lx < 0) lx = 0;
-		int ly = startY + i * rh;
-		if (ly > contentBottom - 2) break;  // don't draw into the status bar
+		int ly = startY + vi * rh;
 
 		if (i == screen.selectedIndex) {
 			// Draw inversion box sized to the text + padding, centred
@@ -459,6 +477,20 @@ void Renderer::renderRadioSelect(const RadioSelectScreen &screen) {
 		} else {
 			display.drawUTF8(lx, ly, label);
 		}
+	}
+
+	// ── Scroll indicators (chevrons at right edge) ──
+	if (viewStart > 0) {
+		int ax = layout.screenWidth - 6;
+		int ay = contentTop + 6;
+		display.drawLine(ax - 3, ay, ax, ay - 3);
+		display.drawLine(ax, ay - 3, ax + 3, ay);
+	}
+	if (viewEnd < screen.optionCount) {
+		int ax = layout.screenWidth - 6;
+		int ay = contentBottom - 4;
+		display.drawLine(ax - 3, ay, ax, ay + 3);
+		display.drawLine(ax, ay + 3, ax + 3, ay);
 	}
 
 	// ── Footer (centred at canonical bottom row) ──
@@ -754,15 +786,12 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 
 		// Speed & direction
 		screen.speedDisplay = String(throttleManager.getDisplaySpeed(currentIdx));
+		// Direction: always show Fwd/Rev (brake state shown via speed inversion)
 		Direction dir = throttleManager.getDirection(currentIdx);
-		
-		// Service brake: show "Brk" instead of Fwd/Rev when engaged
-		if (throttleManager.momentum().isServiceBraking(currentIdx)) {
-			screen.directionDisplay = DIRECTION_SERVICE_BRAKE_TEXT;
-			screen.serviceBrakeActive = true;
-		} else {
-			screen.directionDisplay = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
-		}
+		screen.directionDisplay = (dir == Forward) ? DIRECTION_FORWARD_TEXT : DIRECTION_REVERSE_TEXT;
+
+		// Pending direction change: flash the direction indicator
+		screen.pendingDirectionChange = throttleManager.momentum().hasPendingDirectionChange(currentIdx);
 	}
 
 	// ── Next throttle preview ──
@@ -813,7 +842,7 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 	screen.actualSpeed = throttleManager.momentum().getActualSpeed(currentIdx);
 	screen.targetSpeed = throttleManager.momentum().getTargetSpeed(currentIdx);
 	if (throttleManager.momentum().isBraking(currentIdx) || 
-	    throttleManager.momentum().isServiceBraking(currentIdx)) {
+	    throttleManager.momentum().isDynamicBraking(currentIdx)) {
 		screen.brakeState = 1;
 	} else {
 		if (screen.targetSpeed > screen.actualSpeed + 1)      screen.brakeState = 2; // ramping up
@@ -1023,7 +1052,15 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	display.setFont(fonts.direction);
 	int dirAscent = display.getFontAscent();
 	int dirY = speedTop + dirAscent;               // baseline for top-alignment
-	display.drawStr(layout.directionX, dirY, screen.directionDisplay.c_str());
+
+	// Flash direction text when a direction change is pending (~2Hz blink)
+	bool showDirection = true;
+	if (screen.pendingDirectionChange) {
+		showDirection = ((millis() / 250) % 2 == 0);
+	}
+	if (showDirection) {
+		display.drawStr(layout.directionX, dirY, screen.directionDisplay.c_str());
+	}
 
 	// ── Speed (colored by state on TFT, inverted on OLED when braking) ──
 	const char *cSpeed = screen.speedDisplay.c_str();

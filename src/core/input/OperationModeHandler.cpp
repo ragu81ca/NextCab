@@ -28,6 +28,11 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // Apply delta * current speed step through ThrottleManager API.
             int idx = throttleManager.getCurrentThrottleIndex();
             if (!throttle_.hasLocomotive(idx)) return true; // consume but ignore
+            // Block throttle-up while a direction change is pending
+            // (train is still coasting the other way)
+            if (ev.ivalue > 0 && throttleManager.momentum().hasPendingDirectionChange(idx)) {
+                return true; // consume but ignore
+            }
             int current = throttle_.getCurrentSpeed(idx);
             int step = throttle_.getSpeedStep();
             int next = current + (ev.ivalue * step);
@@ -95,11 +100,17 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
                 int currentSpeed = throttle_.getCurrentSpeed(idx);
-                if (currentSpeed > 0 && throttleManager.momentum().isActive(idx)) {
-                    // Service braking only — no standard brake squeal
-                    throttleManager.momentum().setServiceBraking(idx, true);
+                if (currentSpeed > 0) {
+                    if (throttleManager.momentum().isActive(idx)) {
+                        // Momentum on: service braking decelerates gradually
+                        throttleManager.momentum().setDynamicBraking(idx, true);
+                    } else {
+                        // Momentum off: immediate stop + dynamic brake sound
+                        throttle_.speedSet(idx, 0);
+                        throttleManager.momentum().setDynamicBraking(idx, true);
+                    }
                 } else {
-                    // Standard braking (throttle at zero or momentum off)
+                    // Throttle at zero: standard braking
                     throttleManager.momentum().setBraking(idx, true);
                 }
                 renderer_.renderSpeed();
@@ -113,8 +124,8 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // Release deactivates whichever brake mode was engaged
             int idx = throttleManager.getCurrentThrottleIndex();
             if (throttle_.hasLocomotive(idx)) {
-                if (throttleManager.momentum().isServiceBraking(idx)) {
-                    throttleManager.momentum().setServiceBraking(idx, false);
+                if (throttleManager.momentum().isDynamicBraking(idx)) {
+                    throttleManager.momentum().setDynamicBraking(idx, false);
                 } else {
                     throttleManager.momentum().setBraking(idx, false);
                 }

@@ -88,26 +88,26 @@ Momentum is treated as an interaction mode, not a decoder constraint.
 
 This keeps realism optional — and reversible — without requiring CV changes.
 
-### Service Braking
+### Braking
 
 Hold the encoder to brake. What happens depends on the current throttle position:
 
 | Throttle | Gesture | Behavior |
 |----------|---------|----------|
-| Above zero | Hold encoder | **Service brake** — the train decelerates continuously while you hold, similar to applying the air brakes on a real locomotive. Release the encoder and the train coasts back to the set speed. |
-| At zero | Hold encoder | **Full stop brake** — accelerates the deceleration to bring the train to a complete stop quickly. |
+| Above zero | Hold encoder | **Dynamic brake** — the traction motors switch to generators, retarding the train while you hold. The braking effect fades as speed decreases (just like the real thing — dynamic brakes can't bring you to a full stop). Release the encoder and the train accelerates back to the set speed. |
+| At zero | Hold encoder | **Air brake** — accelerates deceleration to bring the train to a complete stop quickly. |
 
-Service braking is loco-type-aware. Each locomotive type has a distinct brake profile that controls how aggressively speed is shed and the minimum speed before brakes disengage:
+Dynamic braking is loco-type-aware. Each locomotive type has a distinct brake profile that controls how aggressively speed is shed and the minimum speed before dynamic brakes disengage:
 
 | Loco Type | Deceleration | Min Speed | Character |
 |-----------|-------------|-----------|-----------|
-| Diesel | Moderate (4.0) | 20 | Balanced — reliable workhorse feel |
-| Steam | Gentle (3.0) | 20 | Heavier, more gradual — momentum of mass |
-| Electric | Strong (5.0) | 10 | Regenerative braking — crisp and responsive |
+| Diesel | Moderate (4.0) | 20 | Rheostatic — resistor grid dynamic brakes |
+| Steam | Gentle (3.0) | 20 | Air brakes only — no dynamic braking available |
+| Electric | Strong (5.0) | 10 | Regenerative — feeds energy back to catenary |
 
-The display shows **"Brk"** in place of the direction indicator while service braking is active. On OLED displays the speed value is rendered in inverted text; on TFT displays the speed bar color changes.
+While braking is active, the speed value is drawn inverted on OLED displays or changes color on TFT displays.
 
-If a brake sound function is configured for the locomotive (`funcServiceBrake` in the loco config), it will be activated automatically when braking engages and deactivated on release.
+If a dynamic brake sound function is configured for the locomotive (`funcDynamicBrake` in the loco config), it will be activated automatically when braking engages and deactivated on release.
 
 ### Consist Power Scaling
 

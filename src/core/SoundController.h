@@ -21,13 +21,16 @@ enum class SoundEvent {
 // Sentinel value: function slot is not assigned to any DCC function.
 static constexpr int8_t SOUND_FUNC_NOT_SET = -1;
 
-// Sound function configuration for diesel locomotive sound simulation
+// Sound roles for dispatch — maps to per-loco LocoConfig fields
+enum class SoundRole : uint8_t {
+    ThrottleUp = 0,   // notch up (pulsed)
+    ThrottleDown = 1, // notch down (pulsed)
+    ROLE_COUNT = 2
+};
+
+// Sound configuration (timing only — function numbers live in per-loco LocoConfig)
 struct SoundConfig {
     bool enabled = true;
-    int8_t throttleUpFunction = 6;       // F6 - diesel notch up sound
-    int8_t throttleDownFunction = 7;     // F7 - diesel notch down sound
-    int8_t brakeFunction = 9;            // F9 - brake sound
-    int8_t serviceBrakeFunction = 5;     // F5 - Dynamic brake (hold-to-slow)
     
     // Pulse timing: ON duration for momentary function press
     // 300ms gives Digitrax and other decoders reliable time to register
@@ -55,7 +58,7 @@ public:
     
     // Event handlers - called by other controllers when state changes
     void onBrakeStateChange(int throttle, bool braking);
-    void onServiceBrakeStateChange(int throttle, bool active);
+    void onDynamicBrakeStateChange(int throttle, bool active);
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
     void onActualSpeedUpdate(int throttle, int actualSpeed);
     void onDirectionChange(int throttle);
@@ -76,16 +79,19 @@ public:
     bool isAnyNotching() const;
     
 private:
-    // Per-throttle, per-function state for non-blocking function pulses
-    bool functionPulseActive_[WIT_MAX_THROTTLES][32];  // Support F0-F31
-    unsigned long functionPulseStart_[WIT_MAX_THROTTLES][32];
-    unsigned long lastFunctionTime_[WIT_MAX_THROTTLES][32];
+    static constexpr int ROLE_COUNT = static_cast<int>(SoundRole::ROLE_COUNT);
+    
+    // Per-throttle, per-role state for non-blocking function pulses
+    bool rolePulseActive_[WIT_MAX_THROTTLES][ROLE_COUNT];
+    unsigned long rolePulseStart_[WIT_MAX_THROTTLES][ROLE_COUNT];
+    unsigned long lastRoleTime_[WIT_MAX_THROTTLES][ROLE_COUNT];
     
     // Internal notch simulation (1-8, diesel locomotive sound effects only)
     // Steam locomotives would require completely different sound patterns
     int currentNotch_[WIT_MAX_THROTTLES];
     int targetNotch_[WIT_MAX_THROTTLES];
     unsigned long lastNotchTime_[WIT_MAX_THROTTLES];
+    bool dynamicBraking_[WIT_MAX_THROTTLES];  // Dynamic brake active — forces notch 1
     
     // Speed tracking for effort-based notch calculation (prime mover overshoot)
     int targetSpeed_[WIT_MAX_THROTTLES];
@@ -111,12 +117,12 @@ private:
     // Configuration (global defaults — per-loco configs override when available)
     SoundConfig config_;
     
-    // Internal methods — per-loco aware dispatch
-    void triggerFunction(int throttle, uint8_t funcNum, const char* reason);
-    void triggerFunctionImmediate(int throttle, uint8_t funcNum, bool state);
-    void triggerServiceBrakeSound(int throttle, bool state);
-    void turnOffFunction(int throttle, uint8_t funcNum);
-    bool canTriggerFunction(int throttle, uint8_t funcNum);
+    // Internal methods — per-loco aware dispatch by role
+    void triggerFunction(int throttle, SoundRole role, const char* reason);
+    void triggerDynamicBrakeSound(int throttle, bool state);
+    void triggerBrakeSound(int throttle, bool state);
+    void turnOffFunction(int throttle, SoundRole role);
+    bool canTriggerRole(int throttle, SoundRole role);
     
     // Internal notch simulation for sound effects only
     int calculateNotchFromSpeed(int speed) const;

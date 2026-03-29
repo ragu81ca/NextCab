@@ -76,8 +76,12 @@ public:
     ///   3 = ramping down (progress bar)
     int brakeState = 0;
 
-    /// Service brake active — direction indicator shows "Brk" instead of Fwd/Rev.
-    bool serviceBrakeActive = false;
+    /// Dynamic brake active — speed is drawn inverted.
+    bool dynamicBrakeActive = false;
+
+    /// Pending direction change (train braking to stop before reversing).
+    /// When true, the direction text flashes.
+    bool pendingDirectionChange = false;
 
     /// Actual speed (momentum-smoothed) for ramp progress bar.
     int actualSpeed = 0;
@@ -111,7 +115,8 @@ public:
         currentSpeedStep    = 1;
         momentumLevel      = 0;
         brakeState         = 0;
-        serviceBrakeActive = false;
+        dynamicBrakeActive = false;
+        pendingDirectionChange = false;
         actualSpeed        = 0;
         targetSpeed        = 0;
         for (int i = 0; i < MAX_MENU_LINES; i++) {

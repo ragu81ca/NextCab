@@ -171,6 +171,10 @@ namespace MenuHandlers {
         locoManager.toggleDropBeforeAcquire();
     }
     
+    void handleLocoConfig(MenuContext& ctx) {
+        inputManager.setMode(InputMode::LocoConfigWizard);
+    }
+    
     // List renderers (thin wrappers around existing functions)
     void renderRosterList() {
         // Switch to RosterSelection mode which will render the list via onEnter
@@ -235,9 +239,13 @@ namespace MenuDefinitions {
                         MenuHandlers::handleSleep),
         
         MenuItem::action(9, "1 Loco Tgl", "N/A",
-                        MenuHandlers::handleDropBeforeAcquireToggle)
+                        MenuHandlers::handleDropBeforeAcquireToggle),
+        
+        MenuItem::action(0, "Loco Config", "N/A",
+                        MenuHandlers::handleLocoConfig,
+                        []() { return wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0; })
     };
-    const uint8_t extrasMenuSize = 9;
+    const uint8_t extrasMenuSize = 10;
     
     // Main menu (replicates items 0-9 from menuText array)
     // Items 1-9 followed by item 0 (Function) to match keypad layout

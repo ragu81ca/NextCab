@@ -22,7 +22,7 @@ MomentumController::MomentumController(ClockFn clock)
         targetSpeed_[i] = 0;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
-        serviceBraking_[i] = false;
+        dynamicBraking_[i] = false;
         consistSize_[i] = 1;
         locoType_[i] = LocoType::Diesel;
         lastUpdate_[i] = 0;
@@ -58,7 +58,7 @@ void MomentumController::update() {
         // continuously decelerate as though applying brakes, but leave the displayed
         // target speed untouched.  The deceleration rate and minimum effective speed
         // depend on the locomotive type (diesel/steam/electric).
-        bool serviceActive = serviceBraking_[throttle] && target > 0;
+        bool serviceActive = dynamicBraking_[throttle] && target > 0;
         if (serviceActive) {
             const BrakeProfile& profile = getBrakeProfile(throttle);
             if ((int)round(actual) <= profile.minSpeed) {
@@ -307,60 +307,62 @@ bool MomentumController::isBraking(int throttle) const {
     return braking_[throttle];
 }
 
-void MomentumController::setServiceBraking(int throttle, bool active) {
+void MomentumController::setDynamicBraking(int throttle, bool active) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
     
-    bool wasActive = serviceBraking_[throttle];
+    bool wasActive = dynamicBraking_[throttle];
     
     if (active && !wasActive) {
-        int actualSpeed = (int)round(actualSpeed_[throttle]);
-        const BrakeProfile& profile = getBrakeProfile(throttle);
-        
-        // Only engage if above minimum effective speed for this loco type
-        if (actualSpeed < profile.minSpeed) {
-            Serial.print("[Momentum] T");
-            Serial.print(throttle);
-            Serial.print(" Service brake ignored - speed too low (");
-            Serial.print(actualSpeed);
-            Serial.println(")");
-            return;
+        // When momentum is active, check actual (smoothed) speed.
+        // When off, check the flag itself — caller has already stopped the loco.
+        if (isActive(throttle)) {
+            int actualSpd = (int)round(actualSpeed_[throttle]);
+            const BrakeProfile& profile = getBrakeProfile(throttle);
+            if (actualSpd < profile.minSpeed) {
+                Serial.print("[Momentum] T");
+                Serial.print(throttle);
+                Serial.print(" Dynamic brake ignored - speed too low (");
+                Serial.print(actualSpd);
+                Serial.println(")");
+                return;
+            }
         }
         
-        serviceBraking_[throttle] = true;
+        dynamicBraking_[throttle] = true;
         
         const char* typeNames[] = {"Diesel", "Steam", "Electric"};
         int typeIdx = (int)locoType_[throttle];
         Serial.print("[Momentum] T");
         Serial.print(throttle);
-        Serial.print(" Service brake ENGAGED (");
+        Serial.print(" Dynamic brake ENGAGED (");
         Serial.print(typeNames[typeIdx]);
         Serial.print(") - speed: ");
-        Serial.print(actualSpeed);
-        Serial.print(", decel rate: ");
-        Serial.println(profile.decelRate);
+        Serial.print((int)round(actualSpeed_[throttle]));
+        Serial.print(", momentum: ");
+        Serial.println(isActive(throttle) ? "on" : "off");
         
         // Notify sound controller
         if (soundCtrl_) {
-            soundCtrl_->onServiceBrakeStateChange(throttle, true);
+            soundCtrl_->onDynamicBrakeStateChange(throttle, true);
         }
     } else if (!active && wasActive) {
-        // Releasing service brake - momentum carries speed back to throttle setting
-        serviceBraking_[throttle] = false;
+        // Releasing dynamic brake - momentum carries speed back to throttle setting
+        dynamicBraking_[throttle] = false;
         
         Serial.print("[Momentum] T");
         Serial.print(throttle);
-        Serial.println(" Service brake RELEASED - returning to target speed");
+        Serial.println(" Dynamic brake RELEASED - returning to target speed");
         
         // Notify sound controller
         if (soundCtrl_) {
-            soundCtrl_->onServiceBrakeStateChange(throttle, false);
+            soundCtrl_->onDynamicBrakeStateChange(throttle, false);
         }
     }
 }
 
-bool MomentumController::isServiceBraking(int throttle) const {
+bool MomentumController::isDynamicBraking(int throttle) const {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return false;
-    return serviceBraking_[throttle];
+    return dynamicBraking_[throttle];
 }
 
 void MomentumController::setLocoType(int throttle, LocoType type) {
@@ -482,7 +484,6 @@ bool MomentumController::requestDirectionChange(int throttle, Direction targetDi
         // If already pending, toggle it back (cancel)
         if (pendingDirectionChange_[throttle]) {
             pendingDirectionChange_[throttle] = false;
-            setBraking(throttle, false);  // Release brake since we cancelled
             
             #ifdef MOMENTUM_DEBUG
             Serial.print("[Momentum] T");
@@ -493,21 +494,18 @@ bool MomentumController::requestDirectionChange(int throttle, Direction targetDi
             return false; // Cancelled, no longer pending
         }
         
-        // Not pending yet - queue the direction change and force brake to stop
+        // Queue the direction change — train coasts to a stop naturally.
+        // User can manually brake (encoder hold) to stop faster.
         pendingDirectionChange_[throttle] = true;
         pendingDirection_[throttle] = targetDirection;
-        originalDirection_[throttle] = targetDirection == Forward ? Reverse : Forward; // Opposite of target = current
-        
-        // Force emergency braking to bring train to stop
-        setBraking(throttle, true);
-        setTargetSpeed(throttle, 0);
+        originalDirection_[throttle] = targetDirection == Forward ? Reverse : Forward;
         
         #ifdef MOMENTUM_DEBUG
         Serial.print("[Momentum] T");
         Serial.print(throttle);
         Serial.print(" Direction change queued to ");
         Serial.print(targetDirection == Forward ? "Forward" : "Reverse");
-        Serial.print(" - braking to stop (speed=");
+        Serial.print(" - coasting to stop (speed=");
         Serial.print(actualSpeed);
         Serial.println(")");
         #endif

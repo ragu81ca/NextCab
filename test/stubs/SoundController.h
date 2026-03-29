@@ -12,10 +12,10 @@ public:
         brakeCallCount++;
     }
 
-    void onServiceBrakeStateChange(int throttle, bool active) {
-        lastServiceBrakeThrottle = throttle;
-        lastServiceBrakeState = active;
-        serviceBrakeCallCount++;
+    void onDynamicBrakeStateChange(int throttle, bool active) {
+        lastDynamicBrakeThrottle = throttle;
+        lastDynamicBrakeState = active;
+        dynamicBrakeCallCount++;
     }
 
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
@@ -39,9 +39,9 @@ public:
     bool lastBrakeState = false;
     int brakeCallCount = 0;
 
-    int lastServiceBrakeThrottle = -1;
-    bool lastServiceBrakeState = false;
-    int serviceBrakeCallCount = 0;
+    int lastDynamicBrakeThrottle = -1;
+    bool lastDynamicBrakeState = false;
+    int dynamicBrakeCallCount = 0;
 
     int lastSpeedThrottle = -1;
     int lastOldSpeed = -1;

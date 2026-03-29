@@ -59,14 +59,14 @@ public:
     void setBraking(int throttle, bool braking);
     bool isBraking(int throttle) const;
     
-    // Service braking — hold-to-slow while throttle > 0.
+    // Dynamic braking — hold-to-slow while throttle > 0.
     // Continuously decelerates the actual speed while maintaining the displayed
     // target. On release, momentum carries speed back up to the set throttle.
     // Deceleration rate and minimum effective speed vary by locomotive type.
-    void setServiceBraking(int throttle, bool active);
-    bool isServiceBraking(int throttle) const;
+    void setDynamicBraking(int throttle, bool active);
+    bool isDynamicBraking(int throttle) const;
     
-    // Locomotive type — determines service brake characteristics
+    // Locomotive type — determines dynamic brake characteristics
     void setLocoType(int throttle, LocoType type);
     LocoType getLocoType(int throttle) const;
     
@@ -91,7 +91,7 @@ public:
     // Clear pending direction change (called by ThrottleManager after applying)
     void clearPendingDirectionChange(int throttle);
     
-	/// Per-loco-type brake profile — determines service brake feel.
+	/// Per-loco-type brake profile — determines dynamic brake feel.
 	struct BrakeProfile {
 		float   decelRate;      // speed steps per second to subtract during service braking
 		int     minSpeed;       // stop braking effect below this speed
@@ -126,7 +126,7 @@ private:
 	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126)
 	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth ramping)
 	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag (throttle=0, accelerate stop)
-	bool serviceBraking_[MOMENTUM_MAX_THROTTLES];   // Service brake active flag (throttle>0, hold-to-slow)
+	bool dynamicBraking_[MOMENTUM_MAX_THROTTLES];   // Dynamic brake active flag (throttle>0, hold-to-slow)
 	int consistSize_[MOMENTUM_MAX_THROTTLES];        // Number of locos in consist (for accel scaling)
 	LocoType locoType_[MOMENTUM_MAX_THROTTLES];      // Locomotive type (for brake profile selection)
 	unsigned long lastUpdate_[MOMENTUM_MAX_THROTTLES]; // Last update time

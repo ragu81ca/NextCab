@@ -129,9 +129,6 @@ enum ShowBattery : uint8_t {
 #ifndef DIRECTION_REVERSE_INDICATOR
   #define DIRECTION_REVERSE_INDICATOR    "'"
 #endif 
-#ifndef DIRECTION_SERVICE_BRAKE_TEXT
-  #define DIRECTION_SERVICE_BRAKE_TEXT   "Brk"
-#endif
 
 // const String function_states = "fn ";
 
