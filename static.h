@@ -4,6 +4,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "config_buttons.h"   // user config macros must precede fallback defaults below
 
 extern const String appVersion;
 extern const String appName;

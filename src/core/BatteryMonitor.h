@@ -10,6 +10,7 @@
 // selected at compile time with no facade, no heap allocation, no vtable.
 #pragma once
 
+#include "../../static.h"   // ensures config_buttons.h macros + fallback defaults are available
 #include "NullBatteryMonitor.h"
 
 #if USE_MAX17048
