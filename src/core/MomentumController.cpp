@@ -20,6 +20,8 @@ MomentumController::MomentumController(ClockFn clock)
     for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
         momentumLevel_[i] = MomentumLevel::Off;
         targetSpeed_[i] = 0;
+        powerLevel_[i] = 0;
+        powerModelActive_[i] = false;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
         dynamicBraking_[i] = false;
@@ -71,16 +73,10 @@ void MomentumController::update() {
             }
         }
         
-        // Sound leads movement: If sound controller is still notching for this throttle,
-        // delay the actual speed change so engine sound transitions complete first.
-        // Don't reset lastUpdate_ here — elapsed time accumulates so that when
-        // notching finishes, the proportionally larger delta lets speed catch up
-        // smoothly instead of surging.
-        if (soundCtrl_ && soundCtrl_->isNotching(throttle)) {
-            continue;
-        }
+        // Sound runs in parallel with speed changes — no blocking.
+        // (Sound pulses are non-blocking and complete independently.)
         
-        // Mark this throttle as processed (after notching check so delays accumulate)
+        // Mark this throttle as processed
         lastUpdate_[throttle] = now;
         
         // Already at target? Nothing to do
@@ -121,6 +117,9 @@ void MomentumController::update() {
             baseRate = getBrakeRate(throttle); // Faster decel when braking (throttle=0 hold)
         } else if (accelerating) {
             baseRate = getAccelRate(throttle);
+        } else if (powerModelActive_[throttle] && powerLevel_[throttle] == 0 && isActive(throttle)) {
+            // Power at zero — coast on inertia (gentle rolling resistance)
+            baseRate = getCoastRate(throttle);
         } else {
             baseRate = getDecelRate(throttle);
         }
@@ -227,6 +226,8 @@ int MomentumController::getTargetSpeed(int throttle) const {
 void MomentumController::emergencyStop(int throttle) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
     targetSpeed_[throttle] = 0;
+    powerLevel_[throttle] = 0;
+    powerModelActive_[throttle] = false;
     actualSpeed_[throttle] = 0.0f; // Bypass momentum
 }
 
@@ -254,6 +255,8 @@ void MomentumController::setMomentumLevel(int throttle, MomentumLevel level) {
     // If turning off, snap this throttle's actual speed to target
     if (level == MomentumLevel::Off && oldLevel != MomentumLevel::Off) {
         actualSpeed_[throttle] = (float)targetSpeed_[throttle];
+        powerLevel_[throttle] = 0;
+        powerModelActive_[throttle] = false;
         Serial.print("Momentum disabled T");
         Serial.print(throttle);
         Serial.println(" - speed snapped to target");
@@ -398,6 +401,62 @@ int MomentumController::getConsistSize(int throttle) const {
     return consistSize_[throttle];
 }
 
+// ============================================================================
+// Power model — simulator mode
+// ============================================================================
+
+// Equilibrium curve: v_eq = 126 * (power/100)^0.6
+// Exponent 0.6 gives good low-power resolution (first click ≈ speed 12)
+// while still reflecting diminishing returns at high power.
+int MomentumController::equilibriumSpeed(int power) {
+    if (power <= 0) return 0;
+    if (power >= 100) return 126;
+    float frac = power / 100.0f;
+    return (int)round(126.0f * powf(frac, 0.6f));
+}
+
+void MomentumController::setPowerLevel(int throttle, int level) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    if (level < 0) level = 0;
+    if (level > 100) level = 100;
+    
+    int oldLevel = powerLevel_[throttle];
+    powerLevel_[throttle] = level;
+    powerModelActive_[throttle] = true;
+    
+    // Update target speed from power curve
+    int eqSpeed = equilibriumSpeed(level);
+    targetSpeed_[throttle] = eqSpeed;
+    
+    // Emit sound event when power changes
+    if (soundCtrl_ && level != oldLevel) {
+        soundCtrl_->onSpeedChange(throttle, equilibriumSpeed(oldLevel), eqSpeed);
+    }
+    
+    if (level != oldLevel && isActive(throttle)) {
+        Serial.print("Power set T");
+        Serial.print(throttle);
+        Serial.print(": ");
+        Serial.print(oldLevel);
+        Serial.print("% -> ");
+        Serial.print(level);
+        Serial.print("% (eq speed: ");
+        Serial.print(eqSpeed);
+        Serial.println(")");
+    }
+}
+
+int MomentumController::getPowerLevel(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 0;
+    return powerLevel_[throttle];
+}
+
+void MomentumController::resetPowerLevel(int throttle) {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
+    powerLevel_[throttle] = 0;
+    powerModelActive_[throttle] = false;
+}
+
 // Acceleration rates (speed units per second)
 // Realistic momentum based on prototype physics:
 // Low = light passenger (12s), Medium = mixed freight (25s), High = heavy freight (50s)
@@ -432,6 +491,19 @@ float MomentumController::getBrakeRate(int throttle) const {
         case MomentumLevel::Medium: return 15.0f;  // ~8 seconds (moderate braking)
         case MomentumLevel::High:   return 10.0f;  // ~13 seconds (heavy train needs time!)
         default:                    return 999.0f; // Instant (off)
+    }
+}
+
+// Coast rate (speed units per second) - rolling resistance only, no throttle
+// Much gentler than decel rate (which is "throttle reduced, drag slows you").
+// Coast simulates: power OFF, train rolls on inertia.  Real trains coast for miles.
+float MomentumController::getCoastRate(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
+    switch (momentumLevel_[throttle]) {
+        case MomentumLevel::Low:    return 3.0f;   // ~42 seconds coast from 126
+        case MomentumLevel::Medium: return 1.5f;   // ~84 seconds
+        case MomentumLevel::High:   return 0.7f;   // ~180 seconds (3 minutes!)
+        default:                    return 999.0f;
     }
 }
 

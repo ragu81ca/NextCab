@@ -849,6 +849,21 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 		else if (screen.targetSpeed + 1 < screen.actualSpeed) screen.brakeState = 3; // ramping down
 	}
 
+	// ── Power model (simulator mode) ──
+	if (throttleManager.momentum().isActive(currentIdx) && numLocos > 0) {
+		screen.simulatorMode = true;
+		screen.powerLevel = throttleManager.momentum().getPowerLevel(currentIdx);
+		screen.powerDisplay = String(screen.powerLevel) + "%";
+		int actualRaw = screen.actualSpeed;
+		if (speedDisplayAsPercent) {
+			screen.actualSpeedDisplay = String((int)(actualRaw / 126.0f * 100.0f + 0.5f));
+		} else if (speedDisplayAs0to28) {
+			screen.actualSpeedDisplay = String((int)(actualRaw / 126.0f * 28.0f + 0.5f));
+		} else {
+			screen.actualSpeedDisplay = String(actualRaw);
+		}
+	}
+
 	// ── Menu / key-label bar ──
 	// Populate the oledText array directly (we're now inside Renderer).
 	clearArray();
@@ -1062,12 +1077,31 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 		display.drawStr(layout.directionX, dirY, screen.directionDisplay.c_str());
 	}
 
-	// ── Speed (colored by state on TFT, inverted on OLED when braking) ──
-	const char *cSpeed = screen.speedDisplay.c_str();
+	// ── Speed / Power display ──────────────────────────────────────────
+	// In simulator mode the big number shows power percentage;
+	// the actual speed appears as a smaller secondary readout.
+	String bigDisplayText;
+
+	if (screen.simulatorMode && screen.hasLoco()) {
+		bigDisplayText = String(screen.powerLevel);
+	} else {
+		bigDisplayText = screen.speedDisplay;
+	}
+
+	const char *cSpeed = bigDisplayText.c_str();
 	display.setFont(fonts.speedLarge);
 	int width = display.getStrWidth(cSpeed);
+
+	// In simulator mode, append a '%' suffix in the direction font
+	int suffixWidth = 0;
+	if (screen.simulatorMode && screen.hasLoco()) {
+		display.setFont(fonts.direction);
+		suffixWidth = display.getStrWidth("%") + 2;
+		display.setFont(fonts.speedLarge);
+	}
+	int totalDisplayWidth = width + suffixWidth;
 	int speedAreaWidth = layout.directionX - layout.speedX - 8; // 8px padding before direction text
-	int speedTextX = layout.speedX + (speedAreaWidth - width);
+	int speedTextX = layout.speedX + (speedAreaWidth - totalDisplayWidth);
 
 	if (display.colorDepth() >= 16) {
 		// TFT: color the speed text based on brake/momentum state
@@ -1078,7 +1112,7 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 		int pad   = 2;
 		int boxX  = speedTextX - pad;
 		int boxY  = layout.speedY - fontH - pad;
-		int boxW  = width + 2 * pad;
+		int boxW  = totalDisplayWidth + 2 * pad;
 		int boxH  = fontH + 2 * pad;
 		display.setDrawColor(1);
 		display.drawBox(boxX, boxY, boxW, boxH);
@@ -1086,7 +1120,26 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	}
 
 	display.drawStr(speedTextX, layout.speedY, cSpeed);
+	if (screen.simulatorMode && screen.hasLoco()) {
+		display.setFont(fonts.direction);
+		display.drawStr(speedTextX + width + 2, layout.speedY, "%");
+	}
 	display.setDrawColor(1);  // restore for all paths
+
+	// ── Actual speed readout (simulator mode only) ──
+	// Shown below the direction text in the direction font.
+	// Skipped on small displays when next-throttle preview needs the space.
+	if (screen.simulatorMode && screen.hasLoco()) {
+		bool showActual = !(layout.screenWidth < 200 && screen.hasNextThrottle);
+		if (showActual) {
+			display.setFont(fonts.defaultFont);
+			if (display.colorDepth() >= 16) display.setForegroundColor(COLOR_MID_GREY);
+			String actualLabel = screen.actualSpeedDisplay + " mph";
+			display.drawStr(layout.actualSpeedX, layout.actualSpeedY,
+			                actualLabel.c_str());
+			display.setDrawColor(1);
+		}
+	}
 
 	// ── Next throttle preview ──
 	if (screen.hasNextThrottle) {

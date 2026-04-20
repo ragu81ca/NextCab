@@ -33,14 +33,12 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             if (ev.ivalue > 0 && throttleManager.momentum().hasPendingDirectionChange(idx)) {
                 return true; // consume but ignore
             }
-            int current = throttle_.getCurrentSpeed(idx);
             int step = throttle_.getSpeedStep();
-            int next = current + (ev.ivalue * step);
-            if (next < 0) next = 0;
-            if (next > 127) next = 127; // clamp
-            throttle_.speedSet(idx, next);
+            int delta = ev.ivalue * step;
+            if (delta > 0) throttle_.speedUp(idx, delta);
+            else if (delta < 0) throttle_.speedDown(idx, -delta);
             #if INPUT_DEBUG
-            Serial.print("[OperationModeHandler] SpeedDelta handled; new preview/actual speed: "); Serial.println(next);
+            Serial.print("[OperationModeHandler] SpeedDelta handled"); Serial.println(delta);
             #endif
             return true;
         }
@@ -151,10 +149,10 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             switch (ev.ivalue) {
                 case SPEED_STOP: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedSet(idx, 0); return true; }
-                case SPEED_UP: { int step = throttle_.getSpeedStep(); if (!throttle_.hasLocomotive(idx)) return true; int next = throttle_.getCurrentSpeed(idx) + step; if (next > 127) next = 127; throttle_.speedSet(idx, next); return true; }
-                case SPEED_DOWN: { int step = throttle_.getSpeedStep(); if (!throttle_.hasLocomotive(idx)) return true; int next = throttle_.getCurrentSpeed(idx) - step; if (next < 0) next = 0; throttle_.speedSet(idx, next); return true; }
-                case SPEED_UP_FAST: { int step = throttle_.getSpeedStep() * 3; if (!throttle_.hasLocomotive(idx)) return true; int next = throttle_.getCurrentSpeed(idx) + step; if (next > 127) next = 127; throttle_.speedSet(idx, next); return true; }
-                case SPEED_DOWN_FAST: { int step = throttle_.getSpeedStep() * 3; if (!throttle_.hasLocomotive(idx)) return true; int next = throttle_.getCurrentSpeed(idx) - step; if (next < 0) next = 0; throttle_.speedSet(idx, next); return true; }
+                case SPEED_UP: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedUp(idx, throttle_.getSpeedStep()); return true; }
+                case SPEED_DOWN: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedDown(idx, throttle_.getSpeedStep()); return true; }
+                case SPEED_UP_FAST: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedUp(idx, throttle_.getSpeedStep() * 3); return true; }
+                case SPEED_DOWN_FAST: { if (!throttle_.hasLocomotive(idx)) return true; throttle_.speedDown(idx, throttle_.getSpeedStep() * 3); return true; }
                 case SPEED_MULTIPLIER: {
                     throttle_.cycleSpeedStep(); return true; }
                 case DIRECTION_TOGGLE: {

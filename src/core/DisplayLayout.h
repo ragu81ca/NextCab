@@ -50,6 +50,8 @@ struct DisplayLayout {
     int speedY;                   // baseline y of speed text
     int directionX;               // x of direction text
     int directionY;               // baseline y of direction text
+    int actualSpeedX;             // x of secondary actual-speed readout (simulator mode)
+    int actualSpeedY;             // baseline y of secondary actual-speed readout
     int throttleNumberX;          // x of throttle number
     // throttleNumberY removed — now computed dynamically from box height + font ascent
     int throttleNumberBoxW;       // width of throttle number background box

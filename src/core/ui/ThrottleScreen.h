@@ -83,6 +83,19 @@ public:
     /// When true, the direction text flashes.
     bool pendingDirectionChange = false;
 
+    // ── Power model (simulator mode) ────────────────────────────────────
+    /// True when momentum is active — big number shows power, not speed.
+    bool simulatorMode = false;
+
+    /// Power percentage (0-100) in simulator mode.
+    int powerLevel = 0;
+
+    /// Pre-formatted power display string (e.g. "75%").
+    String powerDisplay;
+
+    /// Pre-formatted actual (momentum-smoothed) speed display string.
+    String actualSpeedDisplay;
+
     /// Actual speed (momentum-smoothed) for ramp progress bar.
     int actualSpeed = 0;
 
@@ -117,6 +130,10 @@ public:
         brakeState         = 0;
         dynamicBrakeActive = false;
         pendingDirectionChange = false;
+        simulatorMode      = false;
+        powerLevel         = 0;
+        powerDisplay       = "";
+        actualSpeedDisplay = "";
         actualSpeed        = 0;
         targetSpeed        = 0;
         for (int i = 0; i < MAX_MENU_LINES; i++) {

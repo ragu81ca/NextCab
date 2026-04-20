@@ -74,6 +74,17 @@ public:
     void setConsistSize(int throttle, int locoCount);
     int getConsistSize(int throttle) const;
     
+    // ── Power model (simulator mode) ────────────────────────────────────
+    // When momentum is active the encoder controls power (0-100%),
+    // not speed.  Speed is an outcome of the power/drag equilibrium.
+    void setPowerLevel(int throttle, int level);
+    int  getPowerLevel(int throttle) const;
+    void resetPowerLevel(int throttle);  // Cancel power model, zero power
+    
+    /// Steady-state speed for a given power percentage (0-100 -> 0-126).
+    /// Uses power curve (exponent 0.6) for good low-power resolution.
+    static int equilibriumSpeed(int power);
+    
     // Direction change safety: request direction change while train is moving.
     // If already pending, this toggles it back (cancels the change).
     // Returns true if direction change was queued (train is moving), false if applied immediately (stopped).
@@ -111,6 +122,7 @@ private:
     float getAccelRate(int throttle) const;
     float getDecelRate(int throttle) const;
     float getBrakeRate(int throttle) const;
+    float getCoastRate(int throttle) const;
     
 	// Tractive effort / rolling resistance curves for natural feel
 	float applyAccelCurve(float delta, float actualSpeed) const;
@@ -123,7 +135,9 @@ private:
 	MomentumLevel momentumLevel_[MOMENTUM_MAX_THROTTLES];
 	
 	// Per-throttle state
-	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126)
+	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126) — direct mode
+	int powerLevel_[MOMENTUM_MAX_THROTTLES];       // Power percentage (0-100) — simulator mode
+	bool powerModelActive_[MOMENTUM_MAX_THROTTLES]; // True when setPowerLevel has been used
 	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth ramping)
 	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag (throttle=0, accelerate stop)
 	bool dynamicBraking_[MOMENTUM_MAX_THROTTLES];   // Dynamic brake active flag (throttle>0, hold-to-slow)

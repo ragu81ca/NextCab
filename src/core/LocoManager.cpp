@@ -65,6 +65,7 @@ void LocoManager::releaseAllLocos(int throttleIndex) {
             renderer_->renderSpeed();
         }
         throttle_->resetFunctionLabels(throttleIndex);
+        throttle_->momentum().resetPowerLevel(throttleIndex);
         uiState_->functionPage = 0;
     }
     for (auto &addr : released) {
@@ -77,6 +78,7 @@ void LocoManager::releaseOneLoco(int throttleIndex, const String &loco) {
     char tChar = getMultiThrottleChar(throttleIndex);
     proto_->releaseLocomotive(tChar, loco);
     throttle_->resetFunctionLabels(throttleIndex);
+    throttle_->momentum().resetPowerLevel(throttleIndex);
     uiState_->functionPage = 0;
     notifyLocoChanged({throttleIndex, LocoChangeType::Released, loco});
     debug_println("releaseOneLoco(): end");
@@ -90,6 +92,7 @@ void LocoManager::releaseOneLocoByIndex(int throttleIndex, int index) {
         loco = proto_->getLocomotiveAtPosition(tChar, index);
         proto_->releaseLocomotive(tChar, loco);
         throttle_->resetFunctionLabels(throttleIndex);
+        throttle_->momentum().resetPowerLevel(throttleIndex);
         uiState_->functionPage = 0;
     }
     notifyLocoChanged({throttleIndex, LocoChangeType::Released, loco});
