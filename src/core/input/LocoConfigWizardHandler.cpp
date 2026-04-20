@@ -225,7 +225,17 @@ void LocoConfigWizardHandler::advanceFromRadioSelect(int selectedIndex) {
 
         case Step::LocoType:
             cfg_.locoType = static_cast<LocoType>(selectedIndex);
-            setupStep(Step::FuncThrottleUp);
+            
+            // For Steam locomotives, throttle notch sounds are not applicable.
+            // Set throttle functions to unconfigured and skip directly to brake sounds.
+            if (cfg_.locoType == LocoType::Steam) {
+                cfg_.funcThrottleUp = -1;
+                cfg_.funcThrottleDown = -1;
+                setupStep(Step::FuncBrake);
+            } else {
+                // Diesel and Electric ask for all four functions
+                setupStep(Step::FuncThrottleUp);
+            }
             break;
 
         default:
