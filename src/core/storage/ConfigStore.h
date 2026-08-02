@@ -17,13 +17,19 @@
 // ── Tier 1: Device-level settings ──────────────────────────────────────
 // Compile-time #defines provide the defaults; a stored device.json
 // overrides them at runtime.  Missing fields fall through to defaults.
+enum class SpeedDisplayMode : uint8_t {
+    Steps126   = 0,
+    Steps28    = 1,
+    Percentage = 2
+};
+
 struct DeviceConfig {
-    int   speedStep              = 1;      // SPEED_STEP
-    int   speedStepMultiplier    = 3;      // SPEED_STEP_MULTIPLIER
-    bool  displayPowerAsPercentage = true; // DISPLAY_SPEED_AS_PERCENTAGE
-    bool  encoderCwIsIncrease    = true;   // ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
-    bool  heartbeatEnabled       = true;   // HEARTBEAT_ENABLED
-    bool  restoreAcquiredLocos   = true;   // RESTORE_ACQUIRED_LOCOS
+    int              speedStep           = 1;                           // SPEED_STEP
+    int              speedStepMultiplier = 3;                           // SPEED_STEP_MULTIPLIER
+    SpeedDisplayMode speedDisplayMode    = SpeedDisplayMode::Percentage; // 0-126 / 0-28 / % display selection
+    bool             encoderCwIsIncrease = true;                        // ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
+    bool             heartbeatEnabled    = true;                        // HEARTBEAT_ENABLED
+    bool             restoreAcquiredLocos = true;                       // RESTORE_ACQUIRED_LOCOS
 };
 
 /// WiFi network credentials (SSID + password).  (Tier 1 — device-level)

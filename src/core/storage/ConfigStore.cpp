@@ -8,6 +8,11 @@ static const char* WIFI_PATH    = "/config/wifi.json";
 static const char* SERVERS_PATH = "/config/servers.json";
 static const char* LOCOS_DIR    = "/config/locos";
 
+static bool isValidSpeedDisplayModeValue(int value) {
+    return value >= static_cast<int>(SpeedDisplayMode::Steps126) &&
+           value <= static_cast<int>(SpeedDisplayMode::Percentage);
+}
+
 // ── Lifecycle ──────────────────────────────────────────────────────────
 
 void ConfigStore::begin() {
@@ -156,12 +161,25 @@ DeviceConfig ConfigStore::loadDeviceConfig() {
     }
 
     // Only override fields that are actually present in the JSON.
-    if (doc["speedStep"].is<int>())              cfg.speedStep             = doc["speedStep"];
-    if (doc["speedStepMultiplier"].is<int>())     cfg.speedStepMultiplier    = doc["speedStepMultiplier"];
-    if (doc["displayPowerAsPercentage"].is<bool>()) cfg.displayPowerAsPercentage = doc["displayPowerAsPercentage"];
-    if (doc["encoderCwIsIncrease"].is<bool>())     cfg.encoderCwIsIncrease    = doc["encoderCwIsIncrease"];
-    if (doc["heartbeatEnabled"].is<bool>())        cfg.heartbeatEnabled       = doc["heartbeatEnabled"];
-    if (doc["restoreAcquiredLocos"].is<bool>())    cfg.restoreAcquiredLocos   = doc["restoreAcquiredLocos"];
+    if (doc["speedStep"].is<int>())                 cfg.speedStep            = doc["speedStep"];
+    if (doc["speedStepMultiplier"].is<int>())       cfg.speedStepMultiplier  = doc["speedStepMultiplier"];
+    if (doc["speedDisplayMode"].is<int>()) {
+        int modeValue = doc["speedDisplayMode"];
+        if (isValidSpeedDisplayModeValue(modeValue)) {
+            cfg.speedDisplayMode = static_cast<SpeedDisplayMode>(modeValue);
+        }
+    } else if (doc["displaySpeedAsPercent"].is<bool>()) {
+        cfg.speedDisplayMode = doc["displaySpeedAsPercent"].as<bool>()
+            ? SpeedDisplayMode::Percentage
+            : SpeedDisplayMode::Steps126;
+    } else if (doc["displayPowerAsPercentage"].is<bool>()) {
+        cfg.speedDisplayMode = doc["displayPowerAsPercentage"].as<bool>()
+            ? SpeedDisplayMode::Percentage
+            : SpeedDisplayMode::Steps126;
+    }
+    if (doc["encoderCwIsIncrease"].is<bool>())      cfg.encoderCwIsIncrease = doc["encoderCwIsIncrease"];
+    if (doc["heartbeatEnabled"].is<bool>())         cfg.heartbeatEnabled    = doc["heartbeatEnabled"];
+    if (doc["restoreAcquiredLocos"].is<bool>())     cfg.restoreAcquiredLocos = doc["restoreAcquiredLocos"];
 
     Serial.println("[ConfigStore] Loaded device config");
     return cfg;
@@ -171,12 +189,12 @@ void ConfigStore::saveDeviceConfig(const DeviceConfig& cfg) {
     if (!mounted_) return;
 
     JsonDocument doc;
-    doc["speedStep"]             = cfg.speedStep;
-    doc["speedStepMultiplier"]    = cfg.speedStepMultiplier;
-    doc["displayPowerAsPercentage"] = cfg.displayPowerAsPercentage;
-    doc["encoderCwIsIncrease"]    = cfg.encoderCwIsIncrease;
-    doc["heartbeatEnabled"]       = cfg.heartbeatEnabled;
-    doc["restoreAcquiredLocos"]   = cfg.restoreAcquiredLocos;
+    doc["speedStep"]            = cfg.speedStep;
+    doc["speedStepMultiplier"]  = cfg.speedStepMultiplier;
+    doc["speedDisplayMode"]     = static_cast<uint8_t>(cfg.speedDisplayMode);
+    doc["encoderCwIsIncrease"]  = cfg.encoderCwIsIncrease;
+    doc["heartbeatEnabled"]     = cfg.heartbeatEnabled;
+    doc["restoreAcquiredLocos"] = cfg.restoreAcquiredLocos;
 
     String output;
     serializeJsonPretty(doc, output);

@@ -60,8 +60,12 @@ public:
     void onBrakeStateChange(int throttle, bool braking);
     void onDynamicBrakeStateChange(int throttle, bool active);
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
-    void onActualSpeedUpdate(int throttle, int actualSpeed);
     void onDirectionChange(int throttle);
+    
+    // Power-based notching (for momentum/simulator mode)
+    // When in power mode, calculate notch directly from power percentage
+    // rather than from speed-step equilibrium, for more intuitive notch mapping
+    void onPowerLevelChange(int throttle, int powerPercent);
     
     // Configuration
     void setConfig(const SoundConfig& config) { config_ = config; }
@@ -93,10 +97,6 @@ private:
     unsigned long lastNotchTime_[WIT_MAX_THROTTLES];
     bool dynamicBraking_[WIT_MAX_THROTTLES];  // Dynamic brake active — forces notch 1
     
-    // Speed tracking for effort-based notch calculation (prime mover overshoot)
-    int targetSpeed_[WIT_MAX_THROTTLES];
-    int actualSpeed_[WIT_MAX_THROTTLES];
-    
     // Idle recovery: extra throttle-down pulses to ensure decoder reaches idle
     // Digitrax decoders can miss individual DCC function packets, so we send
     // redundant F7 pulses after the normal notch-down sequence completes
@@ -126,8 +126,7 @@ private:
     
     // Internal notch simulation for sound effects only
     int calculateNotchFromSpeed(int speed) const;
-    int calculateEffortNotch(int targetSpeed, int actualSpeed) const;
-    void recalculateTargetNotch(int throttle);
+    int calculateNotchFromPower(int powerPercent) const;
     void updateNotchSounds(int throttle, unsigned long now);
     
     // Debug helpers

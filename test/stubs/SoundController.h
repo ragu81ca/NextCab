@@ -25,10 +25,10 @@ public:
         speedChangeCallCount++;
     }
 
-    void onActualSpeedUpdate(int throttle, int actualSpeed) {
-        lastActualSpeedThrottle = throttle;
-        lastActualSpeed = actualSpeed;
-        actualSpeedCallCount++;
+    void onPowerLevelChange(int throttle, int powerPercent) {
+        lastPowerThrottle = throttle;
+        lastPowerPercent = powerPercent;
+        powerChangeCallCount++;
     }
 
     bool isNotching(int /*throttle*/) const { return notching; }
@@ -48,9 +48,9 @@ public:
     int lastNewSpeed = -1;
     int speedChangeCallCount = 0;
 
-    int lastActualSpeedThrottle = -1;
-    int lastActualSpeed = -1;
-    int actualSpeedCallCount = 0;
+    int lastPowerThrottle = -1;
+    int lastPowerPercent = -1;
+    int powerChangeCallCount = 0;
 
     // Control notching simulation from tests
     bool notching = false;

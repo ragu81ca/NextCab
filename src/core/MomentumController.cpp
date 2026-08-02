@@ -168,11 +168,7 @@ void MomentumController::update() {
             Serial.print(delta, 1);
             Serial.println(")");
             
-            // Notify SoundController of actual speed change so effort notch
-            // can recalculate (prime mover settles as train reaches speed)
-            if (soundCtrl_) {
-                soundCtrl_->onActualSpeedUpdate(throttle, (int)round(newSpeed));
-            }
+
         }
         
         actualSpeed_[throttle] = newSpeed;
@@ -405,14 +401,21 @@ int MomentumController::getConsistSize(int throttle) const {
 // Power model — simulator mode
 // ============================================================================
 
-// Equilibrium curve: v_eq = 126 * (power/100)^0.6
-// Exponent 0.6 gives good low-power resolution (first click ≈ speed 12)
-// while still reflecting diminishing returns at high power.
+// Equilibrium curve: dead zone + linear ramp for realistic heavy-train feel
+// Below the breakaway threshold, the engine idles but the train doesn't move —
+// just like a real 200-ton locomotive needs significant tractive effort to
+// overcome static friction.  Above breakaway, speed is linear with power.
+// Combined with momentum ramping, this produces a convincing heavy feel.
+static constexpr int BREAKAWAY_POWER = 13;  // % power needed to start moving
+
 int MomentumController::equilibriumSpeed(int power) {
     if (power <= 0) return 0;
     if (power >= 100) return 126;
-    float frac = power / 100.0f;
-    return (int)round(126.0f * powf(frac, 0.6f));
+    if (power < BREAKAWAY_POWER) return 0;
+    
+    // Linear ramp from breakaway (0 steps) to full power (126 steps)
+    float effective = (float)(power - BREAKAWAY_POWER) / (100.0f - BREAKAWAY_POWER);
+    return (int)round(126.0f * effective);
 }
 
 void MomentumController::setPowerLevel(int throttle, int level) {
@@ -428,9 +431,9 @@ void MomentumController::setPowerLevel(int throttle, int level) {
     int eqSpeed = equilibriumSpeed(level);
     targetSpeed_[throttle] = eqSpeed;
     
-    // Emit sound event when power changes
+    // In power mode, notching is based on power percentage, not speed steps
     if (soundCtrl_ && level != oldLevel) {
-        soundCtrl_->onSpeedChange(throttle, equilibriumSpeed(oldLevel), eqSpeed);
+        soundCtrl_->onPowerLevelChange(throttle, level);
     }
     
     if (level != oldLevel && isActive(throttle)) {

@@ -15,8 +15,6 @@ SoundController::SoundController() : throttleMgr_(nullptr), proto_(nullptr), loc
         currentNotch_[i] = 1;     // Start at notch 1 (idle)
         targetNotch_[i] = 1;      // Start at notch 1 (idle)
         lastNotchTime_[i] = 0;
-        targetSpeed_[i] = 0;
-        actualSpeed_[i] = 0;
         idleFlushRemaining_[i] = 0;
         dynamicBraking_[i] = false;
     }
@@ -82,10 +80,9 @@ void SoundController::onDynamicBrakeStateChange(int throttle, bool active) {
     if (active) {
         // Engineer notches down to idle before applying dynamic brakes
         targetNotch_[throttle] = 1;
-    } else {
-        // Resuming — recalculate notch from current speed
-        recalculateTargetNotch(throttle);
     }
+    // When released, the next onPowerLevelChange or onSpeedChange will
+    // set the correct notch — no need to recalculate here.
     
     triggerDynamicBrakeSound(throttle, active);
 }
@@ -114,55 +111,47 @@ void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
     if (!config_.enabled) return;
     if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
     
-    targetSpeed_[throttle] = newSpeed;
-    
     // Enable idle flush when stopping - sends extra F7 pulses for decoder reliability
     if (newSpeed == 0 && oldSpeed > 0) {
         idleFlushRemaining_[throttle] = IDLE_FLUSH_COUNT;
     }
     
-    Serial.print("[SoundController] T");
-    Serial.print(throttle);
-    Serial.print(" Target speed change ");
-    Serial.print(oldSpeed);
-    Serial.print(" -> ");
-    Serial.print(newSpeed);
-    Serial.println();
-    
-    // Recalculate effort-based notch (accounts for overshoot during acceleration)
-    recalculateTargetNotch(throttle);
-}
-
-void SoundController::onActualSpeedUpdate(int throttle, int actualSpeed) {
-    if (!config_.enabled) return;
-    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
-    
-    actualSpeed_[throttle] = actualSpeed;
-    
-    // Recalculate effort notch - as actual speed catches up to target,
-    // the prime mover overshoot settles back to cruising notch
-    recalculateTargetNotch(throttle);
-}
-
-void SoundController::recalculateTargetNotch(int throttle) {
-    // During dynamic braking, prime mover stays at idle
-    if (dynamicBraking_[throttle]) {
-        targetNotch_[throttle] = 1;
-        return;
-    }
-    int newTargetNotch = calculateEffortNotch(targetSpeed_[throttle], actualSpeed_[throttle]);
+    // Direct speed→notch mapping (non-power-mode path)
+    int newTargetNotch = dynamicBraking_[throttle] ? 1 : calculateNotchFromSpeed(newSpeed);
     if (newTargetNotch != targetNotch_[throttle]) {
         Serial.print("[SoundController] T");
         Serial.print(throttle);
-        Serial.print(" Effort notch: ");
+        Serial.print(" Speed notch: ");
         Serial.print(targetNotch_[throttle]);
         Serial.print(" -> ");
         Serial.print(newTargetNotch);
-        Serial.print(" (target spd=");
-        Serial.print(targetSpeed_[throttle]);
-        Serial.print(", actual spd=");
-        Serial.print(actualSpeed_[throttle]);
+        Serial.print(" (speed=");
+        Serial.print(newSpeed);
         Serial.println(")");
+        targetNotch_[throttle] = newTargetNotch;
+    }
+}
+
+void SoundController::onPowerLevelChange(int throttle, int powerPercent) {
+    if (!config_.enabled) return;
+    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+    if (powerPercent < 0) powerPercent = 0;
+    if (powerPercent > 100) powerPercent = 100;
+    
+    // In momentum/power mode, calculate notch directly from power percentage
+    // rather than from equilibrium speed, for intuitive 1:1 notch correspondence
+    int newTargetNotch = calculateNotchFromPower(powerPercent);
+    
+    if (newTargetNotch != targetNotch_[throttle]) {
+        Serial.print("[SoundController] T");
+        Serial.print(throttle);
+        Serial.print(" Power notch: ");
+        Serial.print(targetNotch_[throttle]);
+        Serial.print(" -> ");
+        Serial.print(newTargetNotch);
+        Serial.print(" (power=");
+        Serial.print(powerPercent);
+        Serial.println("%)");
         targetNotch_[throttle] = newTargetNotch;
     }
 }
@@ -256,31 +245,15 @@ int SoundController::calculateNotchFromSpeed(int speed) const {
     return 1;                    // Notch 1: 0-15 (idle)
 }
 
-// Effort-based notch: prime mover overshoots during acceleration, then settles
-// Real diesel-electrics need MORE power to accelerate than to maintain speed.
-// The engineer notches up high, the prime mover revs, the train sluggishly
-// starts moving, and then the engineer notches back as speed is reached.
-// This creates the realistic "rev up before moving" effect.
-int SoundController::calculateEffortNotch(int targetSpeed, int actualSpeed) const {
-    if (targetSpeed == 0) return 1;  // Idle when stopped
-    
-    int cruisingNotch = calculateNotchFromSpeed(targetSpeed);
-    int speedDeficit = targetSpeed - actualSpeed;
-    
-    if (speedDeficit <= 0) {
-        // At or above target speed - cruising power only
-        return cruisingNotch;
-    }
-    
-    // Accelerating: engine needs extra power to overcome inertia
-    // Larger speed deficit = more throttle overshoot
-    int extraNotches;
-    if (speedDeficit > 64) extraNotches = 3;       // Heavy acceleration demand
-    else if (speedDeficit > 32) extraNotches = 2;  // Moderate demand  
-    else if (speedDeficit > 12) extraNotches = 1;  // Light demand
-    else extraNotches = 0;                          // Almost at target
-    
-    return min(8, cruisingNotch + extraNotches);
+// Convert power percentage (0-100) to notch (1-8) for momentum/power mode
+// Provides 1:1 notch mapping with power input: each 12.5% of power = one notch
+// Notch 1: 0-12.5%, Notch 2: 12.5-25%, ..., Notch 8: 87.5-100%
+// This is cleaner for power-based throttle control where users think in power levels
+int SoundController::calculateNotchFromPower(int powerPercent) const {
+    if (powerPercent <= 0) return 1;
+    if (powerPercent >= 100) return 8;
+    // 8 notches across 100% = 12.5% per notch
+    return 1 + (powerPercent / 13);  // (n-1) * 12.5 ≈ n * 13 for integer math
 }
 
 void SoundController::updateNotchSounds(int throttle, unsigned long now) {
