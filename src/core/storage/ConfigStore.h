@@ -20,7 +20,7 @@
 struct DeviceConfig {
     int   speedStep              = 1;      // SPEED_STEP
     int   speedStepMultiplier    = 3;      // SPEED_STEP_MULTIPLIER
-    bool  displaySpeedAsPercent  = true;   // DISPLAY_SPEED_AS_PERCENT
+    bool  displayPowerAsPercentage = true; // DISPLAY_SPEED_AS_PERCENTAGE
     bool  encoderCwIsIncrease    = true;   // ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
     bool  heartbeatEnabled       = true;   // HEARTBEAT_ENABLED
     bool  restoreAcquiredLocos   = true;   // RESTORE_ACQUIRED_LOCOS
@@ -61,6 +61,7 @@ struct LocoConfig {
     String address;               // WiThrottle format, e.g. "L1234", "S3"
     bool   soundThrottle  = false;
     LocoType locoType     = LocoType::Diesel;
+    int    maxSpeedStep   = 126;  // 0..126; caps this loco's top speed in consists
     int    funcThrottleUp   = -1; // -1 = not configured
     int    funcThrottleDown = -1;
     int    funcBrake        = -1;

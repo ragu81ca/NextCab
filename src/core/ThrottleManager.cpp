@@ -69,6 +69,12 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	int newSpeed = value;
 	if (newSpeed > 126) newSpeed = 126;
 	if (newSpeed < 0) newSpeed = 0;
+
+	// Consist max speed is limited by the slowest loco configured in this throttle.
+	int consistCap = locoManager.getConsistSpeedCapStep(throttle);
+	if (consistCap < 0) consistCap = 0;
+	if (consistCap > 126) consistCap = 126;
+	if (newSpeed > consistCap) newSpeed = consistCap;
 	
 	// When speedSet is called directly (not through speedUp/Down power path),
 	// cancel any active power model so target speed takes precedence.
@@ -155,20 +161,7 @@ void ThrottleManager::updateMomentum() {
 }
 
 int ThrottleManager::getDisplaySpeed(int throttle) const {
-	if (speedDisplayAsPercent) {
-		float speed = currentSpeed[throttle];
-		speed = speed / 126 * 100;
-		int iSpeed = speed;
-		if (iSpeed - speed >= 0.5) iSpeed++;
-		return iSpeed;
-	} else if (speedDisplayAs0to28) {
-		float speed = currentSpeed[throttle];
-		speed = speed / 126 * 28;
-		int iSpeed = speed;
-		if (iSpeed - speed >= 0.5) iSpeed++;
-		return iSpeed;
-	}
-	return currentSpeed[throttle];
+	return speedStepToDisplayValue(currentSpeed[throttle]);
 }
 
 int ThrottleManager::getCurrentSpeed(int throttle) const { return currentSpeed[throttle]; }

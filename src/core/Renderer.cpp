@@ -855,13 +855,7 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 		screen.powerLevel = throttleManager.momentum().getPowerLevel(currentIdx);
 		screen.powerDisplay = String(screen.powerLevel) + "%";
 		int actualRaw = screen.actualSpeed;
-		if (speedDisplayAsPercent) {
-			screen.actualSpeedDisplay = String((int)(actualRaw / 126.0f * 100.0f + 0.5f));
-		} else if (speedDisplayAs0to28) {
-			screen.actualSpeedDisplay = String((int)(actualRaw / 126.0f * 28.0f + 0.5f));
-		} else {
-			screen.actualSpeedDisplay = String(actualRaw);
-		}
+		screen.actualSpeedDisplay = String(speedStepToScaleSpeed(actualRaw));
 	}
 
 	// ── Menu / key-label bar ──
@@ -1083,7 +1077,7 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	String bigDisplayText;
 
 	if (screen.simulatorMode && screen.hasLoco()) {
-		bigDisplayText = String(screen.powerLevel);
+		bigDisplayText = String(powerPctToDisplayValue(screen.powerLevel));
 	} else {
 		bigDisplayText = screen.speedDisplay;
 	}
@@ -1094,7 +1088,7 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 
 	// In simulator mode, append a '%' suffix in the direction font
 	int suffixWidth = 0;
-	if (screen.simulatorMode && screen.hasLoco()) {
+	if (screen.simulatorMode && screen.hasLoco() && displayPowerAsPercentage) {
 		display.setFont(fonts.direction);
 		suffixWidth = display.getStrWidth("%") + 2;
 		display.setFont(fonts.speedLarge);
@@ -1120,7 +1114,7 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 	}
 
 	display.drawStr(speedTextX, layout.speedY, cSpeed);
-	if (screen.simulatorMode && screen.hasLoco()) {
+	if (screen.simulatorMode && screen.hasLoco() && displayPowerAsPercentage) {
 		display.setFont(fonts.direction);
 		display.drawStr(speedTextX + width + 2, layout.speedY, "%");
 	}
@@ -1134,7 +1128,7 @@ void Renderer::renderThrottleScreen(const ThrottleScreen &screen) {
 		if (showActual) {
 			display.setFont(fonts.defaultFont);
 			if (display.colorDepth() >= 16) display.setForegroundColor(COLOR_MID_GREY);
-			String actualLabel = screen.actualSpeedDisplay + " mph";
+			String actualLabel = screen.actualSpeedDisplay + " " + String(speedUnitLabel());
 			display.drawStr(layout.actualSpeedX, layout.actualSpeedY,
 			                actualLabel.c_str());
 			display.setDrawColor(1);

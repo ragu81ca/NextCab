@@ -88,6 +88,13 @@ public:
     /// Convenience: true if any loco on this throttle has sound throttle enabled.
     bool hasSoundThrottle(int throttleIndex) const;
 
+    /// Returns the top speed cap (0..126) for this throttle's consist.
+    /// For consists this is the slowest loco's configured max speed.
+    int getConsistSpeedCapStep(int throttleIndex) const;
+
+    /// Upsert a loco config in runtime caches after wizard save.
+    void upsertLocoConfigForThrottle(int throttleIndex, const LocoConfig &cfg);
+
 private:
     WiThrottleProtocol          *proto_    = nullptr;
     ThrottleManager             *throttle_ = nullptr;
@@ -108,6 +115,9 @@ private:
 
     // ── Sound config cache (self-registered as a loco-changed listener) ─
     void handleLocoChanged(const LocoChangeEvent &event);
+    void recomputeConsistSpeedCap(int throttleIndex);
     std::vector<LocoConfig> soundConfigs_[WIT_MAX_THROTTLES];
+    std::vector<LocoConfig> locoConfigs_[WIT_MAX_THROTTLES];
+    int consistSpeedCap_[WIT_MAX_THROTTLES] { 126, 126, 126, 126, 126, 126 };
     static const std::vector<LocoConfig> emptyConfigs_;
 };

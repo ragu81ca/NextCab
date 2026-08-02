@@ -30,6 +30,7 @@ private:
     enum class Step : uint8_t {
         PickLoco,       // Only shown when consist has multiple locos
         LocoType,       // Diesel / Steam / Electric
+        MaxScaleSpeed,  // Top speed in configured mph/kph units
         FuncThrottleUp, // F-number text input (empty = not set)
         FuncThrottleDown,
         FuncBrake,

@@ -299,6 +299,14 @@ void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
         if (!configStore_ || event.address.length() == 0) return;
         LocoConfig cfg = configStore_->loadLocoConfig(event.address);
 
+        // Keep full per-loco config cache for consist speed limiting.
+        auto &allCfg = locoConfigs_[t];
+        allCfg.erase(
+            std::remove_if(allCfg.begin(), allCfg.end(),
+                [&](const LocoConfig &c) { return c.address == event.address; }),
+            allCfg.end());
+        allCfg.push_back(cfg);
+
         // Propagate loco type to momentum controller.  For a consist the
         // first acquired loco sets the type; later additions don't override.
         if (throttle_) {
@@ -321,7 +329,15 @@ void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
             std::remove_if(vec.begin(), vec.end(),
                 [&](const LocoConfig &c) { return c.address == event.address; }),
             vec.end());
+
+        auto &allCfg = locoConfigs_[t];
+        allCfg.erase(
+            std::remove_if(allCfg.begin(), allCfg.end(),
+                [&](const LocoConfig &c) { return c.address == event.address; }),
+            allCfg.end());
     }
+
+    recomputeConsistSpeedCap(t);
 }
 
 const std::vector<LocoConfig>& LocoManager::soundConfigs(int throttleIndex) const {
@@ -332,4 +348,50 @@ const std::vector<LocoConfig>& LocoManager::soundConfigs(int throttleIndex) cons
 bool LocoManager::hasSoundThrottle(int throttleIndex) const {
     if (throttleIndex < 0 || throttleIndex >= WIT_MAX_THROTTLES) return false;
     return !soundConfigs_[throttleIndex].empty();
+}
+
+int LocoManager::getConsistSpeedCapStep(int throttleIndex) const {
+    if (throttleIndex < 0 || throttleIndex >= WIT_MAX_THROTTLES) return 126;
+    return consistSpeedCap_[throttleIndex];
+}
+
+void LocoManager::upsertLocoConfigForThrottle(int throttleIndex, const LocoConfig &cfg) {
+    if (throttleIndex < 0 || throttleIndex >= WIT_MAX_THROTTLES) return;
+    if (cfg.address.length() == 0) return;
+
+    auto upsertByAddress = [&](std::vector<LocoConfig> &vec) {
+        vec.erase(
+            std::remove_if(vec.begin(), vec.end(),
+                [&](const LocoConfig &c) { return c.address == cfg.address; }),
+            vec.end());
+        vec.push_back(cfg);
+    };
+
+    // Always track full config for consist speed caps.
+    upsertByAddress(locoConfigs_[throttleIndex]);
+
+    // Track sound cache only when enabled.
+    auto &soundVec = soundConfigs_[throttleIndex];
+    soundVec.erase(
+        std::remove_if(soundVec.begin(), soundVec.end(),
+            [&](const LocoConfig &c) { return c.address == cfg.address; }),
+        soundVec.end());
+    if (cfg.soundThrottle) {
+        soundVec.push_back(cfg);
+    }
+
+    recomputeConsistSpeedCap(throttleIndex);
+}
+
+void LocoManager::recomputeConsistSpeedCap(int throttleIndex) {
+    if (throttleIndex < 0 || throttleIndex >= WIT_MAX_THROTTLES) return;
+    int cap = 126;
+    const auto &vec = locoConfigs_[throttleIndex];
+    for (const auto &cfg : vec) {
+        int locoCap = cfg.maxSpeedStep;
+        if (locoCap < 0) locoCap = 0;
+        if (locoCap > 126) locoCap = 126;
+        if (locoCap < cap) cap = locoCap;
+    }
+    consistSpeedCap_[throttleIndex] = cap;
 }

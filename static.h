@@ -282,17 +282,81 @@ static constexpr int speedStepAdditionalMultiplier = 2;
    #define SPEED_STEP_ADDITIONAL_MULTIPLIER 2
 #endif
 
-#ifdef  DISPLAY_SPEED_AS_PERCENT
-   extern const bool speedDisplayAsPercent; // defined in static.cpp
-#else
-   extern const bool speedDisplayAsPercent; // defined in static.cpp
-#endif
+// Controls simulator power display formatting (momentum mode):
+// true  = show power as percentage (e.g. 63%)
+// false = show raw power value (e.g. 63)
+// Backward-compatible with legacy DISPLAY_SPEED_AS_PERCENT macro.
+extern const bool displayPowerAsPercentage; // defined in static.cpp
 
 #ifdef  DISPLAY_SPEED_AS_0_TO_28
    extern const bool speedDisplayAs0to28; // defined in static.cpp
 #else
    extern const bool speedDisplayAs0to28; // defined in static.cpp
 #endif
+
+// Scale-speed settings for simulator subdisplay speed readout.
+// SPEED_SCALE_METRIC_UNITS:
+//   false = MPH
+//   true  = KPH
+// SPEED_SCALE_AT_MAX_STEP defines the scale speed represented by DCC step 126.
+// Example: 100 means step 126 is treated as 100 mph/kph.
+#ifndef SPEED_SCALE_METRIC_UNITS
+   #define SPEED_SCALE_METRIC_UNITS false
+#endif
+#ifndef SPEED_SCALE_AT_MAX_STEP
+   #define SPEED_SCALE_AT_MAX_STEP 100.0f
+#endif
+
+extern const bool speedScaleMetricUnits; // defined in static.cpp
+extern const float speedScaleAtMaxStep;  // defined in static.cpp
+
+inline const char* speedUnitLabel() {
+   return speedScaleMetricUnits ? "kph" : "mph";
+}
+
+inline int speedStepToScaleSpeed(int speedStepRaw) {
+   if (speedStepRaw < 0) speedStepRaw = 0;
+   if (speedStepRaw > 126) speedStepRaw = 126;
+   float maxScale = (speedScaleAtMaxStep > 0.0f) ? speedScaleAtMaxStep : 100.0f;
+   return (int)(speedStepRaw * maxScale / 126.0f + 0.5f);
+}
+
+// Main large display value for speed/power.
+// Uses user preference: 0-126 (default), 0-28, or percentage (0-100).
+inline int speedStepToDisplayValue(int speedStepRaw) {
+   if (speedStepRaw < 0) speedStepRaw = 0;
+   if (speedStepRaw > 126) speedStepRaw = 126;
+   if (speedDisplayAs0to28) {
+      return (int)(speedStepRaw * 28.0f / 126.0f + 0.5f);
+   }
+   if (displayPowerAsPercentage) {
+      return (int)(speedStepRaw * 100.0f / 126.0f + 0.5f);
+   }
+   return speedStepRaw;
+}
+
+// Main large display value in simulator mode from internal power percentage.
+// Keeps the same display family as speed (0-126, 0-28, or 0-100%).
+inline int powerPctToDisplayValue(int powerPct) {
+   if (powerPct < 0) powerPct = 0;
+   if (powerPct > 100) powerPct = 100;
+   if (speedDisplayAs0to28) {
+      return (int)(powerPct * 28.0f / 100.0f + 0.5f);
+   }
+   if (displayPowerAsPercentage) {
+      return powerPct;
+   }
+   return (int)(powerPct * 126.0f / 100.0f + 0.5f);
+}
+
+inline int scaleSpeedToSpeedStep(int scaleSpeed) {
+   if (scaleSpeed <= 0) return 0;
+   float maxScale = (speedScaleAtMaxStep > 0.0f) ? speedScaleAtMaxStep : 100.0f;
+   int step = (int)(scaleSpeed * 126.0f / maxScale + 0.5f);
+   if (step < 0) step = 0;
+   if (step > 126) step = 126;
+   return step;
+}
 
 extern String witServerIpAndPortEntryMask; // defined in static.cpp
 

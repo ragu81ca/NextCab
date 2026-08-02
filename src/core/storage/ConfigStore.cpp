@@ -158,7 +158,7 @@ DeviceConfig ConfigStore::loadDeviceConfig() {
     // Only override fields that are actually present in the JSON.
     if (doc["speedStep"].is<int>())              cfg.speedStep             = doc["speedStep"];
     if (doc["speedStepMultiplier"].is<int>())     cfg.speedStepMultiplier    = doc["speedStepMultiplier"];
-    if (doc["displaySpeedAsPercent"].is<bool>())   cfg.displaySpeedAsPercent  = doc["displaySpeedAsPercent"];
+    if (doc["displayPowerAsPercentage"].is<bool>()) cfg.displayPowerAsPercentage = doc["displayPowerAsPercentage"];
     if (doc["encoderCwIsIncrease"].is<bool>())     cfg.encoderCwIsIncrease    = doc["encoderCwIsIncrease"];
     if (doc["heartbeatEnabled"].is<bool>())        cfg.heartbeatEnabled       = doc["heartbeatEnabled"];
     if (doc["restoreAcquiredLocos"].is<bool>())    cfg.restoreAcquiredLocos   = doc["restoreAcquiredLocos"];
@@ -173,7 +173,7 @@ void ConfigStore::saveDeviceConfig(const DeviceConfig& cfg) {
     JsonDocument doc;
     doc["speedStep"]             = cfg.speedStep;
     doc["speedStepMultiplier"]    = cfg.speedStepMultiplier;
-    doc["displaySpeedAsPercent"]  = cfg.displaySpeedAsPercent;
+    doc["displayPowerAsPercentage"] = cfg.displayPowerAsPercentage;
     doc["encoderCwIsIncrease"]    = cfg.encoderCwIsIncrease;
     doc["heartbeatEnabled"]       = cfg.heartbeatEnabled;
     doc["restoreAcquiredLocos"]   = cfg.restoreAcquiredLocos;
@@ -309,6 +309,9 @@ static LocoConfig parseLocoFile(const String& address, const String& content) {
 
     cfg.soundThrottle    = doc["soundThrottle"]    | false;
     cfg.locoType         = static_cast<LocoType>(doc["locoType"] | 0);  // 0 = Diesel (default)
+    cfg.maxSpeedStep     = doc["maxSpeedStep"]     | 126;
+    if (cfg.maxSpeedStep < 0) cfg.maxSpeedStep = 0;
+    if (cfg.maxSpeedStep > 126) cfg.maxSpeedStep = 126;
     cfg.funcThrottleUp   = doc["funcThrottleUp"]   | -1;
     cfg.funcThrottleDown = doc["funcThrottleDown"] | -1;
     cfg.funcBrake        = doc["funcBrake"]        | -1;
@@ -331,6 +334,7 @@ void ConfigStore::saveLocoConfig(const LocoConfig& cfg) {
     JsonDocument doc;
     doc["soundThrottle"]    = cfg.soundThrottle;
     doc["locoType"]         = static_cast<int>(cfg.locoType);
+    doc["maxSpeedStep"]     = cfg.maxSpeedStep;
     doc["funcThrottleUp"]   = cfg.funcThrottleUp;
     doc["funcThrottleDown"] = cfg.funcThrottleDown;
     doc["funcBrake"]        = cfg.funcBrake;

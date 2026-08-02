@@ -120,15 +120,25 @@
 // The default is 2
 // #define SPEED_STEP_ADDITIONAL_MULTIPLIER 2
 
-// by default, the speed will be displayed as the the DCC speed (0-126)
-// IMPORTANT: only one should be enabled.  If DISPLAY_SPEED_AS_PERCENT is enabled it 
-// will take presidence over DISPLAY_SPEED_AS_0_TO_28
+// Main large speed/power display format:
+// - default (neither option below): 0-126
+// - DISPLAY_SPEED_AS_0_TO_28: 0-28
+// - DISPLAY_SPEED_AS_PERCENTAGE: 0-100%
 // Note: there will be rounding errors!
 
-// Uncomment this line to display the speeds a percentage.
-// #define DISPLAY_SPEED_AS_PERCENT         true
+// Simulator power display format (momentum mode):
+// true = show power with percent sign, false = raw power value.
+// #define DISPLAY_SPEED_AS_PERCENTAGE      true
 // Uncomment this line to display the speeds as 0-28.
 // #define DISPLAY_SPEED_AS_0_TO_28         true
+
+// Simulator subdisplay speed (shown when momentum/simulator mode is active)
+// uses the configured units and conversion factor below.
+// false = MPH, true = KPH
+// #define SPEED_SCALE_METRIC_UNITS         false
+// DCC step 126 equals this scale speed value.
+// Example: 100 means full throttle maps to 100 MPH/KPH.
+// #define SPEED_SCALE_AT_MAX_STEP          100.0f
 
 // *******************************************************************************************************************
 // DCC functions in consists

@@ -171,9 +171,16 @@ void LocoConfigWizardHandler::setupStep(Step step) {
         // Text input steps for function numbers
         textScreen_.clear();
         textScreen_.footerText = "# OK/Skip  * Del";
-        textScreen_.maxLength = 2; // F0–F31
+        textScreen_.maxLength = 2; // default for F0–F31
 
         switch (step) {
+            case Step::MaxScaleSpeed:
+                textScreen_.promptLine1 = cfg_.address;
+                textScreen_.promptLine2 = String("Top Speed ") + speedUnitLabel();
+                textScreen_.maxLength = 3;
+                textScreen_.inputText = String(speedStepToScaleSpeed(cfg_.maxSpeedStep));
+                break;
+
             case Step::FuncThrottleUp:
                 textScreen_.promptLine1 = cfg_.address;
                 textScreen_.promptLine2 = "Throttle Up F#";
@@ -225,17 +232,7 @@ void LocoConfigWizardHandler::advanceFromRadioSelect(int selectedIndex) {
 
         case Step::LocoType:
             cfg_.locoType = static_cast<LocoType>(selectedIndex);
-            
-            // For Steam locomotives, throttle notch sounds are not applicable.
-            // Set throttle functions to unconfigured and skip directly to brake sounds.
-            if (cfg_.locoType == LocoType::Steam) {
-                cfg_.funcThrottleUp = -1;
-                cfg_.funcThrottleDown = -1;
-                setupStep(Step::FuncBrake);
-            } else {
-                // Diesel and Electric ask for all four functions
-                setupStep(Step::FuncThrottleUp);
-            }
+            setupStep(Step::MaxScaleSpeed);
             break;
 
         default:
@@ -252,6 +249,26 @@ void LocoConfigWizardHandler::advanceFromTextInput() {
     }
 
     switch (currentStep_) {
+        case Step::MaxScaleSpeed: {
+            // Empty input means default full speed.
+            int maxScaleSpeed = speedStepToScaleSpeed(126);
+            if (textScreen_.inputText.length() > 0) {
+                maxScaleSpeed = textScreen_.inputText.toInt();
+                if (maxScaleSpeed < 0) maxScaleSpeed = 0;
+            }
+            cfg_.maxSpeedStep = scaleSpeedToSpeedStep(maxScaleSpeed);
+
+            // Steam locomotives do not use throttle notch sounds.
+            if (cfg_.locoType == LocoType::Steam) {
+                cfg_.funcThrottleUp = -1;
+                cfg_.funcThrottleDown = -1;
+                setupStep(Step::FuncBrake);
+            } else {
+                setupStep(Step::FuncThrottleUp);
+            }
+            break;
+        }
+
         case Step::FuncThrottleUp:
             cfg_.funcThrottleUp = funcNum;
             setupStep(Step::FuncThrottleDown);
@@ -293,20 +310,15 @@ void LocoConfigWizardHandler::finish() {
     int idx = throttle_.getCurrentThrottleIndex();
     throttle_.momentum().setLocoType(idx, cfg_.locoType);
 
-    // Live-update sound config cache in LocoManager:
-    // Remove old entry for this address and re-add if sound enabled
-    auto &vec = const_cast<std::vector<LocoConfig>&>(locoManager_.soundConfigs(idx));
-    vec.erase(
-        std::remove_if(vec.begin(), vec.end(),
-            [&](const LocoConfig &c) { return c.address == cfg_.address; }),
-        vec.end());
-    if (cfg_.soundThrottle) {
-        vec.push_back(cfg_);
-    }
+    // Live-update loco caches (sound config + consist speed cap).
+    locoManager_.upsertLocoConfigForThrottle(idx, cfg_);
 
-    Serial.printf("[LocoConfig] Saved config for %s (type=%d, sound=%d)\n",
+    // Enforce a newly lowered consist speed cap immediately.
+    throttle_.speedSet(idx, throttle_.getCurrentSpeed(idx));
+
+    Serial.printf("[LocoConfig] Saved config for %s (type=%d, sound=%d, maxStep=%d)\n",
                   cfg_.address.c_str(), static_cast<int>(cfg_.locoType),
-                  cfg_.soundThrottle ? 1 : 0);
+                  cfg_.soundThrottle ? 1 : 0, cfg_.maxSpeedStep);
 
     input_.setMode(InputMode::Operation);
 }

@@ -1,4 +1,4 @@
-#include "config_buttons.h"  // must precede static.h so DISPLAY_SPEED_AS_PERCENT etc. are visible
+#include "config_buttons.h"  // must precede static.h so config macros are visible
 #include "static.h"
 
 // Centralized definitions to avoid multiple definition errors
@@ -38,10 +38,15 @@ const int glyph_speed_step = 0x00d6;
 const int glyph_arrow_up = 0x008F;      // Open Iconic arrow-thick-top (up arrow)
 const int glyph_arrow_down = 0x008E;    // Open Iconic arrow-thick-bottom (down arrow)
 
-#ifdef  DISPLAY_SPEED_AS_PERCENT
-const bool speedDisplayAsPercent = DISPLAY_SPEED_AS_PERCENT;
+// New preferred macro: DISPLAY_SPEED_AS_PERCENTAGE.
+// Backward compatibility: if old DISPLAY_SPEED_AS_PERCENT is still used,
+// treat it as the same setting.
+#ifdef DISPLAY_SPEED_AS_PERCENTAGE
+const bool displayPowerAsPercentage = DISPLAY_SPEED_AS_PERCENTAGE;
+#elif defined(DISPLAY_SPEED_AS_PERCENT)
+const bool displayPowerAsPercentage = DISPLAY_SPEED_AS_PERCENT;
 #else
-const bool speedDisplayAsPercent = false;
+const bool displayPowerAsPercentage = true;
 #endif
 
 #ifdef  DISPLAY_SPEED_AS_0_TO_28
@@ -49,3 +54,6 @@ const bool speedDisplayAs0to28 = DISPLAY_SPEED_AS_0_TO_28;
 #else
 const bool speedDisplayAs0to28 = false;
 #endif
+
+const bool speedScaleMetricUnits = SPEED_SCALE_METRIC_UNITS;
+const float speedScaleAtMaxStep = SPEED_SCALE_AT_MAX_STEP;
