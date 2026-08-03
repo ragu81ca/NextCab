@@ -27,7 +27,12 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
         case InputEventType::SpeedDelta: {
             // Apply delta * current speed step through ThrottleManager API.
             int idx = throttleManager.getCurrentThrottleIndex();
-            if (!throttle_.hasLocomotive(idx)) return true; // consume but ignore
+            if (!throttle_.hasLocomotive(idx)) {
+                #if DEBUG
+                Serial.println("[OperationModeHandler] SpeedDelta ignored (no loco selected)");
+                #endif
+                return true; // consume but ignore
+            }
             // Block throttle-up while a direction change is pending
             // (train is still coasting the other way)
             if (ev.ivalue > 0 && throttleManager.momentum().hasPendingDirectionChange(idx)) {
@@ -37,8 +42,8 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int delta = ev.ivalue * step;
             if (delta > 0) throttle_.speedUp(idx, delta);
             else if (delta < 0) throttle_.speedDown(idx, -delta);
-            #if INPUT_DEBUG
-            Serial.print("[OperationModeHandler] SpeedDelta handled"); Serial.println(delta);
+            #if DEBUG
+            Serial.print("[OperationModeHandler] SpeedDelta handled delta="); Serial.println(delta);
             #endif
             return true;
         }
@@ -55,6 +60,9 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             // Implement legacy-configured encoder button behavior.
             int idx = throttleManager.getCurrentThrottleIndex();
             int currentSpeed = throttle_.getCurrentSpeed(idx);
+            #if DEBUG
+            Serial.print("[OperationModeHandler] EncoderClick currentSpeed="); Serial.println(currentSpeed);
+            #endif
             // ENCODER_BUTTON_ACTION comes from config (default SPEED_STOP_THEN_TOGGLE_DIRECTION)
             if (ENCODER_BUTTON_ACTION == SPEED_STOP_THEN_TOGGLE_DIRECTION) {
                 if (currentSpeed > 0) {
@@ -62,13 +70,13 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
                 } else {
                     throttle_.toggleDirection(idx); // if already stopped, toggle direction
                 }
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[OperationModeHandler] EncoderClick: stop/toggle applied");
                 #endif
                 return true;
             } else if (ENCODER_BUTTON_ACTION == DIRECTION_TOGGLE) {
                 throttle_.toggleDirection(idx);
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[OperationModeHandler] EncoderClick: direction toggled");
                 #endif
                 return true;
@@ -81,7 +89,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
             int idx = throttleManager.getCurrentThrottleIndex();
             throttleManager.momentum().cycleMomentumLevel(idx);
             renderer_.renderSpeed(); // Update display to show new momentum indicator
-            #if INPUT_DEBUG
+            #if DEBUG
             Serial.println("[OperationModeHandler] EncoderDoubleClick: momentum level cycled");
             #endif
             return true;
@@ -112,7 +120,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
                     throttleManager.momentum().setBraking(idx, true);
                 }
                 renderer_.renderSpeed();
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[OperationModeHandler] EncoderHold: braking activated");
                 #endif
             }
@@ -128,7 +136,7 @@ bool OperationModeHandler::handle(const InputEvent &ev) {
                     throttleManager.momentum().setBraking(idx, false);
                 }
                 renderer_.renderSpeed();
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[OperationModeHandler] EncoderHoldRelease: braking deactivated");
                 #endif
             }

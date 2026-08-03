@@ -368,8 +368,6 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
   #define SSID_CONNECTION_TIMEOUT 10000
 #endif
 
-#endif // WIT_STATIC_H_INCLUDED
-
 
 #ifndef SHORT_DCC_ADDRESS_LIMIT
   #define SHORT_DCC_ADDRESS_LIMIT 127
@@ -401,12 +399,16 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
 
 // *******************************************************************************************************************
 
-#ifndef WITCONTROLLER_DEBUG 
-  #define WITCONTROLLER_DEBUG    0
+#ifndef DEBUG
+   #define DEBUG 0
 #endif
 
-#ifndef WITHROTTLE_PROTOCOL_DEBUG
-  #define WITHROTTLE_PROTOCOL_DEBUG   1
+#ifndef DEBUG_SERIAL_MONITOR_BOOT_DELAY_MS
+   #if DEBUG
+      #define DEBUG_SERIAL_MONITOR_BOOT_DELAY_MS 2000
+   #else
+      #define DEBUG_SERIAL_MONITOR_BOOT_DELAY_MS 0
+   #endif
 #endif
 
 #ifndef DEBUG_LEVEL
@@ -962,3 +964,5 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 #ifndef WIT_MAX_THROTTLES
    #define WIT_MAX_THROTTLES 6
 #endif
+
+#endif // WIT_STATIC_H_INCLUDED

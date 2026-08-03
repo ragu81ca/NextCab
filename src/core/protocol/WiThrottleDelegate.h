@@ -4,14 +4,26 @@
 #include <WiThrottleProtocol.h>
 #include "static.h"
 
-#ifndef debug_print
-#define debug_print(...) Serial.print(__VA_ARGS__)
+#if !defined(debug_print)
+    #if DEBUG
+        #define debug_print(...) Serial.print(__VA_ARGS__)
+    #else
+        #define debug_print(...)
+    #endif
 #endif
-#ifndef debug_println
-#define debug_println(...) Serial.println(__VA_ARGS__)
+#if !defined(debug_println)
+    #if DEBUG
+        #define debug_println(...) Serial.println(__VA_ARGS__)
+    #else
+        #define debug_println(...)
+    #endif
 #endif
-#ifndef debug_printf
-#define debug_printf(...) Serial.printf(__VA_ARGS__)
+#if !defined(debug_printf)
+    #if DEBUG
+        #define debug_printf(...) Serial.printf(__VA_ARGS__)
+    #else
+        #define debug_printf(...)
+    #endif
 #endif
 
 void doOneStartupCommand(String cmd);

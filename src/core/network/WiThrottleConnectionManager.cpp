@@ -218,7 +218,7 @@ void WiThrottleConnectionManager::selectServer(int selection) {
 void WiThrottleConnectionManager::connectServer() {
     // Pass the delegate instance to wiThrottleProtocol
     protocol_->setDelegate(delegate_);
-#if WITHROTTLE_PROTOCOL_DEBUG == 0
+#if DEBUG
     protocol_->setLogStream(&Serial);
     protocol_->setLogLevel(DEBUG_LEVEL);
 #endif

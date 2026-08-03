@@ -207,15 +207,11 @@
 // *******************************************************************************************************************
 // Debugging
 
-// WiTcontroller console debug messages are ENABLED by default
-// to disable to console messages, uncomment and set the following to  1    (i.e. 0 = on  1 = off)
-// #define WITCONTROLLER_DEBUG    0
+// Global debug switch.
+// 0 = all debug output OFF, 1 = all debug output ON.
+// #define DEBUG 0
 
-// WiThrottle Protocol console debug messages are DISABLED by default
-// to enable to console messages, uncomment and set the following to  0    (i.e. 0 = on  1 = off)
-// #define WITHROTTLE_PROTOCOL_DEBUG    1
-
-// console debug messages are enabled with the defines above
+// WiThrottle protocol logger level when DEBUG is enabled.
 // the default level is 1
 // 0 = errors only 1 = default level 2 = verbose 3 = extreme
 // #define DEBUG_LEVEL    1

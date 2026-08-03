@@ -4,10 +4,6 @@
 #include "InputEvents.h"
 #include <Arduino.h>
 #include <AiEsp32RotaryEncoder.h>
-// Optional debug gating (no acceleration logic needed now; using library call)
-#ifndef INPUT_DEBUG
-#define INPUT_DEBUG 0
-#endif
 
 // Reuse existing pins/macros from project root header.
 #include "../ThrottleManager.h"
@@ -80,7 +76,7 @@ void RotaryEncoderInput::poll() {
         } else {
             // Update the encoder value to stay in sync, but don't dispatch the event
             _lastEncoderValue = rotaryEncoder.readEncoder();
-            #if INPUT_DEBUG
+            #if DEBUG
             Serial.println("[Rotary] rotation ignored - too soon after button event (mechanical bounce)");
             #endif
         }
@@ -97,7 +93,7 @@ void RotaryEncoderInput::poll() {
         if (_pendingDelta != 0
             && now - _pendingDeltaMs >= prePressGuardMs
             && now - _lastButtonEventMs > buttonBounceFilterMs) {
-            #if WITCONTROLLER_DEBUG == 0
+            #if DEBUG
             Serial.print("[Rotary] emit:"); Serial.println(_pendingDelta);
             #endif
             if (_dispatch) {
@@ -123,7 +119,7 @@ void RotaryEncoderInput::poll() {
         _longPressTriggered = false;
         _lastButtonEventMs = now; // Track button event for rotation filtering
         _pendingDelta = 0;        // Discard any buffered pre-press rotation
-        #if INPUT_DEBUG
+        #if DEBUG
         Serial.println("[Rotary] button pressed");
         #endif
     }
@@ -138,7 +134,7 @@ void RotaryEncoderInput::poll() {
                 InputEvent gev; gev.type = InputEventType::EncoderHold; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
                 _dispatch(gev);
             }
-            #if INPUT_DEBUG
+            #if DEBUG
             Serial.println("[Rotary] hold detected - braking activated");
             #endif
         }
@@ -151,7 +147,7 @@ void RotaryEncoderInput::poll() {
         _lastButtonEventMs = now; // Track button event for rotation filtering
         _pendingDelta = 0;        // Discard any post-release rotation
         
-        #if INPUT_DEBUG
+        #if DEBUG
         Serial.print("[Rotary] button released after "); Serial.print(pressDuration); Serial.println("ms");
         #endif
         
@@ -161,7 +157,7 @@ void RotaryEncoderInput::poll() {
                 InputEvent gev; gev.type = InputEventType::EncoderHoldRelease; gev.ivalue = 0; gev.cvalue = 0; gev.timestamp = now;
                 _dispatch(gev);
             }
-            #if INPUT_DEBUG
+            #if DEBUG
             Serial.println("[Rotary] hold released - braking deactivated");
             #endif
         }
@@ -176,19 +172,19 @@ void RotaryEncoderInput::poll() {
                     InputEvent gev; gev.type = InputEventType::EncoderDoubleClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
                     _dispatch(gev);
                 }
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[Rotary] DOUBLE-CLICK confirmed - cycling momentum");
                 #endif
             } else {
                 // First click - start waiting for potential second click
                 _waitingForDoubleClick = true;
                 _lastDoubleClickMs = now;
-                #if INPUT_DEBUG
+                #if DEBUG
                 Serial.println("[Rotary] first click - waiting for potential double-click");
                 #endif
             }
         }
-        #if INPUT_DEBUG
+        #if DEBUG
         else if (pressDuration < minClickDurationMs) {
             Serial.println("[Rotary] click too short - ignored (debounce)");
         }
@@ -203,7 +199,7 @@ void RotaryEncoderInput::poll() {
             InputEvent gev; gev.type = InputEventType::EncoderClick; gev.ivalue = 1; gev.cvalue = 0; gev.timestamp = now;
             _dispatch(gev);
         }
-        #if INPUT_DEBUG
+        #if DEBUG
         Serial.println("[Rotary] SINGLE-CLICK dispatched (double-click window expired)");
         #endif
     }

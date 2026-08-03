@@ -44,8 +44,8 @@ BatteryMonitor batteryMonitor;
   #include "src/core/input/MatrixKeypad3x4Input.h"
 #endif
 #include "src/core/input/RotaryEncoderInput.h"
-#ifdef USE_MODULINO_KNOB
-  #include "src/core/input/ModulinoKnobInput.h"
+#ifdef USE_STEMMA_ROTARY_ENCODER
+  #include "src/core/input/StemmaRotaryInput.h"
 #endif
 #include "src/core/input/PotThrottleInput.h"
 #include "src/core/input/AdditionalButtonsInput.h"
@@ -356,6 +356,11 @@ void initialiseAdditionalButtons() {
 
 void setup() {
   Serial.begin(115200);
+#if DEBUG
+  if (DEBUG_SERIAL_MONITOR_BOOT_DELAY_MS > 0) {
+    delay(DEBUG_SERIAL_MONITOR_BOOT_DELAY_MS);
+  }
+#endif
   delay(500);
   Serial.println("[BOOT] Serial up");
 #ifndef USE_TFT_ESPI
@@ -450,7 +455,7 @@ void setup() {
     debug_printf("Heartbeat period updated by server: %lu seconds\n", p);
   });
   // ── Initialise I2C bus early, before any Qwiic/I2C device begin() calls ──
-#if defined(USE_QWIIC_KEYPAD) || defined(USE_MODULINO_KNOB)
+#if defined(USE_QWIIC_KEYPAD) || defined(USE_STEMMA_ROTARY_ENCODER)
   #ifdef PIN_I2C_POWER
     pinMode(PIN_I2C_POWER, OUTPUT);
     digitalWrite(PIN_I2C_POWER, HIGH);
@@ -461,11 +466,28 @@ void setup() {
   Wire.setClock(400000); // 400 kHz I2C speed for faster device response
   delay(50); // let bus settle
   Serial.println("[I2C] Bus initialised");
+
+  #if DEBUG
+    // Quick address scan to confirm attached I2C devices.
+    Serial.println("[I2C] Scanning bus...");
+    int foundI2C = 0;
+    for (uint8_t addr = 1; addr < 127; ++addr) {
+      Wire.beginTransmission(addr);
+      uint8_t err = Wire.endTransmission();
+      if (err == 0) {
+        Serial.printf("[I2C] Found 0x%02X\n", addr);
+        foundI2C++;
+      }
+    }
+    if (foundI2C == 0) {
+      Serial.println("[I2C] No devices found");
+    }
+  #endif
 #endif
 
   // Register throttle input device — compile-time selection
-#ifdef USE_MODULINO_KNOB
-  static ModulinoKnobInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
+#ifdef USE_STEMMA_ROTARY_ENCODER
+  static StemmaRotaryInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
 #elif USE_ROTARY_ENCODER_FOR_THROTTLE
   static RotaryEncoderInput throttleDev([&](const InputEvent &ev){ inputManager.dispatch(ev); });
 #else
