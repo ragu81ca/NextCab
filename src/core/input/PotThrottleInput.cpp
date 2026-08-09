@@ -3,7 +3,7 @@
 #include "PotThrottleInput.h"
 #include "InputEvents.h"
 #include <Arduino.h>
-#include "WiTcontroller.h"
+#include "../../../WiTcontroller.h"
 
 // Config globals (TODO: move to Config.h in future refactor)
 extern int throttlePotPin;

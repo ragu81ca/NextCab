@@ -7,7 +7,7 @@
 
 // Reuse existing pins/macros from project root header.
 #include "../ThrottleManager.h"
-#include "WiTcontroller.h"
+#include "../../../WiTcontroller.h"
 
 // We assume pin macros are already defined via project-wide config includes compiled before this TU.
 // Provide safe fallbacks (will not be used if proper config headers already set them).

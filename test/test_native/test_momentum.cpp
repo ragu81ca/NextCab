@@ -564,15 +564,12 @@ TEST_F(MomentumTest, EquilibriumSpeed_Monotonic) {
 }
 
 TEST_F(MomentumTest, EquilibriumSpeed_CurveShape) {
-    // 50% power with ^0.6 exponent: 126 * 0.5^0.6 ≈ 83
-    int half = MomentumController::equilibriumSpeed(50);
-    EXPECT_GT(half, 63);  // > 126/2 (still non-linear)
-    EXPECT_LT(half, 105); // but not as steep as cube root
-    
-    // 25% power should give meaningfully less than 50%
-    int quarter = MomentumController::equilibriumSpeed(25);
-    EXPECT_LT(quarter, half);
-    EXPECT_GT(quarter, 20); // but still usable
+    // Dead zone: below and at breakaway threshold returns 0
+    EXPECT_EQ(MomentumController::equilibriumSpeed(12), 0);
+    EXPECT_EQ(MomentumController::equilibriumSpeed(13), 0);
+    // linear ramp: 126 * ((50-13)/87) = 54,  126 * ((25-13)/87) = 17
+    EXPECT_EQ(MomentumController::equilibriumSpeed(50), 54);
+    EXPECT_EQ(MomentumController::equilibriumSpeed(25), 17);
 }
 
 TEST_F(MomentumTest, EquilibriumSpeed_ClampsNegative) {

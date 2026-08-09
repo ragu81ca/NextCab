@@ -1,5 +1,5 @@
-#include "config_buttons.h"  // must precede static.h so config macros are visible
-#include "static.h"
+#include "../config_buttons.h"  // must precede static.h so config macros are visible
+#include "../static.h"
 
 // Centralized definitions to avoid multiple definition errors
 const String appVersion = "v0.1.0";

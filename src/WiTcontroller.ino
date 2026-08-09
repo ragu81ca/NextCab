@@ -27,54 +27,54 @@
 
 // Pangodream_18650_CL.h now only needed inside BatteryMonitor implementation
 
-#include "config_buttons.h"      // keypad buttons assignments
-#include "WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
+#include "../config_buttons.h"      // keypad buttons assignments
+#include "../WiTcontroller.h"       // legacy macros & extern mappings (must precede usage of max* constants)
 
 // Battery monitoring — compile-time type alias selects concrete implementation
-#include "src/core/BatteryMonitor.h"
+#include "core/BatteryMonitor.h"
 BatteryMonitor batteryMonitor;
 // Core managers & devices
-#include "src/core/input/InputManager.h"
-#include "src/core/SystemState.h"
+#include "core/input/InputManager.h"
+#include "core/SystemState.h"
 #ifdef USE_QWIIC_KEYPAD
-  #include "src/core/input/QwiicKeypadInput.h"
+  #include "core/input/QwiicKeypadInput.h"
 #elif defined(USE_KEYPAD_4X4)
-  #include "src/core/input/MatrixKeypad4x4Input.h"
+  #include "core/input/MatrixKeypad4x4Input.h"
 #else
-  #include "src/core/input/MatrixKeypad3x4Input.h"
+  #include "core/input/MatrixKeypad3x4Input.h"
 #endif
-#include "src/core/input/RotaryEncoderInput.h"
+#include "core/input/RotaryEncoderInput.h"
 #ifdef USE_STEMMA_ROTARY_ENCODER
-  #include "src/core/input/StemmaRotaryInput.h"
+  #include "core/input/StemmaRotaryInput.h"
 #endif
-#include "src/core/input/PotThrottleInput.h"
-#include "src/core/input/AdditionalButtonsInput.h"
-#include "src/core/input/InputEvents.h"
-#include "src/core/ThrottleManager.h"
-#include "src/core/network/WifiSsidManager.h"
-#include "src/core/Renderer.h"
-#include "src/core/DisplayConfig.h"
-#include "src/core/input/OperationModeHandler.h"
-#include "src/core/input/PasswordEntryModeHandler.h"
-#include "src/core/input/WifiSelectionHandler.h"
-#include "src/core/input/WiThrottleServerSelectionHandler.h"
-#include "src/core/input/RosterSelectionHandler.h"
-#include "src/core/input/TurnoutSelectionHandler.h"
-#include "src/core/input/RouteSelectionHandler.h"
-#include "src/core/input/FunctionSelectionHandler.h"
-#include "src/core/input/DropLocoSelectionHandler.h"
-#include "src/core/input/EditConsistSelectionHandler.h"
-#include "src/core/input/SystemActionHandler.h"
-#include "src/core/input/LocoConfigWizardHandler.h"
-#include "src/core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
-#include "src/core/network/WiThrottleConnectionManager.h"
-#include "src/core/menu/MenuSystem.h"
-#include "src/core/menu/MenuDefinitions.h"
-#include "src/core/ui/TitleScreen.h"
-#include "src/core/ui/ThrottleScreen.h"
-#include "src/core/storage/ConfigStore.h"
-#include "src/core/ServerDataStore.h"
-#include "src/core/LocoManager.h"
+#include "core/input/PotThrottleInput.h"
+#include "core/input/AdditionalButtonsInput.h"
+#include "core/input/InputEvents.h"
+#include "core/ThrottleManager.h"
+#include "core/network/WifiSsidManager.h"
+#include "core/Renderer.h"
+#include "core/DisplayConfig.h"
+#include "core/input/OperationModeHandler.h"
+#include "core/input/PasswordEntryModeHandler.h"
+#include "core/input/WifiSelectionHandler.h"
+#include "core/input/WiThrottleServerSelectionHandler.h"
+#include "core/input/RosterSelectionHandler.h"
+#include "core/input/TurnoutSelectionHandler.h"
+#include "core/input/RouteSelectionHandler.h"
+#include "core/input/FunctionSelectionHandler.h"
+#include "core/input/DropLocoSelectionHandler.h"
+#include "core/input/EditConsistSelectionHandler.h"
+#include "core/input/SystemActionHandler.h"
+#include "core/input/LocoConfigWizardHandler.h"
+#include "core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
+#include "core/network/WiThrottleConnectionManager.h"
+#include "core/menu/MenuSystem.h"
+#include "core/menu/MenuDefinitions.h"
+#include "core/ui/TitleScreen.h"
+#include "core/ui/ThrottleScreen.h"
+#include "core/storage/ConfigStore.h"
+#include "core/ServerDataStore.h"
+#include "core/LocoManager.h"
 
 ThrottleManager throttleManager; // speed/direction/throttle index
 InputManager inputManager;       // generic input dispatcher
@@ -170,7 +170,7 @@ int lastOledIntParameter = 0; // TODO: consider moving this as presenters evolve
 // (moved to ThrottleManager) currentThrottleIndex / currentThrottleIndexChar / maxThrottles
 
 // Heartbeat monitoring now encapsulated
-#include "src/core/heartbeat/HeartbeatMonitor.h"
+#include "core/heartbeat/HeartbeatMonitor.h"
 HeartbeatMonitor heartbeatMonitor; // manages heartbeat period / last response / enabled flag (global for extern linkage)
 
 // used to stop speed bounces
@@ -280,7 +280,7 @@ unsigned long additionalButtonDebounceDelay = ADDITIONAL_BUTTON_DEBOUNCE_DELAY; 
 
 // *********************************************************************************
 
-#include "src/core/protocol/WiThrottleDelegate.h"
+#include "core/protocol/WiThrottleDelegate.h"
 static WiThrottleDelegate myDelegate; // delegate class (file renamed)
 
 int getMultiThrottleIndex(char multiThrottle) {

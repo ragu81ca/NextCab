@@ -30,7 +30,7 @@
  */
 
 #include "Arduino.h"
-#include "Pangodream_18650_CL.h"
+#include "../Pangodream_18650_CL.h"
 
 Pangodream_18650_CL::Pangodream_18650_CL(int addressPin, double convFactor, int reads)
 {

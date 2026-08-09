@@ -1,6 +1,6 @@
 #include "PasswordEntryModeHandler.h"
 #include "../Renderer.h"
-#include "static.h" // root-level include (platformio include_dir=.)
+#include "../../../static.h"
 
 extern Renderer renderer;
 

@@ -6,7 +6,7 @@
 #include <Wire.h>
 #include <Adafruit_seesaw.h>
 
-#include "WiTcontroller.h"
+#include "../../../WiTcontroller.h"
 
 #ifndef STEMMA_ROTARY_I2C_ADDRESS
 #define STEMMA_ROTARY_I2C_ADDRESS 0x36

@@ -2,7 +2,7 @@
 // WiThrottleDelegate.h - extracted protocol delegate to reduce sketch size
 #include <Arduino.h>
 #include <WiThrottleProtocol.h>
-#include "static.h"
+#include "../../../static.h"
 
 #if !defined(debug_print)
     #if DEBUG

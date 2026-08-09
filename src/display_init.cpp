@@ -1,7 +1,7 @@
 // Concrete display object definition
 #include <Arduino.h>
-#include "config_buttons.h"
-#include "src/core/DisplayConfig.h"
+#include "../config_buttons.h"
+#include "core/DisplayConfig.h"
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TFT_eSPI path  (ILI9341, ST7789, etc. — selected by -DUSE_TFT_ESPI)
