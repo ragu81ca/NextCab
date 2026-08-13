@@ -6,6 +6,8 @@ const String ServerDataStore::empty_;
 // ── Roster ──────────────────────────────────────────────────────────────────
 
 void ServerDataStore::setRosterSize(int size) {
+    if (size < 0) size = 0;
+    if (size > MAX_ROSTER) size = MAX_ROSTER;
     rosterSize_ = size;
 }
 
@@ -79,11 +81,15 @@ String ServerDataStore::findRosterNameByAddress(int address) const {
 // ── Turnouts ────────────────────────────────────────────────────────────────
 
 void ServerDataStore::setTurnoutListSize(int size) {
+    if (size < 0) size = 0;
+    if (size > MAX_TURNOUT_LIST) size = MAX_TURNOUT_LIST;
     turnoutListSize_ = size;
 }
 
 void ServerDataStore::addTurnoutEntry(int index, const String &sysName, const String &userName, int state) {
-    if (index < 0 || index >= MAX_TURNOUT_LIST || index >= turnoutListSize_) return;
+    if (index < 0 || index >= MAX_TURNOUT_LIST) return;
+    // Entries arrive before the list-size callback, so grow the size as they come in
+    if (index >= turnoutListSize_) turnoutListSize_ = index + 1;
     turnoutListIndex_[index]    = index;
     turnoutListSysName_[index]  = sysName;
     turnoutListUserName_[index] = userName;
@@ -108,11 +114,15 @@ int ServerDataStore::turnoutState(int i) const {
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 void ServerDataStore::setRouteListSize(int size) {
+    if (size < 0) size = 0;
+    if (size > MAX_ROUTE_LIST) size = MAX_ROUTE_LIST;
     routeListSize_ = size;
 }
 
 void ServerDataStore::addRouteEntry(int index, const String &sysName, const String &userName, int state) {
-    if (index < 0 || index >= MAX_ROUTE_LIST || index >= routeListSize_) return;
+    if (index < 0 || index >= MAX_ROUTE_LIST) return;
+    // Entries arrive before the list-size callback, so grow the size as they come in
+    if (index >= routeListSize_) routeListSize_ = index + 1;
     routeListIndex_[index]    = index;
     routeListSysName_[index]  = sysName;
     routeListUserName_[index] = userName;
