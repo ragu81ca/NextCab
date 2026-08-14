@@ -229,7 +229,7 @@ TEST_F(MomentumTest, DynamicBrake_ReleaseReturnsToTarget) {
     runFor(0, 3000); // brake for 3 seconds
 
     mc.setDynamicBraking(0, false);
-    int finalSpeed = runUntilTarget(0, 30000);
+    int finalSpeed = runUntilTarget(0, 200000);
 
     EXPECT_EQ(finalSpeed, 80); // should return to set speed
 }
@@ -542,174 +542,116 @@ TEST_F(MomentumTest, BrakeProfile_InvalidThrottle_ReturnsDiesel) {
 }
 
 // ============================================================================
-// Power model — equilibrium speed curve
+// Momentum on — commanded speed drives the physics model
 // ============================================================================
 
-TEST_F(MomentumTest, EquilibriumSpeed_ZeroPower_ZeroSpeed) {
-    EXPECT_EQ(MomentumController::equilibriumSpeed(0), 0);
-}
-
-TEST_F(MomentumTest, EquilibriumSpeed_FullPower_MaxSpeed) {
-    EXPECT_EQ(MomentumController::equilibriumSpeed(100), 126);
-}
-
-TEST_F(MomentumTest, EquilibriumSpeed_Monotonic) {
-    // Every increase in power should give same or higher speed
-    int prev = 0;
-    for (int p = 1; p <= 100; p++) {
-        int spd = MomentumController::equilibriumSpeed(p);
-        EXPECT_GE(spd, prev) << "power=" << p;
-        prev = spd;
-    }
-}
-
-TEST_F(MomentumTest, EquilibriumSpeed_CurveShape) {
-    // Dead zone: below and at breakaway threshold returns 0
-    EXPECT_EQ(MomentumController::equilibriumSpeed(12), 0);
-    EXPECT_EQ(MomentumController::equilibriumSpeed(13), 0);
-    // linear ramp: 126 * ((50-13)/87) = 54,  126 * ((25-13)/87) = 17
-    EXPECT_EQ(MomentumController::equilibriumSpeed(50), 54);
-    EXPECT_EQ(MomentumController::equilibriumSpeed(25), 17);
-}
-
-TEST_F(MomentumTest, EquilibriumSpeed_ClampsNegative) {
-    EXPECT_EQ(MomentumController::equilibriumSpeed(-10), 0);
-}
-
-TEST_F(MomentumTest, EquilibriumSpeed_ClampsOver100) {
-    EXPECT_EQ(MomentumController::equilibriumSpeed(150), 126);
-}
-
-// ============================================================================
-// Power model — setPowerLevel / getPowerLevel
-// ============================================================================
-
-TEST_F(MomentumTest, PowerLevel_DefaultIsZero) {
-    EXPECT_EQ(mc.getPowerLevel(0), 0);
-}
-
-TEST_F(MomentumTest, PowerLevel_SetAndGet) {
-    mc.setPowerLevel(0, 75);
-    EXPECT_EQ(mc.getPowerLevel(0), 75);
-}
-
-TEST_F(MomentumTest, PowerLevel_ClampsRange) {
-    mc.setPowerLevel(0, -5);
-    EXPECT_EQ(mc.getPowerLevel(0), 0);
-    mc.setPowerLevel(0, 200);
-    EXPECT_EQ(mc.getPowerLevel(0), 100);
-}
-
-TEST_F(MomentumTest, PowerLevel_SetsTargetSpeedFromCurve) {
-    mc.setPowerLevel(0, 100);
-    EXPECT_EQ(mc.getTargetSpeed(0), 126);
-    
-    mc.setPowerLevel(0, 0);
-    EXPECT_EQ(mc.getTargetSpeed(0), 0);
-    
-    mc.setPowerLevel(0, 50);
-    int eq = MomentumController::equilibriumSpeed(50);
-    EXPECT_EQ(mc.getTargetSpeed(0), eq);
-}
-
-TEST_F(MomentumTest, PowerLevel_InvalidThrottle) {
-    mc.setPowerLevel(-1, 50); // should not crash
-    EXPECT_EQ(mc.getPowerLevel(-1), 0);
-    EXPECT_EQ(mc.getPowerLevel(99), 0);
-}
-
-// ============================================================================
-// Power model — coast behavior (power=0 vs decel)
-// ============================================================================
-
-TEST_F(MomentumTest, PowerZero_CoastsSlowerThanDecel) {
-    // Power model coast: set power to 0
-    mc.setMomentumLevel(0, MomentumLevel::High);
-    mc.setPowerLevel(0, 100);
-    runUntilTarget(0);
-    mc.setPowerLevel(0, 0);  // power off — coast
-    int coastSpeed = runFor(0, 5000);
-
-    // Direct decel: set target to 0 via setTargetSpeed (not power model)
-    mc.setMomentumLevel(1, MomentumLevel::High);
-    mc.setTargetSpeed(1, 126);
-    runUntilTarget(1);
-    mc.setTargetSpeed(1, 0);  // standard decel
-    int decelSpeed = runFor(1, 5000);
-
-    // Coast should retain MORE speed than standard decel
-    EXPECT_GT(coastSpeed, decelSpeed);
-}
-
-TEST_F(MomentumTest, PowerModel_EventuallyReachesEquilibrium) {
+TEST_F(MomentumTest, CommandedSpeed_EventuallyReachesIt) {
     mc.setMomentumLevel(0, MomentumLevel::Low);
-    mc.setPowerLevel(0, 50);
-    int finalSpeed = runUntilTarget(0, 30000);
-    EXPECT_EQ(finalSpeed, MomentumController::equilibriumSpeed(50));
+    mc.setTargetSpeed(0, 63); // ~50% power equivalent
+    int finalSpeed = runUntilTarget(0, 120000);
+    EXPECT_NEAR(finalSpeed, 63, 1);
 }
 
-TEST_F(MomentumTest, PowerModel_DynamicBrakeStillWorks) {
+// Reducing the commanded speed must roll the train down to the new balancing
+// speed, never drop it to a stand.
+TEST_F(MomentumTest, CommandedSpeed_ReducingSettlesAtLowerSpeed) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setTargetSpeed(0, 76);
+    runUntilTarget(0, 120000);
+
+    mc.setTargetSpeed(0, 13);
+    int settled = runFor(0, 120000);
+
+    EXPECT_GT(settled, 0);
+    EXPECT_NEAR(settled, 13, 2);
+}
+
+// A small commanded speed must produce a gentle start, not a surge toward it.
+TEST_F(MomentumTest, CommandedSpeed_LowValue_AcceleratesGently) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setTargetSpeed(0, 25);
+
+    int afterOneSecond = runFor(0, 1000);
+    EXPECT_LT(afterOneSecond, 12);
+}
+
+// Mass comes from the momentum level, so a heavier setting accelerates slower
+// for the same commanded speed.
+TEST_F(MomentumTest, CommandedSpeed_HigherMomentumIsHeavier) {
+    mc.setMomentumLevel(0, MomentumLevel::Low);
+    mc.setTargetSpeed(0, 63);
+    int light = runFor(0, 3000);
+
+    mc.setMomentumLevel(1, MomentumLevel::High);
+    mc.setTargetSpeed(1, 63);
+    int heavy = runFor(1, 3000);
+
+    EXPECT_GT(light, heavy);
+}
+
+TEST_F(MomentumTest, CommandedSpeed_DynamicBrakeStillWorks) {
     mc.setMomentumLevel(0, MomentumLevel::Medium);
     mc.setLocoType(0, LocoType::Diesel);
-    mc.setPowerLevel(0, 80);
-    runUntilTarget(0);
+    mc.setTargetSpeed(0, 100);
+    runUntilTarget(0, 200000);
 
     mc.setDynamicBraking(0, true);
     int speed = runFor(0, 2000);
     EXPECT_LT(speed, mc.getTargetSpeed(0));
 }
 
-// ============================================================================
-// Power model — emergency stop resets power
-// ============================================================================
-
-TEST_F(MomentumTest, EmergencyStop_ResetsPowerLevel) {
-    mc.setPowerLevel(0, 75);
-    mc.emergencyStop(0);
-    EXPECT_EQ(mc.getPowerLevel(0), 0);
-    EXPECT_EQ(mc.getActualSpeed(0), 0);
-}
-
-// ============================================================================
-// Power model — disabling momentum resets power
-// ============================================================================
-
-TEST_F(MomentumTest, DisablingMomentum_ResetsPowerLevel) {
-    mc.setMomentumLevel(0, MomentumLevel::Medium);
-    mc.setPowerLevel(0, 60);
-    mc.setMomentumLevel(0, MomentumLevel::Off);
-    EXPECT_EQ(mc.getPowerLevel(0), 0);
-}
-
-// ============================================================================
-// Power model — resetPowerLevel cancels power model without affecting momentum
-// ============================================================================
-
-TEST_F(MomentumTest, ResetPowerLevel_CancelsPowerModel) {
-    mc.setMomentumLevel(0, MomentumLevel::Medium);
-    mc.setPowerLevel(0, 80);
-    EXPECT_EQ(mc.getPowerLevel(0), 80);
-
-    // Ramp up actual speed toward equilibrium
-    for (int i = 0; i < 50; i++) { advanceMs(100); mc.update(); }
-    int ramped = mc.getActualSpeed(0);
-    EXPECT_GT(ramped, 0);
-
-    mc.resetPowerLevel(0);
-    EXPECT_EQ(mc.getPowerLevel(0), 0);
-
-    // Momentum is still active after reset
-    EXPECT_TRUE(mc.isActive(0));
-
-    // setTargetSpeed(0) now uses normal decel, NOT coast
-    // (powerModelActive_ is false after reset)
+TEST_F(MomentumTest, CommandedSpeed_ZeroCoastsOnDragAlone) {
+    // Coast: commanded speed drops to zero, only Davis resistance slows the train
+    mc.setMomentumLevel(0, MomentumLevel::High);
+    mc.setTargetSpeed(0, 126);
+    runUntilTarget(0, 200000);
     mc.setTargetSpeed(0, 0);
-    int prevSpeed = mc.getActualSpeed(0);
-    advanceMs(1000);
+    int coastSpeed = runFor(0, 5000);
+
+    // Braking: same starting point, but the encoder is held (train brake engaged)
+    mc.setMomentumLevel(1, MomentumLevel::High);
+    mc.setTargetSpeed(1, 126);
+    runUntilTarget(1, 200000);
+    mc.setTargetSpeed(1, 0);
+    mc.setBraking(1, true);
+    int brakeSpeed = runFor(1, 5000);
+
+    // Coasting should retain MORE speed than active braking
+    EXPECT_GT(coastSpeed, brakeSpeed);
+}
+
+TEST_F(MomentumTest, EmergencyStop_BypassesPhysics) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setTargetSpeed(0, 100);
+    runUntilTarget(0, 200000);
+
+    mc.emergencyStop(0);
+    EXPECT_EQ(mc.getActualSpeed(0), 0);
+    EXPECT_EQ(mc.getTargetSpeed(0), 0);
+}
+
+// ============================================================================
+// Momentum off — direct passthrough, no integration
+// ============================================================================
+
+TEST_F(MomentumTest, MomentumOff_SpeedIsInstantAndExact) {
+    mc.setMomentumLevel(0, MomentumLevel::Off);
+    mc.setTargetSpeed(0, 84);
+    EXPECT_EQ(mc.getActualSpeed(0), 84);
+
+    // No amount of "running" the clock should change it
+    advanceMs(5000);
     mc.update();
-    int afterDecel = mc.getActualSpeed(0);
-    // Should decelerate at normal rate (faster than coast rate)
-    EXPECT_LT(afterDecel, prevSpeed);
+    EXPECT_EQ(mc.getActualSpeed(0), 84);
+}
+
+TEST_F(MomentumTest, DisablingMomentum_SnapsToCommandedSpeed) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setTargetSpeed(0, 100);
+    runFor(0, 1000); // partially there
+
+    mc.setMomentumLevel(0, MomentumLevel::Off);
+    EXPECT_EQ(mc.getActualSpeed(0), 100);
 }
 
 // ============================================================================

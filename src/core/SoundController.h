@@ -62,11 +62,6 @@ public:
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
     void onDirectionChange(int throttle);
     
-    // Power-based notching (for momentum/simulator mode)
-    // When in power mode, calculate notch directly from power percentage
-    // rather than from speed-step equilibrium, for more intuitive notch mapping
-    void onPowerLevelChange(int throttle, int powerPercent);
-    
     // Configuration
     void setConfig(const SoundConfig& config) { config_ = config; }
     const SoundConfig& getConfig() const { return config_; }
@@ -126,7 +121,6 @@ private:
     
     // Internal notch simulation for sound effects only
     int calculateNotchFromSpeed(int speed) const;
-    int calculateNotchFromPower(int powerPercent) const;
     void updateNotchSounds(int throttle, unsigned long now);
     
     // Debug helpers

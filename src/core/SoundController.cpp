@@ -132,30 +132,6 @@ void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
     }
 }
 
-void SoundController::onPowerLevelChange(int throttle, int powerPercent) {
-    if (!config_.enabled) return;
-    if (throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
-    if (powerPercent < 0) powerPercent = 0;
-    if (powerPercent > 100) powerPercent = 100;
-    
-    // In momentum/power mode, calculate notch directly from power percentage
-    // rather than from equilibrium speed, for intuitive 1:1 notch correspondence
-    int newTargetNotch = calculateNotchFromPower(powerPercent);
-    
-    if (newTargetNotch != targetNotch_[throttle]) {
-        Serial.print("[SoundController] T");
-        Serial.print(throttle);
-        Serial.print(" Power notch: ");
-        Serial.print(targetNotch_[throttle]);
-        Serial.print(" -> ");
-        Serial.print(newTargetNotch);
-        Serial.print(" (power=");
-        Serial.print(powerPercent);
-        Serial.println("%)");
-        targetNotch_[throttle] = newTargetNotch;
-    }
-}
-
 void SoundController::onDirectionChange(int throttle) {
     if (!config_.enabled) return;
     
@@ -243,17 +219,6 @@ int SoundController::calculateNotchFromSpeed(int speed) const {
     if (speed >= 32) return 3;   // Notch 3: 32-47
     if (speed >= 16) return 2;   // Notch 2: 16-31
     return 1;                    // Notch 1: 0-15 (idle)
-}
-
-// Convert power percentage (0-100) to notch (1-8) for momentum/power mode
-// Provides 1:1 notch mapping with power input: each 12.5% of power = one notch
-// Notch 1: 0-12.5%, Notch 2: 12.5-25%, ..., Notch 8: 87.5-100%
-// This is cleaner for power-based throttle control where users think in power levels
-int SoundController::calculateNotchFromPower(int powerPercent) const {
-    if (powerPercent <= 0) return 1;
-    if (powerPercent >= 100) return 8;
-    // 8 notches across 100% = 12.5% per notch
-    return 1 + (powerPercent / 13);  // (n-1) * 12.5 ≈ n * 13 for integer math
 }
 
 void SoundController::updateNotchSounds(int throttle, unsigned long now) {

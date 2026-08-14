@@ -28,17 +28,22 @@ public:
     // Initialize with references
     void begin(ThrottleManager* throttleMgr, SoundController* soundCtrl = nullptr);
     
-    // Called from main loop - updates actual speed towards target
+    // Called from main loop - integrates actual speed when momentum is active
     void update();
     
-    // Set target speed for a throttle (what user wants)
+    // Commanded speed (0-126) — the balancing speed the driver has asked for.
+    // With momentum off this is the loco speed directly; with momentum on the
+    // train works toward it under the physics model.
     void setTargetSpeed(int throttle, int speed);
     
     // Get actual speed for a throttle (what's sent to loco after momentum)
     int getActualSpeed(int throttle) const;
     
-    // Get target speed for a throttle (what user set)
+    // Get commanded speed for a throttle (what user set)
     int getTargetSpeed(int throttle) const;
+    
+    // Commanded speed expressed as a power percentage, for the simulator display
+    int getPowerPercent(int throttle) const;
     
     // Emergency stop - bypasses momentum
     void emergencyStop(int throttle);
@@ -74,16 +79,9 @@ public:
     void setConsistSize(int throttle, int locoCount);
     int getConsistSize(int throttle) const;
     
-    // ── Power model (simulator mode) ────────────────────────────────────
-    // When momentum is active the encoder controls power (0-100%),
-    // not speed.  Speed is an outcome of the power/drag equilibrium.
-    void setPowerLevel(int throttle, int level);
-    int  getPowerLevel(int throttle) const;
-    void resetPowerLevel(int throttle);  // Cancel power model, zero power
-    
-    /// Steady-state speed for a given power percentage (0-100 -> 0-126).
-    /// Uses power curve (exponent 0.6) for good low-power resolution.
-    static int equilibriumSpeed(int power);
+    /// Davis-equation train resistance at a given speed step (normalised so
+    /// resistance at step 126 == full tractive effort at balancing speed).
+    static float resistance(float speedSteps);
     
     // Direction change safety: request direction change while train is moving.
     // If already pending, this toggles it back (cancels the change).
@@ -118,15 +116,16 @@ public:
 	const BrakeProfile& getBrakeProfile(int throttle) const;
 
 private:
-    // Calculate rate of change based on momentum level for a specific throttle
+    // Per-momentum-level rates: acceleration sets the train's mass,
+    // braking is the rate the air brake sheds speed.
     float getAccelRate(int throttle) const;
-    float getDecelRate(int throttle) const;
     float getBrakeRate(int throttle) const;
-    float getCoastRate(int throttle) const;
     
-	// Tractive effort / rolling resistance curves for natural feel
-	float applyAccelCurve(float delta, float actualSpeed) const;
-	float applyDecelCurve(float delta, float actualSpeed) const;
+	// ── Physics integration ─────────────────────────────────────────────
+	// Newton's second law: dv/dt = (tractive effort - resistance - braking) / mass
+	float tractiveEffort(int throttle, float speed) const;
+	float trainMass(int throttle) const;
+	void  updatePhysics(int throttle, float dtSeconds);
 	
 	// Use WIT_MAX_THROTTLES to avoid conflict with MAX_THROTTLES macro
 	static constexpr int MOMENTUM_MAX_THROTTLES = 6;
@@ -135,10 +134,8 @@ private:
 	MomentumLevel momentumLevel_[MOMENTUM_MAX_THROTTLES];
 	
 	// Per-throttle state
-	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // What user set (0-126) — direct mode
-	int powerLevel_[MOMENTUM_MAX_THROTTLES];       // Power percentage (0-100) — simulator mode
-	bool powerModelActive_[MOMENTUM_MAX_THROTTLES]; // True when setPowerLevel has been used
-	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth ramping)
+	int targetSpeed_[MOMENTUM_MAX_THROTTLES];      // Commanded balancing speed (0-126)
+	float actualSpeed_[MOMENTUM_MAX_THROTTLES];    // Current actual speed (float for smooth integration)
 	bool braking_[MOMENTUM_MAX_THROTTLES];         // Brake active flag (throttle=0, accelerate stop)
 	bool dynamicBraking_[MOMENTUM_MAX_THROTTLES];   // Dynamic brake active flag (throttle>0, hold-to-slow)
 	int consistSize_[MOMENTUM_MAX_THROTTLES];        // Number of locos in consist (for accel scaling)

@@ -1,0 +1,56 @@
+
+
+User Interface Modes:
+1. Operating Mode Screen (i.e. throttle display)
+2. Title Screen (can be multiple lines of tex to display, lines are centered)
+3. List Selection Screen
+4. Radio Type Input (Multi-Selection) Screen (covers boolean selection for toggling settings/parameters)
+5. Text Input Screen (anytime we need text from the user, with Regex?)
+
+
+For example, acquiring a loco would be made up of:
+- List Display (from Roster) followed by an option to enter manual address
+--> Manual address goes to Text Input (accepting numbers only)
+--> If list is empty, automatically go to manual entry
+
+
+
+Notes for List Display screens:
+- Menu items are dynamic
+- If max item text length is less than half the screen, use 2 column layout
+- Else, use one column layout
+- Soft buttons should be used for page up/page down. If the top page is reached (or bottom page) the label for the buttons should show in disabled color.
+
+
+UI Design Principals
+
+Screen is Divided into three main areas:
+- Title Bar (Top of Screen, Sometimes hidden)
+- Footer Bar (Bottom of Screen, Always Visible)
+- Display Area (Space between Title Bar and Footer Bar)
+
+Device MUST have:
+- a 12-Button Keypad, 
+- a Rotary encoder
+- three hard buttons under the display (soft behavior based on context)
+
+* - Always Back/Menu
+# - Always Forward/Enter
+
+Menus are always 1 based indexes EXCEPT the "Functions" list. The functions list is the only exception 
+to the rule because the first function is function "0". We don't want button 1 corresponding to 
+Function 0, that would be confusing to the user. 
+
+
+UI Flow
+[Device Powers On]
+-> Wifi Scan (Title Screen)
+-> Wifi SSID Selection (List) (if only one wifi network found with password, connect automatically)
+-> If password not known, display Wifi Password Entry (Text Input)
+-> WitThrottle Server Scan (Title Screen)
+-> WitThrottle Selection (List) (if only one witthrottle server found, connect automatically)
+
+-> Operating Mode (Operating Mode Screen) Soft Buttons => 
+-> 
+
+Selection (

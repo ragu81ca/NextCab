@@ -36,13 +36,6 @@ void ThrottleManager::writeSpeedIfVisible(int throttle) {
 void ThrottleManager::speedUp(int throttle, int amt) {
 	if (!proto) return;
 	if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) > 0) {
-		if (momentum_.isActive(throttle)) {
-			int newPower = momentum_.getPowerLevel(throttle) + amt;
-			momentum_.setPowerLevel(throttle, newPower);
-			currentSpeed[throttle] = MomentumController::equilibriumSpeed(momentum_.getPowerLevel(throttle));
-			writeSpeedIfVisible(throttle);
-			return;
-		}
 		speedSet(throttle, currentSpeed[throttle] + amt);
 	}
 }
@@ -50,13 +43,6 @@ void ThrottleManager::speedUp(int throttle, int amt) {
 void ThrottleManager::speedDown(int throttle, int amt) {
 	if (!proto) return;
 	if (proto->getNumberOfLocomotives(getMultiThrottleChar(throttle)) > 0) {
-		if (momentum_.isActive(throttle)) {
-			int newPower = momentum_.getPowerLevel(throttle) - amt;
-			momentum_.setPowerLevel(throttle, newPower);
-			currentSpeed[throttle] = MomentumController::equilibriumSpeed(momentum_.getPowerLevel(throttle));
-			writeSpeedIfVisible(throttle);
-			return;
-		}
 		speedSet(throttle, currentSpeed[throttle] - amt);
 	}
 }
@@ -76,13 +62,7 @@ void ThrottleManager::speedSet(int throttle, int value) {
 	if (consistCap > 126) consistCap = 126;
 	if (newSpeed > consistCap) newSpeed = consistCap;
 	
-	// When speedSet is called directly (not through speedUp/Down power path),
-	// cancel any active power model so target speed takes precedence.
-	if (momentum_.isActive(throttle)) {
-		momentum_.resetPowerLevel(throttle);
-	}
-	
-	// Store as target speed (what user wants)
+	// Store as commanded speed (what user wants)
 	currentSpeed[throttle] = newSpeed;
 	momentum_.setTargetSpeed(throttle, newSpeed);
 	

@@ -852,7 +852,7 @@ void Renderer::buildThrottleScreen(ThrottleScreen &screen) {
 	// ── Power model (simulator mode) ──
 	if (throttleManager.momentum().isActive(currentIdx) && numLocos > 0) {
 		screen.simulatorMode = true;
-		screen.powerLevel = throttleManager.momentum().getPowerLevel(currentIdx);
+		screen.powerLevel = throttleManager.momentum().getPowerPercent(currentIdx);
 		screen.powerDisplay = String(screen.powerLevel) + "%";
 		int actualRaw = screen.actualSpeed;
 		screen.actualSpeedDisplay = String(speedStepToScaleSpeed(actualRaw));

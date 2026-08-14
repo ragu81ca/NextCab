@@ -20,8 +20,6 @@ MomentumController::MomentumController(ClockFn clock)
     for (int i = 0; i < MOMENTUM_MAX_THROTTLES; i++) {
         momentumLevel_[i] = MomentumLevel::Off;
         targetSpeed_[i] = 0;
-        powerLevel_[i] = 0;
-        powerModelActive_[i] = false;
         actualSpeed_[i] = 0.0f;
         braking_[i] = false;
         dynamicBraking_[i] = false;
@@ -40,138 +38,23 @@ void MomentumController::begin(ThrottleManager* throttleMgr, SoundController* so
 }
 
 void MomentumController::update() {
-    // Always process momentum updates - when "off", rates are set to 999.0 for instant changes
     unsigned long now = clock_();
     
-    // When momentum is off, use faster update rate for immediate response
-    unsigned long updateInterval = isAnyActive() ? UPDATE_INTERVAL_MS : 50; // 50ms when off, 500ms when active
-    
     for (int throttle = 0; throttle < MOMENTUM_MAX_THROTTLES; throttle++) {
-        // Check if enough time has passed for this throttle
-        unsigned long elapsed = now - lastUpdate_[throttle];
-        if (elapsed < updateInterval) {
+        // Momentum off: commanded speed is the loco speed, nothing to integrate.
+        if (!isActive(throttle)) {
+            lastUpdate_[throttle] = now;
             continue;
         }
         
-        int target = targetSpeed_[throttle];
-        float actual = actualSpeed_[throttle];
-        
-        // Service braking: when the operator holds the encoder while throttle > 0,
-        // continuously decelerate as though applying brakes, but leave the displayed
-        // target speed untouched.  The deceleration rate and minimum effective speed
-        // depend on the locomotive type (diesel/steam/electric).
-        bool serviceActive = dynamicBraking_[throttle] && target > 0;
-        if (serviceActive) {
-            const BrakeProfile& profile = getBrakeProfile(throttle);
-            if ((int)round(actual) <= profile.minSpeed) {
-                // Below effective threshold — hold at current speed
-                serviceActive = false;  // let normal logic handle this tick
-            } else {
-                // Override target to 0 so the momentum system decelerates;
-                // the brake rate below will be used instead of decel rate.
-                target = max(0, profile.minSpeed);
-            }
+        unsigned long elapsed = now - lastUpdate_[throttle];
+        if (elapsed < UPDATE_INTERVAL_MS) {
+            continue;
         }
-        
-        // Sound runs in parallel with speed changes — no blocking.
-        // (Sound pulses are non-blocking and complete independently.)
-        
-        // Mark this throttle as processed
         lastUpdate_[throttle] = now;
         
-        // Already at target? Nothing to do
-        if (abs(actual - target) < 0.5f) {
-            actualSpeed_[throttle] = (float)target;
-            
-            // Safety check: if train has stopped and there's a pending direction change, notify ThrottleManager
-            // This allows the queued direction change to be applied now that it's safe.
-            if (target == 0 && actual == 0 && hasPendingDirectionChange(throttle)) {
-                // Release brake since we've reached stop
-                if (braking_[throttle]) {
-                    setBraking(throttle, false);
-                }
-                
-                #ifdef MOMENTUM_DEBUG
-                Serial.print("[Momentum] T");
-                Serial.print(throttle);
-                Serial.println(" Stopped - ready for pending direction change");
-                #endif
-                
-                // ThrottleManager will poll hasPendingDirectionChange() and apply the direction
-                // Note: We don't apply it here because MomentumController shouldn't directly
-                // call ThrottleManager's direction methods (would create circular dependency)
-            }
-            
-            continue;
-        }
-        
-        bool accelerating = (target > actual);
-        
-        // Get base rate based on momentum level and direction (per-throttle)
-        float baseRate;
-        if (serviceActive && !accelerating) {
-            // Service braking: use loco-type-specific deceleration rate
-            const BrakeProfile& profile = getBrakeProfile(throttle);
-            baseRate = profile.decelRate;
-        } else if (braking_[throttle] && !accelerating) {
-            baseRate = getBrakeRate(throttle); // Faster decel when braking (throttle=0 hold)
-        } else if (accelerating) {
-            baseRate = getAccelRate(throttle);
-        } else if (powerModelActive_[throttle] && powerLevel_[throttle] == 0 && isActive(throttle)) {
-            // Power at zero — coast on inertia (gentle rolling resistance)
-            baseRate = getCoastRate(throttle);
-        } else {
-            baseRate = getDecelRate(throttle);
-        }
-        
-        // Calculate delta using actual elapsed time for physically accurate ramping.
-        // Cap at 1000ms to prevent huge jumps after long pauses (e.g., task preemption).
-        float elapsedSec = min(elapsed, (unsigned long)1000) / 1000.0f;
-        float delta = baseRate * elapsedSec;
-        
-        // Apply curve for natural feel (speed-dependent tractive effort / resistance)
-        if (accelerating) {
-            delta = applyAccelCurve(delta, actual);
-            // Consist size bonus: each additional loco contributes ~15% more tractive effort.
-            // This silently makes larger consists accelerate faster, just like real railroads.
-            int consist = consistSize_[throttle];
-            if (consist > 1) {
-                float consistBonus = 1.0f + (consist - 1) * 0.15f;
-                delta *= consistBonus;
-            }
-        } else {
-            delta = applyDecelCurve(delta, actual);
-        }
-        
-        // Apply delta
-        float newSpeed;
-        if (accelerating) {
-            newSpeed = min(actual + delta, (float)target);
-        } else {
-            newSpeed = max(actual - delta, (float)target);
-        }
-        
-        // Debug output when speed changes
-        if ((int)round(newSpeed) != (int)round(actual)) {
-            const char* levelNames[] = {"Off", "Low", "Med", "High"};
-            Serial.print("Momentum[");
-            Serial.print(levelNames[(int)momentumLevel_[throttle]]);
-            Serial.print("] T");
-            Serial.print(throttle);
-            Serial.print(": ");
-            Serial.print((int)round(actual));
-            Serial.print(" -> ");
-            Serial.print((int)round(newSpeed));
-            Serial.print(" (target: ");
-            Serial.print(target);
-            Serial.print(", delta: ");
-            Serial.print(delta, 1);
-            Serial.println(")");
-            
-
-        }
-        
-        actualSpeed_[throttle] = newSpeed;
+        // Cap at 1000ms so a long pause can't integrate a huge jump.
+        updatePhysics(throttle, min(elapsed, (unsigned long)1000) / 1000.0f);
     }
 }
 
@@ -192,7 +75,7 @@ void MomentumController::setTargetSpeed(int throttle, int speed) {
     
     // Debug output only if target actually changed
     if (speed != oldTarget && isActive(throttle)) {
-        Serial.print("Target speed set T");
+        Serial.print("Commanded speed T");
         Serial.print(throttle);
         Serial.print(": ");
         Serial.print(oldTarget);
@@ -219,11 +102,14 @@ int MomentumController::getTargetSpeed(int throttle) const {
     return targetSpeed_[throttle];
 }
 
+int MomentumController::getPowerPercent(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 0;
+    return (int)round(targetSpeed_[throttle] * 100.0f / 126.0f);
+}
+
 void MomentumController::emergencyStop(int throttle) {
     if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
     targetSpeed_[throttle] = 0;
-    powerLevel_[throttle] = 0;
-    powerModelActive_[throttle] = false;
     actualSpeed_[throttle] = 0.0f; // Bypass momentum
 }
 
@@ -251,8 +137,6 @@ void MomentumController::setMomentumLevel(int throttle, MomentumLevel level) {
     // If turning off, snap this throttle's actual speed to target
     if (level == MomentumLevel::Off && oldLevel != MomentumLevel::Off) {
         actualSpeed_[throttle] = (float)targetSpeed_[throttle];
-        powerLevel_[throttle] = 0;
-        powerModelActive_[throttle] = false;
         Serial.print("Momentum disabled T");
         Serial.print(throttle);
         Serial.println(" - speed snapped to target");
@@ -400,136 +284,128 @@ int MomentumController::getConsistSize(int throttle) const {
 // ============================================================================
 // Power model — simulator mode
 // ============================================================================
+//
+// Longitudinal train dynamics, the standard textbook model:
+//
+//     m · dv/dt  =  TE(power, v)  −  R(v)  −  B(brake)
+//
+//   R(v)  Davis equation — A (journal/bearing) + B·v (rolling) + C·v² (aero),
+//         normalised so R(126) == 1.0, i.e. full effort balances at full speed.
+//   TE    Tractive effort, limited by wheel adhesion at low speed and regulated
+//         toward the balancing speed the driver has commanded (governor droop).
+//   m     Train mass — this is what the Low/Medium/High momentum setting selects.
+//
+// Everything the operator feels (slow start, gradual roll-down when power is
+// reduced, long coast with power off) falls out of the integration; there are
+// no ramp rates or thresholds in the power path.
 
-// Equilibrium curve: dead zone + linear ramp for realistic heavy-train feel
-// Below the breakaway threshold, the engine idles but the train doesn't move —
-// just like a real 200-ton locomotive needs significant tractive effort to
-// overcome static friction.  Above breakaway, speed is linear with power.
-// Combined with momentum ramping, this produces a convincing heavy feel.
-static constexpr int BREAKAWAY_POWER = 13;  // % power needed to start moving
+static constexpr float DAVIS_A        = 0.06f;      // constant journal/bearing resistance
+static constexpr float DAVIS_B        = 0.0027f;    // rolling/flange, proportional to v
+static constexpr float DAVIS_C        = 3.78e-5f;   // aerodynamic, proportional to v²
+static constexpr float STICTION       = 0.05f;      // extra breakaway resistance at a standstill
+static constexpr float STICTION_SPEED = 4.0f;       // stiction has decayed to zero by this speed
+static constexpr float ADHESION_LIMIT = 3.0f;       // max tractive effort before wheel slip
+static constexpr float GOVERNOR_GAIN  = 0.05f;      // effort added per speed step below balancing speed
+static constexpr float ENGINE_BRAKE_FRACTION = 0.5f; // share of the governor error that retards above balancing speed
+static constexpr float ENGINE_BRAKE_LIMIT    = 0.5f; // cap on that retarding force
+static constexpr float CONSIST_EFFORT_BONUS = 0.15f; // extra adhesion per additional loco
 
-int MomentumController::equilibriumSpeed(int power) {
-    if (power <= 0) return 0;
-    if (power >= 100) return 126;
-    if (power < BREAKAWAY_POWER) return 0;
-    
-    // Linear ramp from breakaway (0 steps) to full power (126 steps)
-    float effective = (float)(power - BREAKAWAY_POWER) / (100.0f - BREAKAWAY_POWER);
-    return (int)round(126.0f * effective);
+float MomentumController::resistance(float speedSteps) {
+    if (speedSteps < 0.0f) speedSteps = 0.0f;
+    float r = DAVIS_A + DAVIS_B * speedSteps + DAVIS_C * speedSteps * speedSteps;
+    if (speedSteps < STICTION_SPEED) {
+        r += STICTION * (1.0f - speedSteps / STICTION_SPEED);
+    }
+    return r;
 }
 
-void MomentumController::setPowerLevel(int throttle, int level) {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
-    if (level < 0) level = 0;
-    if (level > 100) level = 100;
+// Tractive effort available at the current speed for the commanded balancing speed.
+// Held at that speed by governor droop, capped by wheel adhesion — which is what
+// stops low speeds from surging when the throttle is opened.
+float MomentumController::tractiveEffort(int throttle, float speed) const {
+    int balancingSpeed = targetSpeed_[throttle];
+    if (balancingSpeed <= 0) return 0.0f;   // power off — coast on drag alone
     
-    int oldLevel = powerLevel_[throttle];
-    powerLevel_[throttle] = level;
-    powerModelActive_[throttle] = true;
-    
-    // Update target speed from power curve
-    int eqSpeed = equilibriumSpeed(level);
-    targetSpeed_[throttle] = eqSpeed;
-    
-    // In power mode, notching is based on power percentage, not speed steps
-    if (soundCtrl_ && level != oldLevel) {
-        soundCtrl_->onPowerLevelChange(throttle, level);
+    float effort = resistance(balancingSpeed) + GOVERNOR_GAIN * (balancingSpeed - speed);
+    if (effort < 0.0f) {
+        // Above the balancing speed the engine retards instead of driving
+        // (compression braking / regeneration), so power reductions bite.
+        return max(effort * ENGINE_BRAKE_FRACTION, -ENGINE_BRAKE_LIMIT);
     }
     
-    if (level != oldLevel && isActive(throttle)) {
-        Serial.print("Power set T");
+    float adhesion = ADHESION_LIMIT;
+    int consist = consistSize_[throttle];
+    if (consist > 1) adhesion *= 1.0f + (consist - 1) * CONSIST_EFFORT_BONUS;
+    
+    return min(effort, adhesion);
+}
+
+// Mass is what the momentum level actually selects.  Derived from the level's
+// acceleration rate so full power from a standstill still gives that rate.
+float MomentumController::trainMass(int throttle) const {
+    float netEffort = ADHESION_LIMIT - resistance(0.0f);
+    return netEffort / getAccelRate(throttle);
+}
+
+void MomentumController::updatePhysics(int throttle, float dtSeconds) {
+    float speed = actualSpeed_[throttle];
+    float mass  = trainMass(throttle);
+    
+    const BrakeProfile& profile = getBrakeProfile(throttle);
+    bool serviceBraking = dynamicBraking_[throttle] && speed > profile.minSpeed;
+    bool trainBraking   = braking_[throttle];
+    
+    // Brakes cut traction; rates are expressed as decelerations, so scale by mass.
+    float effort = (serviceBraking || trainBraking) ? 0.0f : tractiveEffort(throttle, speed);
+    float force  = effort - resistance(speed);
+    if (serviceBraking) force -= profile.decelRate * mass;
+    if (trainBraking)   force -= getBrakeRate(throttle) * mass;
+    
+    float newSpeed = speed + (force / mass) * dtSeconds;
+    if (newSpeed > 126.0f) newSpeed = 126.0f;
+    if (newSpeed < 0.0f)   newSpeed = 0.0f;
+    // Without traction, a train barely creeping comes to rest rather than crawling forever.
+    if (effort <= 0.0f && newSpeed < 0.5f) newSpeed = 0.0f;
+    
+    if ((int)round(newSpeed) != (int)round(speed)) {
+        Serial.print("Physics T");
         Serial.print(throttle);
         Serial.print(": ");
-        Serial.print(oldLevel);
-        Serial.print("% -> ");
-        Serial.print(level);
-        Serial.print("% (eq speed: ");
-        Serial.print(eqSpeed);
+        Serial.print((int)round(speed));
+        Serial.print(" -> ");
+        Serial.print((int)round(newSpeed));
+        Serial.print(" (commanded: ");
+        Serial.print(targetSpeed_[throttle]);
+        Serial.print(", TE: ");
+        Serial.print(effort, 2);
+        Serial.print(", R: ");
+        Serial.print(resistance(speed), 2);
         Serial.println(")");
     }
+    
+    actualSpeed_[throttle] = newSpeed;
 }
 
-int MomentumController::getPowerLevel(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 0;
-    return powerLevel_[throttle];
-}
-
-void MomentumController::resetPowerLevel(int throttle) {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return;
-    powerLevel_[throttle] = 0;
-    powerModelActive_[throttle] = false;
-}
-
-// Acceleration rates (speed units per second)
-// Realistic momentum based on prototype physics:
-// Low = light passenger (12s), Medium = mixed freight (25s), High = heavy freight (50s)
+// Acceleration rates (speed units per second) at full power from a standstill.
+// These set the train's mass: Low = light passenger (12s to full speed),
+// Medium = mixed freight (25s), High = heavy freight (50s).
+// Only reached when momentum is active — inactive throttles never integrate.
 float MomentumController::getAccelRate(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
     switch (momentumLevel_[throttle]) {
         case MomentumLevel::Low:    return 10.5f;  // ~12 seconds 0-126
-        case MomentumLevel::Medium: return 5.0f;   // ~25 seconds 0-126
         case MomentumLevel::High:   return 2.5f;   // ~50 seconds 0-126
-        default:                    return 999.0f; // Instant (off)
-    }
-}
-
-// Deceleration rates (speed units per second) - MUCH slower for realistic coasting
-// Trains coast 1.5-2x longer than they accelerate
-float MomentumController::getDecelRate(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
-    switch (momentumLevel_[throttle]) {
-        case MomentumLevel::Low:    return 7.0f;   // ~18 seconds (1.5x accel)
-        case MomentumLevel::Medium: return 3.2f;   // ~40 seconds (1.6x accel)
-        case MomentumLevel::High:   return 1.4f;   // ~90 seconds (1.8x accel!)
-        default:                    return 999.0f; // Instant (off)
+        default:                    return 5.0f;   // Medium: ~25 seconds 0-126
     }
 }
 
 // Brake rates (speed units per second) - ACTIVE braking when user holds encoder
 // Much faster than coasting, but still realistic train braking
 float MomentumController::getBrakeRate(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
     switch (momentumLevel_[throttle]) {
         case MomentumLevel::Low:    return 25.0f;  // ~5 seconds (emergency stop feel)
-        case MomentumLevel::Medium: return 15.0f;  // ~8 seconds (moderate braking)
         case MomentumLevel::High:   return 10.0f;  // ~13 seconds (heavy train needs time!)
-        default:                    return 999.0f; // Instant (off)
+        default:                    return 15.0f;  // Medium: ~8 seconds (moderate braking)
     }
-}
-
-// Coast rate (speed units per second) - rolling resistance only, no throttle
-// Much gentler than decel rate (which is "throttle reduced, drag slows you").
-// Coast simulates: power OFF, train rolls on inertia.  Real trains coast for miles.
-float MomentumController::getCoastRate(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return 999.0f;
-    switch (momentumLevel_[throttle]) {
-        case MomentumLevel::Low:    return 3.0f;   // ~42 seconds coast from 126
-        case MomentumLevel::Medium: return 1.5f;   // ~84 seconds
-        case MomentumLevel::High:   return 0.7f;   // ~180 seconds (3 minutes!)
-        default:                    return 999.0f;
-    }
-}
-
-// Acceleration curve - diesel-electric tractive effort decreases at higher speeds
-// At low speed the motors have maximum torque; at high speed, back-EMF reduces
-// available current. This makes acceleration brisk at first, then tapering off.
-// Consist size bonus: each additional loco contributes ~15% more tractive effort,
-// simulating the real-world benefit of multiple units in a consist.
-float MomentumController::applyAccelCurve(float delta, float actualSpeed) const {
-    float speedFraction = actualSpeed / 126.0f;
-    // Quadratic taper: 100% effort at speed 0, ~60% at speed 126
-    float factor = 1.0f - 0.4f * speedFraction * speedFraction;
-    return delta * factor;
-}
-
-// Deceleration curve - rolling resistance + aerodynamic drag increase with speed
-// Trains coast much further at low speeds than high speeds.
-// At high speed: drag slows them faster; at low speed: they roll a long time.
-float MomentumController::applyDecelCurve(float delta, float actualSpeed) const {
-    float speedFraction = actualSpeed / 126.0f;
-    // Linear increase: 70% at low speed (long coast), 130% at high speed (more drag)
-    float factor = 0.7f + 0.6f * speedFraction;
-    return delta * factor;
 }
 
 void MomentumController::triggerBrakeSound(int throttle, bool enable) {
@@ -574,6 +450,9 @@ bool MomentumController::requestDirectionChange(int throttle, Direction targetDi
         pendingDirectionChange_[throttle] = true;
         pendingDirection_[throttle] = targetDirection;
         originalDirection_[throttle] = targetDirection == Forward ? Reverse : Forward;
+        
+        // Shut off power so the train can actually come to a stand.
+        targetSpeed_[throttle] = 0;
         
         #ifdef MOMENTUM_DEBUG
         Serial.print("[Momentum] T");
