@@ -130,12 +130,8 @@ NextCab uses independent semantic versioning starting from:
 
 v0.1.0
 
-N/A  6
-N/A  7
-N/A  8
-N/A  9
-N/A 10
-N/A 11
+## Prerequisites
+
 > NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder should be configured as follows:
 >
 > 1. Automatic notching is **disabled**.
@@ -144,8 +140,8 @@ N/A 11
 >
 > Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Steam locomotives do not require throttle-up/down sound functions.
 
-N/A 20
-N/A 21
+1. Some basic soldering skills. Soldered wiring is recommended for a compact handheld controller.
+
 2. A WiThrottle-compatible server to connect to, such as **JMRI**, **DCC-EX EX-CommandStation**, **MRC WiFi**, **Digitrax LnWi**, or **NCE WiFiTrax**.
 
 ## Building
@@ -164,34 +160,6 @@ The current firmware also supports ESP32-S3/TFT builds. The supported PlatformIO
 
 *Optional:* It is possible to use a potentiometer instead of the rotary encoder for throttle control. The code supports it if you make the appropriate configuration changes in `config_buttons.h`. This has had only limited testing; see [config_buttons_example.h](config_buttons_example.h).
 
-
-* Requires an external pullup resistor
-```
-
-<br />
-
-#### Default Pins for the keypads
-
-<details>
-
-<summary>Click to expand to see a table of the Default Pins for the keypads</summary>
-
-```
-3x4 Keypad - Left to Right    4x4 keypad - Left to Right
- C1 PIN 0                      C0 PIN 4
- R0 PIN 19                     C1 PIN 0
- C0 PIN 4                      C2 PIN 2
- R3 PIN 16                     C3 PIN 33
- C2 PIN 2                      R0 PIN 19
- R2 PIN 17                     R1 PIN 18
- R1 PIN 18                     R2 PIN 17
-                 R3 PIN 16
-
-Cx = Column x      Rx = Row x
-
-Different keypad manufacturers may arrange pins differently. Verify the keypad pin order before wiring it.
-```
-</details>
 
 ---
 ### Pinouts
@@ -233,6 +201,70 @@ N/A  1
 N/A  3                                     
      4    C0     C0                             
      5                                  AB0     
+N/A  6
+N/A  7
+N/A  8
+N/A  9
+N/A 10
+N/A 11
+    12                        DT
+    13                        SW
+    14                        CLK
+    15                                  AB1
+    16     R3     R3
+    17     R2     R2
+    18     R1     R1
+    19     R0     R0
+N/A 20
+N/A 21
+    22                  SCL
+    23                  SDA
+N/A 24
+    25                                  AB2
+    26                                  AB3
+    27                                  AB4
+N/A 28
+N/A 29
+N/A 30
+N/A 31
+    32                                  AB5
+    33          C3                      AB6
+    34                                  AB7* BT
+    35                                  AB8*
+VP  36                                  AB9*
+N/A 37
+N/A 38
+VN  39                                  AB10*
+
+* Requires an external pullup resistor
+```
+</details>
+
+<br />
+
+#### Default Pins for the keypads
+
+<details>
+
+<summary>Click to expand to see a table of the Default Pins for the keypads</summary>
+
+```
+3x4 Keypad - Left to Right    4x4 keypad - Left to Right
+ C1 PIN 0                      C0 PIN 4
+ R0 PIN 19                     C1 PIN 0
+ C0 PIN 4                      C2 PIN 2
+ R3 PIN 16                     C3 PIN 33
+ C2 PIN 2                      R0 PIN 19
+ R2 PIN 17                     R1 PIN 18
+ R1 PIN 18                     R2 PIN 17
+                               R3 PIN 16
+
+Cx = Column x      Rx = Row x
+
+Different keypad manufacturers may arrange pins differently. Verify the keypad pin order before wiring it.
+```
+</details>
+
 ---
 
 ## Loading the code
