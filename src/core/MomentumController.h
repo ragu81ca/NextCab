@@ -100,20 +100,23 @@ public:
     // Clear pending direction change (called by ThrottleManager after applying)
     void clearPendingDirectionChange(int throttle);
     
-	/// Per-loco-type brake profile — determines dynamic brake feel.
-	struct BrakeProfile {
+/// Per-loco-type performance profile — covers both the acceleration side
+	/// (adhesion, throttle responsiveness) and the dynamic brake side.
+	struct LocoPerformanceProfile {
+		float   adhesionLimit;  // max tractive effort before wheel slip
+		float   governorGain;   // how eagerly the loco chases the balancing speed
 		float   decelRate;      // speed steps per second to subtract during service braking
 		int     minSpeed;       // stop braking effect below this speed
 	};
 	
-	// Brake profiles indexed by LocoType (Diesel=0, Steam=1, Electric=2)
-	static constexpr BrakeProfile BRAKE_PROFILES[] = {
-		{ 4.0f, 20 },   // Diesel:   moderate — rheostatic dynamic brake grids
-		{ 3.0f, 20 },   // Steam:    gentle — air brakes only, no dynamic braking
-		{ 5.0f, 10 },   // Electric: strong — regenerative braking, effective at low speeds
+	// Profiles indexed by LocoType (Diesel=0, Steam=1, Electric=2)
+	static constexpr LocoPerformanceProfile LOCO_PROFILES[] = {
+		{ 3.0f, 0.05f, 4.0f, 20 },   // Diesel:   moderate adhesion, some governor lag, rheostatic dynamic brake
+		{ 2.4f, 0.03f, 3.0f, 20 },   // Steam:    slip-prone, slow to respond (reciprocating mass), no dynamic brake
+		{ 3.6f, 0.08f, 5.0f, 10 },   // Electric: all-axle adhesion, near-instant torque, strong regenerative braking
 	};
 	
-	const BrakeProfile& getBrakeProfile(int throttle) const;
+	const LocoPerformanceProfile& getPerformanceProfile(int throttle) const;
 
 private:
     // Per-momentum-level rates: acceleration sets the train's mass,

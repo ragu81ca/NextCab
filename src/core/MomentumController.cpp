@@ -200,7 +200,7 @@ void MomentumController::setDynamicBraking(int throttle, bool active) {
         // When off, check the flag itself — caller has already stopped the loco.
         if (isActive(throttle)) {
             int actualSpd = (int)round(actualSpeed_[throttle]);
-            const BrakeProfile& profile = getBrakeProfile(throttle);
+            const LocoPerformanceProfile& profile = getPerformanceProfile(throttle);
             if (actualSpd < profile.minSpeed) {
                 Serial.print("[Momentum] T");
                 Serial.print(throttle);
@@ -258,11 +258,11 @@ LocoType MomentumController::getLocoType(int throttle) const {
     return locoType_[throttle];
 }
 
-const MomentumController::BrakeProfile& MomentumController::getBrakeProfile(int throttle) const {
-    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return BRAKE_PROFILES[0];
+const MomentumController::LocoPerformanceProfile& MomentumController::getPerformanceProfile(int throttle) const {
+    if (throttle < 0 || throttle >= MOMENTUM_MAX_THROTTLES) return LOCO_PROFILES[0];
     int idx = (int)locoType_[throttle];
     if (idx < 0 || idx > 2) idx = 0;
-    return BRAKE_PROFILES[idx];
+    return LOCO_PROFILES[idx];
 }
 
 void MomentumController::setConsistSize(int throttle, int locoCount) {
@@ -304,8 +304,6 @@ static constexpr float DAVIS_B        = 0.0027f;    // rolling/flange, proportio
 static constexpr float DAVIS_C        = 3.78e-5f;   // aerodynamic, proportional to v²
 static constexpr float STICTION       = 0.05f;      // extra breakaway resistance at a standstill
 static constexpr float STICTION_SPEED = 4.0f;       // stiction has decayed to zero by this speed
-static constexpr float ADHESION_LIMIT = 3.0f;       // max tractive effort before wheel slip
-static constexpr float GOVERNOR_GAIN  = 0.05f;      // effort added per speed step below balancing speed
 static constexpr float ENGINE_BRAKE_FRACTION = 0.5f; // share of the governor error that retards above balancing speed
 static constexpr float ENGINE_BRAKE_LIMIT    = 0.5f; // cap on that retarding force
 static constexpr float CONSIST_EFFORT_BONUS = 0.15f; // extra adhesion per additional loco
@@ -321,29 +319,34 @@ float MomentumController::resistance(float speedSteps) {
 
 // Tractive effort available at the current speed for the commanded balancing speed.
 // Held at that speed by governor droop, capped by wheel adhesion — which is what
-// stops low speeds from surging when the throttle is opened.
+// stops low speeds from surging when the throttle is opened.  Adhesion and governor
+// responsiveness come from the loco-type performance profile.
 float MomentumController::tractiveEffort(int throttle, float speed) const {
     int balancingSpeed = targetSpeed_[throttle];
     if (balancingSpeed <= 0) return 0.0f;   // power off — coast on drag alone
     
-    float effort = resistance(balancingSpeed) + GOVERNOR_GAIN * (balancingSpeed - speed);
+    const LocoPerformanceProfile& profile = getPerformanceProfile(throttle);
+    float effort = resistance(balancingSpeed) + profile.governorGain * (balancingSpeed - speed);
     if (effort < 0.0f) {
         // Above the balancing speed the engine retards instead of driving
         // (compression braking / regeneration), so power reductions bite.
         return max(effort * ENGINE_BRAKE_FRACTION, -ENGINE_BRAKE_LIMIT);
     }
     
-    float adhesion = ADHESION_LIMIT;
+    float adhesion = profile.adhesionLimit;
     int consist = consistSize_[throttle];
     if (consist > 1) adhesion *= 1.0f + (consist - 1) * CONSIST_EFFORT_BONUS;
     
     return min(effort, adhesion);
 }
 
-// Mass is what the momentum level actually selects.  Derived from the level's
-// acceleration rate so full power from a standstill still gives that rate.
+// Mass is what the momentum level actually selects.  Calibrated against a fixed
+// reference adhesion (not the loco's own profile) so that a type's adhesion/governor
+// advantage actually shows up as faster acceleration, rather than being cancelled out
+// by a correspondingly heavier mass.
 float MomentumController::trainMass(int throttle) const {
-    float netEffort = ADHESION_LIMIT - resistance(0.0f);
+    static constexpr float MASS_CALIBRATION_ADHESION = 3.0f; // Diesel baseline
+    float netEffort = MASS_CALIBRATION_ADHESION - resistance(0.0f);
     return netEffort / getAccelRate(throttle);
 }
 
@@ -351,7 +354,7 @@ void MomentumController::updatePhysics(int throttle, float dtSeconds) {
     float speed = actualSpeed_[throttle];
     float mass  = trainMass(throttle);
     
-    const BrakeProfile& profile = getBrakeProfile(throttle);
+    const LocoPerformanceProfile& profile = getPerformanceProfile(throttle);
     bool serviceBraking = dynamicBraking_[throttle] && speed > profile.minSpeed;
     bool trainBraking   = braking_[throttle];
     
@@ -492,4 +495,4 @@ void MomentumController::clearPendingDirectionChange(int throttle) {
 }
 
 // Out-of-class definition required for constexpr array (C++14/17 ODR)
-constexpr MomentumController::BrakeProfile MomentumController::BRAKE_PROFILES[];
+constexpr MomentumController::LocoPerformanceProfile MomentumController::LOCO_PROFILES[];

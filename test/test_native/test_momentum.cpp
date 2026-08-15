@@ -302,25 +302,68 @@ TEST_F(MomentumTest, SteamBrakesGentlerThanDiesel) {
     EXPECT_GT(steamSpeed, dieselSpeed);
 }
 
-TEST_F(MomentumTest, BrakeProfile_DieselValues) {
+TEST_F(MomentumTest, PerformanceProfile_DieselValues) {
     mc.setLocoType(0, LocoType::Diesel);
-    auto& profile = mc.getBrakeProfile(0);
+    auto& profile = mc.getPerformanceProfile(0);
+    EXPECT_FLOAT_EQ(profile.adhesionLimit, 3.0f);
+    EXPECT_FLOAT_EQ(profile.governorGain, 0.05f);
     EXPECT_FLOAT_EQ(profile.decelRate, 4.0f);
     EXPECT_EQ(profile.minSpeed, 20);
 }
 
-TEST_F(MomentumTest, BrakeProfile_SteamValues) {
+TEST_F(MomentumTest, PerformanceProfile_SteamValues) {
     mc.setLocoType(0, LocoType::Steam);
-    auto& profile = mc.getBrakeProfile(0);
+    auto& profile = mc.getPerformanceProfile(0);
+    EXPECT_FLOAT_EQ(profile.adhesionLimit, 2.4f);
+    EXPECT_FLOAT_EQ(profile.governorGain, 0.03f);
     EXPECT_FLOAT_EQ(profile.decelRate, 3.0f);
     EXPECT_EQ(profile.minSpeed, 20);
 }
 
-TEST_F(MomentumTest, BrakeProfile_ElectricValues) {
+TEST_F(MomentumTest, PerformanceProfile_ElectricValues) {
     mc.setLocoType(0, LocoType::Electric);
-    auto& profile = mc.getBrakeProfile(0);
+    auto& profile = mc.getPerformanceProfile(0);
+    EXPECT_FLOAT_EQ(profile.adhesionLimit, 3.6f);
+    EXPECT_FLOAT_EQ(profile.governorGain, 0.08f);
     EXPECT_FLOAT_EQ(profile.decelRate, 5.0f);
     EXPECT_EQ(profile.minSpeed, 10);
+}
+
+// Electric's higher adhesion + governor gain should out-accelerate diesel at
+// the same momentum level and commanded speed.
+TEST_F(MomentumTest, ElectricAcceleratesFasterThanDiesel) {
+    // Configure both throttles before advancing time, so neither gets an
+    // artificial head start from the other's inactive-throttle bookkeeping.
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setLocoType(0, LocoType::Diesel);
+    mc.setTargetSpeed(0, 100);
+
+    mc.setMomentumLevel(1, MomentumLevel::Medium);
+    mc.setLocoType(1, LocoType::Electric);
+    mc.setTargetSpeed(1, 100);
+
+    runFor(0, 3000);
+    int dieselSpeed = mc.getActualSpeed(0);
+    int electricSpeed = mc.getActualSpeed(1);
+
+    EXPECT_GT(electricSpeed, dieselSpeed);
+}
+
+// Steam's lower adhesion + governor gain should accelerate slower than diesel.
+TEST_F(MomentumTest, SteamAcceleratesSlowerThanDiesel) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setLocoType(0, LocoType::Diesel);
+    mc.setTargetSpeed(0, 100);
+
+    mc.setMomentumLevel(1, MomentumLevel::Medium);
+    mc.setLocoType(1, LocoType::Steam);
+    mc.setTargetSpeed(1, 100);
+
+    runFor(0, 3000);
+    int dieselSpeed = mc.getActualSpeed(0);
+    int steamSpeed = mc.getActualSpeed(1);
+
+    EXPECT_LT(steamSpeed, dieselSpeed);
 }
 
 // ============================================================================
@@ -533,11 +576,11 @@ TEST_F(MomentumTest, Notching_DelaysMomentumUpdate) {
 }
 
 // ============================================================================
-// getBrakeProfile — out of range
+// getPerformanceProfile — out of range
 // ============================================================================
 
-TEST_F(MomentumTest, BrakeProfile_InvalidThrottle_ReturnsDiesel) {
-    auto& profile = mc.getBrakeProfile(-1);
+TEST_F(MomentumTest, PerformanceProfile_InvalidThrottle_ReturnsDiesel) {
+    auto& profile = mc.getPerformanceProfile(-1);
     EXPECT_FLOAT_EQ(profile.decelRate, 4.0f); // Diesel defaults
 }
 
