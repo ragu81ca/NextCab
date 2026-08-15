@@ -6,26 +6,45 @@ It began as a personal exploration: what happens if a DCC throttle is treated as
 
 ---
 
+## Simulator Mode
+
+NextCab's defining feature is **Simulator Mode**: a natural, physical control plane for operating a train as a train, rather than as a collection of decoder CVs and function numbers.
+
+The large rotary encoder is the center of that interface:
+
+- **Rotate** to set the driver's requested speed or power.
+- **Double-click** to cycle momentum through Off, Low, Medium, and High.
+- **Press and hold** to brake. At zero throttle this is an accelerated stop; above zero it is a hold-to-slow dynamic brake.
+- **Release** to let the train return smoothly toward its requested speed.
+
+Simulator Mode coordinates the things an operator naturally thinks about in one interaction plane:
+
+- Momentum and acceleration are simulated in the throttle, without changing decoder CVs.
+- Braking behavior follows the selected locomotive type and consist size.
+- Sound functions respond automatically to throttle effort, braking, and dynamic braking.
+- The display presents requested speed, actual speed, power, momentum level, and brake/ramp state together.
+
+It is more than a momentum setting. It is a software driving model that turns one encoder into a throttle, brake handle, and sound-control interface while preserving ordinary WiThrottle compatibility underneath.
+
+### Simulator Mode Display
+
+When Simulator Mode is active, the main display shows power as a percentage and the simulated speed as a secondary reading. The screen also indicates momentum level and whether the train is braking or ramping toward its requested speed.
+
+Add a current OLED or TFT photograph here:
+
+<!-- Add the updated UI photo here, for example: images/screenshots/simulator_mode.jpg -->
+
+The image is intentionally a placeholder until a representative photo of the updated UI is available.
+
+---
+
 ## Design Philosophy
 
 ### Drive Your Trains, Not Your Decoders
 
 NextCab's design philosophy can be summarized in one sentence: **drive your trains, not your decoders.**
 
-The core idea is that the decoder should be as dumb as possible. By moving the sophistication into the throttle, we gain two things:
-
-1. **The throttle understands intent.** A decoder only sees "set speed to 47" or "turn on F6." It has no idea *why*. The throttle, on the other hand, knows what the operator is trying to do — accelerate out of a siding, coast into a station, hold on a grade. Because it understands intent, it can adapt sound cues, momentum curves, and braking behavior on the fly to produce more realistic results than any static CV table.
-
-2. **It smooths out interoperability.** Every decoder manufacturer implements momentum differently, assigns different default function numbers, and handles edge cases in its own way. When the throttle owns these behaviors, those vendor differences disappear behind a single consistent interaction model. Swap a Tsunami for a LokSound and the throttle experience stays the same — no CV reprogramming required.
-
-Physical gestures map to railroad actions rather than DCC commands:
-
-- **Rotate** the encoder → the train speeds up or slows down
-- **Double-click** → cycle through momentum profiles to match operating style
-- **Hold** → apply the brakes, with behavior that varies by locomotive type
-- **Sound functions** fire automatically based on throttle events — no need to remember which F-key does what
-
-The DCC layer is still there, but the operator doesn't have to think about it. This approach makes model railroading more intuitive for newcomers while giving experienced operators realistic behavior without decoder reprogramming.
+The throttle owns intent: acceleration, coasting, braking, sound cues, and locomotive-specific behavior. The decoder still receives ordinary DCC speed and function commands, but the operator works through a consistent physical model instead of manually reprogramming momentum for every locomotive.
 
 ### Physical Design
 
@@ -33,13 +52,7 @@ NextCab was developed with a specific physical form factor in mind:
 
 https://www.thingiverse.com/thing:7029069
 
-This case design features a large rotary encoder positioned as the primary interaction point. Rather than treating the encoder as a simple speed dial, NextCab expands it into a richer control surface:
-
-- Single rotation → speed control
-- Double-click → on-the-fly momentum selection
-- Press-and-hold → service braking (loco-type-aware)
-
-While NextCab will run on other hardware configurations, its interaction model was designed around this larger encoder layout.
+This case design places a large rotary encoder at the center of the interaction model. NextCab will run on other hardware configurations, but the Simulator Mode experience is designed around this encoder-led layout.
 
 ---
 
@@ -47,36 +60,18 @@ While NextCab will run on other hardware configurations, its interaction model w
 
 NextCab is forked from WiTcontroller by Peter Akers (flash62au).
 
-WiTcontroller remains an excellent DIY WiThrottle-compatible controller. NextCab builds on that work while introducing architectural refactoring and new control capabilities.
+WiTcontroller remains an excellent DIY WiThrottle-compatible controller. NextCab builds on that work with a modular architecture and a software driving model.
 
 ---
 
-## What’s New in NextCab
+## What Is New in NextCab
 
-### Architectural Refactor
-- Gradual separation of responsibilities into modular components (`src/core`)
-- Input abstraction layer (`IInputDevice`)
-- Centralized input event dispatch system
-- Cleaner separation of hardware vs application logic
-- Removal of legacy intermediary input manager
-
-### Extended Input Behaviors
-- Double-click detection
-- Press-and-hold detection
-- Canonical press/release event model
-- Per-button state machines for additional hardware buttons
-
-### New Control Features
-- On-the-fly momentum selection (via double-click throttle interaction)
-- Service braking with per-loco-type behavior (press-and-hold throttle)
-- Experimental throttle-driven sound control (decoupled from speed)
-- Foundation for future modifier layers ("shift" concepts)
-
-### On-the-Fly Momentum
-
-Traditional DCC momentum is often configured directly in the decoder. While realistic, this makes it effectively permanent unless reprogrammed.
-
-NextCab approaches momentum differently.
+- Simulator Mode: momentum, locomotive-aware braking, sound control, and display feedback from the encoder.
+- Physics-based acceleration with locomotive-type and consist effects.
+- Per-loco speed caps and sound-function configuration.
+- Direction-change safety that brakes a moving train before reversing.
+- Double-click, hold, and canonical press/release input handling.
+- Modular input and rendering components under `src/core`.
 
 Momentum can be enabled, adjusted, or disabled dynamically from the throttle itself (via double-click on the encoder). This allows:
 
@@ -135,90 +130,70 @@ NextCab uses independent semantic versioning starting from:
 
 v0.1.0
 
-Although forked from WiTcontroller, version numbers are not continued from the original project due to architectural divergence.
-
-## Prerequisites
-
-> **Sound and momentum prerequisites**
->
+N/A  6
+N/A  7
+N/A  8
+N/A  9
+N/A 10
+N/A 11
 > NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder should be configured as follows:
 >
 > 1. Automatic notching is **disabled**.
-> 2. **F6** = sound throttle down, **F7** = sound throttle up.
-> 3. **F9** is the brake sound.
-> 4. Decoder momentum is **disabled** (momentum is controlled by software).
+> 2. Configure the locomotive's throttle-up, throttle-down, brake, and dynamic-brake sound functions in the loco configuration wizard, if those sounds are available.
+> 3. Decoder momentum is **disabled** (momentum is controlled by software).
 >
-> The specific function numbers above are hard-coded defaults for now. Per-loco configuration (via the throttle UI or roster data) is planned, which will eliminate the need to match these exact assignments.
+> Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Steam locomotives do not require throttle-up/down sound functions.
 
-1. Some basic soldering skills.
-
-    The components will work if just plugged together using jumpers, but they take a lot of space that way, so soldering them together is advised to make it more hand held.
-
-2. Loading the code (sketch) requires downloading of one of the IDEs, this sketch, the libraries, etc. so some experience with Arduinos is helpful, but not critical.
-
-3. A WiThrottle Server to connect to. WiTcontroller will work with any WiThrottle Server. e.g.
-
-    * **JMRI**
-    * **DCC-EX EX-CommandStation**
-    * **MRC WiFi**
-    * **Digitrax LnWi**
-    * **NCE WiFiTrax**
-    * and others
-
-    Note that there seems to be an issue with the **YaMoRC Command Station** that I am still working on.  See the notes for the DEFAULT_HEARTBEAT_PERIOD define below.
-
-<br/>
-<hr style="border: none; height: 4px; background-color: #007bff; border-radius: 2px;">
-
+N/A 20
+N/A 21
+2. A WiThrottle-compatible server to connect to, such as **JMRI**, **DCC-EX EX-CommandStation**, **MRC WiFi**, **Digitrax LnWi**, or **NCE WiFiTrax**.
 
 ## Building
 
-### Required Components
+### Original LOLIN32 Components
 
-1. WeMos Lite LOLIN32  (ESP32 Arduino with LiPo charger) ([Example](https://www.ebay.com.au/itm/284800618644?hash=item424f709094:g:-soAAOSwHslfC9ce&frcectupt=true)) 
+The original hardware build uses a WeMos LOLIN32 Lite with LiPo charger, a 3x4 keypad, KY-040 or EC11 rotary encoder, 128x64 I2C OLED, LiPo battery, case, knob, and hookup wire. A 4x4 keypad, additional buttons, potentiometer, battery monitor, and larger 128x64 OLED are optional. See the pinout diagrams below.
 
-    *Note: any ESP32 will work but the pinouts may need to be adjusted, and a separate LiPo charger may be required*
+The current firmware also supports ESP32-S3/TFT builds. The supported PlatformIO environments and the Feather S3 wiring notes are documented in the [Loading the code](#loading-the-code) section and [docs/HOW_TO_BUILD.md](docs/HOW_TO_BUILD.md).
 
-2. 3x4 Keypad  ([Example](https://www.jaycar.com.au/12-key-numeric-keypad/p/SP0770?pos=2&queryId=20aedf107668ad42c6fe1f8b7f7a9ca7)) 
+*Optional:* You can use a 4x4 keypad instead of the 3x4 keypad. <br/> Note: You will need to make a small configuration change in ``config_buttons.h`` for this to work correctly.
 
-    *Note: Alternately a 4x4 keypad can also be used (see optional components below)* 
-      
-    ***Note: Different keypad manufacturers may arrange the pins on the base of the keypad differently.*** See notes in the [Default Pins for the keypads](#default-pins-for-the-keypads) section below.
+*Optional:* Up to eleven (11) additional push buttons can be added directly to the ESP32, each with their own independent commands. ([Example](https://www.jaycar.com.au/red-miniature-pushbutton-spst-momentary-action-125v-1a-rating/p/SP0710))
 
-3. KY-040 Rotary Encoder Module ([Example](https://www.aliexpress.com/item/1005003946689694.html?albagn=888888&&src=google&albch=search&acnt=479-062-3723&isdl=y&aff_short_key=UneMJZVf&albcp=21520181724&albag=168529973707&slnk=&trgt=dsa-1464330247393&plac=&crea=707854323770&netw=g&device=c&mtctp=&memo1=&albbt=Google_7_search&aff_platform=google&gad_source=1&gclid=Cj0KCQjwiOy1BhDCARIsADGvQnBPdlEVLYbYnLoOnN1p2bdjte0jYmInrgFD0WG16aF3GZtvrWTb6o0aAo8VEALw_wcB&gclsrc=aw.ds)) 
+*Optional:* A 1.3" or 2.4" OLED Display (128x64) can be used instead of the 0.96" OLED Display 128x64 ([Example](https://www.aliexpress.com/item/32683094040.html?spm=a2g0o.order_list.order_list_main.110.25621802jRBB7y)) Note: You will need to make a minor change in the config file for this to work correctly.
 
-    *Note: The EC11 rotary encoder will also work, but requires a small configuration change in ``config_buttons.h`` (see below)*
+*Optional:* It is possible to use a potentiometer instead of the rotary encoder for throttle control. The code supports it if you make the appropriate configuration changes in `config_buttons.h`. This has had only limited testing; see [config_buttons_example.h](config_buttons_example.h).
 
-4. OLED Display 0.96" 128x64 I2C IIC SSD1306 ([Example](https://www.ebay.com.au/itm/273746192621?ssPageName=STRK%3AMEBIDX%3AIT&_trksid=p2060353.m2749.l2649))
 
-    *Note: The code for the one of the common 1.3" displays is also included (see below).* 
-    
-    *Note: Some OLED displays up to 2.4 inch will also work (see below)*
+* Requires an external pullup resistor
+```
 
-5. Polymer Lithium Ion Battery LiPo 400mAh (or larger) 3.7V 502535 JST Connector. ([500mAh Example](https://www.ebay.com.au/itm/133708965793?hash=item1f21ace7a1:g:tlwAAOSwfORgYqYK)) 
+<br />
 
-    *Note: Any capacity will work, but 400mAh will give about 6 hours of run time.*
-    
-    ***WARNING: I have found that some batteries come with the positive and negative leads the other way around to the terminals on the ESP32.*** <br/> **Check they are correct before plugging it in.** <br/> The polarity of the battery is easy to swap, by getting a knife blade under the small tabs on the plastic connector and pulling each male socket out. <br/> Take extreme care. ***DO NOT SHORT THE TERMINALS.*** 
+#### Default Pins for the keypads
 
-6. A Case to put it in. Links to a few different designs are below, but any box will do. My case was 3d printed for me (see below).
+<details>
 
-7. A Knob ([Example](https://www.jaycar.com.au/35mm-knob-matching-equipment-style/p/HK7766?pos=7&queryId=cbd19e2486968bca41273cc2dbce54a4&sort=relevance))
+<summary>Click to expand to see a table of the Default Pins for the keypads</summary>
 
-8. Wire - If you plan to solder the connections, which is the recommended approach, then stranded, coloured wire is advisable.  ([Example](https://www.jaycar.com.au/rainbow-cable-16-core-sold-per-metre/p/WM4516))
+```
+3x4 Keypad - Left to Right    4x4 keypad - Left to Right
+ C1 PIN 0                      C0 PIN 4
+ R0 PIN 19                     C1 PIN 0
+ C0 PIN 4                      C2 PIN 2
+ R3 PIN 16                     C3 PIN 33
+ C2 PIN 2                      R0 PIN 19
+ R2 PIN 17                     R1 PIN 18
+ R1 PIN 18                     R2 PIN 17
+                 R3 PIN 16
 
-### Optional Components
+Cx = Column x      Rx = Row x
 
-9. *Optional:* A power switch. Push button or toggle. <br/> The battery in WiTcontroller will last a week or two in deep sleep, but you may wish to add a power switch on the positive feed of the battery if you expect to leave it unused for long periods.
+Different keypad manufacturers may arrange pins differently. Verify the keypad pin order before wiring it.
+```
+</details>
 
-10. *Optional:* You can use a 4x4 keypad instead of the 3x4 keypad. <br/> Note: You will need to make a small configuration change in ``config_buttons.h`` for this to work correctly.
-
-11. *Optional:* Up to eleven (11) additional push buttons can be added directly to the ESP32, each with their own independent commands. ([Example](https://www.jaycar.com.au/red-miniature-pushbutton-spst-momentary-action-125v-1a-rating/p/SP0710))
-
-12. *Optional:* A 1.3" or 2.4" OLED Display (128x64) can be used instead of the 0.96" OLED Display 128x64 ([Example](https://www.aliexpress.com/item/32683094040.html?spm=a2g0o.order_list.order_list_main.110.25621802jRBB7y)) Note: You will need to make a minor change in the config file for this to work correctly.
-
-13. *Optional:* It is possible to use a Potentiometer instead of the Rotary Encoder for throttle control.  The code supports it if you make the appropriate configuration changes in ``config_buttons.h``.   However this has had only limited testing. <br/> This is documented to some degree in [config_buttons_example.h[(config_buttons_example.h)] if you wish to try it.
-
+---
 ### Pinouts
 
 *Standard Configuration Pinouts*  <br/> This is the simplest form of the WiTcontroller
@@ -258,83 +233,37 @@ N/A  1
 N/A  3                                     
      4    C0     C0                             
      5                                  AB0     
-N/A  6                                      
-N/A  7                                      
-N/A  8                                      
-N/A  9                                      
-N/A 10                                       
-N/A 11                                       
-    12                        DT               
-    13                        SW               
-    14                        CLK               
-    15                                  AB1     
-    16     R3     R3                             
-    17     R2     R2                             
-    18     R1     R1                             
-    19     R0     R0                             
-N/A 20                                       
-N/A 21                                       
-    22                  SLC                     
-    23                  SDA                     
-N/A 24                                       
-    25                                  AB2     
-    26                                  AB3     
-    27                                  AB4     
-N/A 28                                       
-N/A 29                                       
-N/A 30                                       
-N/A 31                                       
-N/A 32                                  AB5     
-    33          C3                      AB6     
-    34                                  AB7 *        BT
-    35                                  AB8 *     
-VP  36                                  AB9 *     
-N/A 37                                       
-N/A 38                                       
-VN  39                                  AB10*     
-
-* Requires an external pullup resistor
-```
-</details>
-
-<br />
-
-#### Default Pins for the keypads
-
-<details>
-
-<summary>Click to expand to see a table of the Default Pins for the keypads</summary>
-
-```
-3x4 Keypad - Left to Right    4x4 keypad - Left to Right
- C1 PIN 0                      C0 PIN 4
- R0 PIN 19                     C1 PIN 0
- C0 PIN 4                      C2 PIN 2
- R3 PIN 16                     C3 PIN 33
- C2 PIN 2                      R0 PIN 19
- R2 PIN 17                     R1 PIN 18
- R1 PIN 18                     R2 PIN 17
-                               R3 PIN 16
-
-Cx = Column x      Rx = Row x
-
-Note:
-Different keypad manufacturers may arrange the pins on the 
-base of the keypad differently to those listed above.  
-So it is important to make sure the pins on the keypad are 
-correctly identified and adjusted as needed.
-
- ```
- 
-</details>
-
 ---
 
 ## Loading the code
 
-_(This area of documentation is still a work-in-progress. The original version of WitController could be build through the Ardunio IDE, but I believe Visual Studio Code is required now because of the file structure.)_ The instructions below are for using the **Arduino IDE** and **GitHub Desktop**. 
+The project is built with [PlatformIO](https://platformio.org/), either through the PlatformIO extension in Visual Studio Code or the PlatformIO command line. The repository's `platformio.ini` file manages the ESP32 platform, framework, libraries, display options, and board-specific build flags.
 
-**Visual Studio Code (VSC)** can be used instead of the Arduino IDE, and is actually my preferred IDE, but no instructions are included here.  Contact me if you need assistance with VSC.
+1. Install Visual Studio Code and the PlatformIO extension, or install PlatformIO Core.
+2. Open this repository as a folder.
+3. Choose a PlatformIO environment from `platformio.ini`:
+  - `lolin32_lite` for the original LOLIN32 Lite build.
+  - `esp32s3_ili9341` for the GPIO-input ESP32-S3/TFT build.
+  - `feather_s3_ili9341` for the Feather S3/Qwiic/TFT build.
+4. Build and upload the selected environment. From a terminal:
+
+  ```text
+  pio run -e lolin32_lite
+  pio run -e lolin32_lite -t upload
+  pio device monitor -e lolin32_lite
+  ```
+
+  Replace `lolin32_lite` with the environment you are using. The default serial monitor speed is 115200.
+5. Configure keypad mappings and optional GPIO inputs in `config_buttons.h`. The checked-in file is an example of a local configuration; adjust it for your hardware before uploading.
+6. On first boot, NextCab creates its LittleFS configuration storage. Wi-Fi credentials, server settings, and per-loco settings are saved there, so a separate `config_network.h` file is not required.
+
+For the current Feather S3 assembly notes, see [docs/HOW_TO_BUILD.md](docs/HOW_TO_BUILD.md). To run the desktop unit tests without hardware:
+
+```text
+pio test -e native_test
+```
+
+<!-- Historical Arduino IDE instructions retained below for reference.
 
 1. Download the Arduino IDE.
     * Available from  https://support.arduino.cc/hc/en-us/articles/360019833020-Download-and-install-Arduino-IDE
@@ -401,6 +330,8 @@ _(This area of documentation is still a work-in-progress. The original version o
     * Connect the board via USB and select the appropriate port in the *Arduino IDE*.
     * Click ``Upload`` **-->**
 
+-->
+
 ### Version Notes
 
 > Note: The version history below refers to the original WiTcontroller lineage. NextCab version numbers are independent and begin at v0.1.0.
@@ -464,7 +395,7 @@ Key additions:
 
 Relevant event types (excerpt; see `src/core/input/InputEvents.h`):
 * `SpeedDelta`, `SpeedAbsolute`
-* `EncoderClick`, `EncoderLongPress`
+* `EncoderClick`, `EncoderDoubleClick`, `EncoderHold`, `EncoderHoldRelease`, `EncoderLongPress`
 * `KeypadChar`, `KeypadSpecial`, `KeypadCharRelease`, `KeypadSpecialRelease`
 * `AdditionalButton` (function or action; press/release encoded via `cvalue` = 'P'/'R')
 * `Action` (generic higher level actions / system controls)
@@ -483,7 +414,7 @@ For deeper contributor details see `ARCHITECTURE.md` (section: Producers & Input
  
 The ESP32 *cannot use the 5gHz* frequencies.  It is limited to the 2.4gHz  frequencies. 
  
-Using 2.4gHz Wifi channels beyond 10 (11-13) is problematic. I have added an experimental set of definitions in [config_network_example.h](config_network_example.h) that allow you to set the country code.  In theory this will allow the use of the additional channels, but requires the use the version 3.2.0 (or later) of the ESP32 board library.  This has had only minimal testing.
+Using 2.4gHz Wi-Fi channels beyond 10 (11-13) may be problematic depending on the regional settings in the ESP32 Arduino platform. The current project does not use a `config_network.h` file; platform and board settings are managed through `platformio.ini`.
 
 ## Definitions and Explanations
 
@@ -538,7 +469,7 @@ NextCab:
   - Option to switch between Single Loco and Consist/MU (Drop before Acquire)
   - Option to save the currently select locos (on multiple throttles) and have them automatically re-acquired on next connection.
   - Option to disable the heartbeat check
-- Option to have up to 6 command sequences executed on connection
+- Option to have up to 4 command sequences executed on connection
 - Option to automatically acquire a loco if there is only one loco in the roster
 - Have up to 6 throttles, each with an unlimited number of locos in consist. <br/> The default is 2 throttles, which can be increased or decreased temporarily via the Extras menu (or permanently enabled in config_button.h)
 - Limited dealing with unexpected disconnects.  It will throw you back to the WiThrottle Server selection screen.
@@ -547,13 +478,17 @@ NextCab:
 - The controller will automatically shut down if no SSID is selected or entered in 4 minutes (to conserve the battery)
 - Relatively easy to add/use translation files.
 - Translations files for German and Italian included.
+- Stores Wi-Fi credentials, server settings, and per-loco settings in LittleFS.
+- Provides a loco configuration wizard for locomotive type, maximum speed, and sound-function assignments.
+- Applies a per-loco speed cap when locomotives are used in consists.
+- Uses software momentum levels (Off, Low, Medium, High), with physics-based acceleration and braking.
+- Safely queues a direction change while moving and brakes to a stop before applying it.
 
 **ToDo:**
 - Speed button repeat (i.e. hold the button down)
 - Deal with unexpected disconnects better
   - automatic attempt to reconnect
 - Keep a list of IP addresses and ports if mDNS doesn't provide any
-- Remember SSIDs and manually entered passwords 
 
 #### Command menu:
 - 0-9 keys = pressing these directly will do whatever has been configured in your ``config_buttons.h`` for them to do, or whatever is the default for that key  (see \# below)
@@ -667,13 +602,13 @@ mmmmmmmmm
 
 * 0 = FUNCTION_0 (DCC Lights)
 * 1 = FUNCTION_1 (DCC Bell)
-* 2 = FUNCTION_3 (DCC Horn/Whistle)
+* 2 = FUNCTION_2 (DCC Horn/Whistle)
 * 3 = FUNCTION_3
 * 4 = FUNCTION_4
-* 5 = NEXT_THROTLE
+* 5 = NEXT_THROTTLE
 * 6 = SPEED_MULTIPLIER
 * 7 = DIRECTION_REVERSE
-* 8 = SPEED_STOP
+* 8 = E_STOP
 * 9 = DIRECTION_FORWARD
 
 ### Allowed assignments for the 0-9 keys and/or Additional Buttons:
@@ -799,7 +734,7 @@ For **NEW_ADDITIONAL_BUTTON_TYPE**
 
   This has the general form ``NEW_ADDITIONAL_BUTTON_TYPE{val0, val1, .. val10, up-to-val11}``
 
-See additional information in [config_button_example.h](config_buttons_example.h).
+See additional information in [config_buttons_example.h](config_buttons_example.h).
 
 <hr style="height: 1px;">
 
@@ -1005,7 +940,7 @@ The project has begun an incremental refactor to separate newly introduced class
 * `UIState.*` – holds transient UI line buffers and flags (replaces many former global arrays / booleans with a struct).
 * `ThrottleManager.*` – consolidates speed, direction and multi‑throttle selection logic.
 * `BatteryMonitor.*` – encapsulates battery percentage / icon handling and low‑battery checks.
-* `PreferencesManager.*` – wraps ESP32 Preferences (NVS) access for restoring/saving acquired locomotives.
+* `ConfigStore.*` – persists Wi-Fi credentials, server settings, and per-loco settings as JSON in LittleFS.
 * `RenderModel.h` & `HeartbeatPresenter.h` – first presenter example (MVP style) building a model for the heartbeat check screen.
 
 Legacy global variables are still defined in `WiTcontroller.ino`, but many are now accessed via lightweight macros in `WiTcontroller.h` that map to the `UIState` instance (e.g. `oledText`, `menuIsShowing`). This keeps the public API stable for existing code while enabling progressive isolation and testability.
