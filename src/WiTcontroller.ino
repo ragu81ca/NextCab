@@ -374,7 +374,7 @@ void setup() {
 
   delay(1000);
   debug_println("Start"); 
-  debug_print("WiTcontroller - Version: "); debug_println(appVersion);
+  debug_print(appName); debug_print(" - Version: "); debug_println(appVersion);
 
   batteryMonitor.begin();
   // Initial battery service

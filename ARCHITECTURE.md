@@ -1,6 +1,6 @@
-# WiTcontroller Architecture Overview
+# NextCab Architecture Overview
 
-This document captures the evolving internal structure after recent refactors (heartbeat simplification and unified additional button input). It is aimed at contributors; end‑user setup remains in `README.md`.
+This document captures the evolving internal structure of NextCab after recent refactors (heartbeat simplification and unified additional button input). NextCab is a standalone fork of WiTcontroller; the upstream name is retained only where historical compatibility matters. This document is aimed at contributors; end-user setup remains in `README.md`.
 
 ---
 ## High-Level Flow

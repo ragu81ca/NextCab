@@ -1,6 +1,6 @@
-# WiTcontroller Refactor Architecture (Phase 1)
+# NextCab Refactor Architecture (Phase 1)
 
-This document describes the emerging modular architecture introduced to improve extensibility, testability and maintainability while preserving existing behaviour.
+This document describes the emerging modular architecture introduced in NextCab to improve extensibility, testability and maintainability while preserving the compatible WiThrottle behavior inherited from WiTcontroller.
 
 ## Goals
 
