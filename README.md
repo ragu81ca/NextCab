@@ -126,9 +126,11 @@ However, internal architecture and input handling have diverged significantly.
 
 ## Versioning
 
-NextCab uses independent semantic versioning starting from:
+NextCab uses independent semantic versioning. The current development release is:
 
-v0.1.0
+v0.2.0
+
+NextCab remains pre-1.0 and should be considered a work in progress. The version indicates project maturity and feature scope, not a promise of stable hardware support across every configuration.
 
 ## Prerequisites
 
@@ -366,7 +368,7 @@ pio test -e native_test
 
 ### Version Notes
 
-> Note: The version history below refers to the original WiTcontroller lineage. NextCab version numbers are independent and begin at v0.1.0.
+> Note: The version history below refers to the original WiTcontroller lineage. NextCab uses independent version numbers; its current development release is v0.2.0.
 
 <details>
 

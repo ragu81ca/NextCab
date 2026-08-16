@@ -2,7 +2,7 @@
 #include "../static.h"
 
 // Centralized definitions to avoid multiple definition errors
-const String appVersion = "v0.1.0";
+const String appVersion = "v0.2.0";
 #ifndef CUSTOM_APPNAME
 const String appName = "NextCab";
 #else

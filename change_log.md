@@ -1,5 +1,15 @@
 # Change Log
 
+## NextCab v0.2.0 (WIP)
+
+- Added Simulator Mode with software-managed momentum, locomotive profiles, braking behavior, and consist-aware acceleration.
+- Added automatic sound-function control for throttle effort, braking, and dynamic braking.
+- Added modular input, menu, network, storage, and rendering components under `src/core`.
+- Added ESP32-S3/TFT, Feather S3/Qwiic, persistent configuration, and native momentum-test support.
+- Renamed the user-facing application identity from WiTcontroller to NextCab while retaining WiThrottle compatibility.
+
+The historical WiTcontroller release history follows below.
+
 ### V1.93
 - Added define for DEFAULT_HEARTBEAT_PERIOD. Defaults to 10 seconds.  Only needed if the server does not send the period as it should.
 
