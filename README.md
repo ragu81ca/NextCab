@@ -30,11 +30,7 @@ It is more than a momentum setting. It is a software driving model that turns on
 
 When Simulator Mode is active, the main display shows power as a percentage and the simulated speed as a secondary reading. The screen also indicates momentum level and whether the train is braking or ramping toward its requested speed.
 
-Add a current OLED or TFT photograph here:
-
-<!-- Add the updated UI photo here, for example: images/screenshots/simulator_mode.jpg -->
-
-The image is intentionally a placeholder until a representative photo of the updated UI is available.
+![NextCab Simulator Mode UI](docs/NextCab-Simulator-UI.png)
 
 ---
 
