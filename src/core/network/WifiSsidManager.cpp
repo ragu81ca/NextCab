@@ -229,7 +229,6 @@ void WifiSsidManager::attemptConnect() {
 
 void WifiSsidManager::connectSelectedInternal() {
     // Migrate legacy connectSsid() body here (UI side-effects retained for now)
-    extern bool commandsNeedLeadingCrLf;
     extern WiThrottleConnectionManager connectionManager;
 
     debug_println("WifiSsidManager::connectSelectedInternal() start");
@@ -282,6 +281,7 @@ void WifiSsidManager::connectSelectedInternal() {
         renderer_->renderTitle(ws);
         renderer_->renderBattery();
         stateManager_->setState(SystemState::WifiConnected);
+        MDNS.end();
         if (!MDNS.begin(connectionManager.hostname().c_str())) {
             debug_println("Error setting up MDNS responder!");
             ws.body[1] = MSG_BOUNJOUR_SETUP_FAILED;

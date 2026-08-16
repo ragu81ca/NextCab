@@ -4,7 +4,10 @@
 
 - Added Simulator Mode with software-managed momentum, locomotive profiles, braking behavior, and consist-aware acceleration.
 - Added automatic sound-function control for throttle effort, braking, and dynamic braking.
-- Added modular input, menu, network, storage, and rendering components under `src/core`.
+- Reworked input handling around explicit input devices, events, modes, and focused handlers.
+- Reworked menus and selection screens around reusable models, renderers, and navigation handlers.
+- Standardized user-facing selection indexes and keypad mappings so visible choices are consistently 1-based while internal arrays remain safely 0-based.
+- Added modular menu, network, storage, and rendering components under `src/core`.
 - Added ESP32-S3/TFT, Feather S3/Qwiic, persistent configuration, and native momentum-test support.
 - Renamed the user-facing application identity from WiTcontroller to NextCab while retaining WiThrottle compatibility.
 
