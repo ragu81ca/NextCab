@@ -132,12 +132,12 @@
 // Uncomment this line to display the speeds as 0-28.
 // #define DISPLAY_SPEED_AS_0_TO_28         true
 
-// Simulator subdisplay speed (shown when momentum/simulator mode is active)
-// uses the configured units and conversion factor below.
-// false = MPH, true = KPH
+// Simulator subdisplay speed (shown when momentum/simulator mode is active).
+// false = MPH, true = KPH. Metric mode converts the configured MPH maximum
+// to KPH automatically.
 // #define SPEED_SCALE_METRIC_UNITS         false
-// DCC step 126 equals this scale speed value.
-// Example: 100 means full throttle maps to 100 MPH/KPH.
+// DCC step 126 equals this scale speed in MPH.
+// Example: 100 means full throttle maps to 100 MPH or approximately 161 KPH.
 // #define SPEED_SCALE_AT_MAX_STEP          100.0f
 
 // *******************************************************************************************************************

@@ -130,13 +130,20 @@ NextCab remains pre-1.0 and should be considered a work in progress. The version
 
 ## Prerequisites
 
-> NextCab includes experimental throttle-driven sound control and software-managed momentum. If you want to use those features, your sound decoder should be configured as follows:
->
-> 1. Automatic notching is **disabled**.
-> 2. Configure the locomotive's throttle-up, throttle-down, brake, and dynamic-brake sound functions in the loco configuration wizard, if those sounds are available.
-> 3. Decoder momentum is **disabled** (momentum is controlled by software).
->
-> Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Steam locomotives do not require throttle-up/down sound functions.
+### Recommended Simulator Mode Setup
+
+NextCab manages momentum and braking in the controller. For predictable operation, disable decoder momentum on every locomotive that will use Simulator Mode. Leaving decoder momentum enabled makes the controller's simulated acceleration and braking fight the decoder's own delay.
+
+Calibrate locomotives to a common speed reference before using them together. By default, NextCab interprets DCC speed step 126 as 100 scale mph. When metric units are configured, NextCab automatically displays the equivalent value, approximately 161 kph. A useful target is to adjust both passenger and freight locomotives so full throttle reaches that same scale speed. This gives the controller a consistent reference for the Simulator Mode speed display and makes locomotives behave more predictably when operated together.
+
+The loco configuration wizard lets you enter each locomotive's actual top speed in the selected scale units. NextCab converts that value to a DCC speed-step cap. In a consist, it applies the lowest cap among the selected locomotives, so a faster locomotive does not overrun a slower one. This is a protective cap, not automatic speed matching: physical calibration remains the best way to produce smooth consists.
+
+For sound-equipped locomotives, also:
+
+1. Disable automatic notching.
+2. Configure throttle-up, throttle-down, brake, and dynamic-brake sound functions in the loco configuration wizard when those sounds are available.
+
+Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Steam locomotives do not require throttle-up/down sound functions.
 
 1. Some basic soldering skills. Soldered wiring is recommended for a compact handheld controller.
 

@@ -298,8 +298,9 @@ extern const bool displayPowerAsPercentage; // defined in static.cpp
 // SPEED_SCALE_METRIC_UNITS:
 //   false = MPH
 //   true  = KPH
-// SPEED_SCALE_AT_MAX_STEP defines the scale speed represented by DCC step 126.
-// Example: 100 means step 126 is treated as 100 mph/kph.
+// SPEED_SCALE_AT_MAX_STEP defines the MPH scale speed represented by DCC step 126.
+// When metric units are enabled, it is converted to KPH automatically.
+// Example: 100 means step 126 is treated as 100 mph or approximately 161 kph.
 #ifndef SPEED_SCALE_METRIC_UNITS
    #define SPEED_SCALE_METRIC_UNITS false
 #endif
@@ -314,10 +315,16 @@ inline const char* speedUnitLabel() {
    return speedScaleMetricUnits ? "kph" : "mph";
 }
 
+inline float scaleSpeedAtMaxStep() {
+   constexpr float kMphToKph = 1.609344f;
+   float maxMph = (speedScaleAtMaxStep > 0.0f) ? speedScaleAtMaxStep : 100.0f;
+   return speedScaleMetricUnits ? maxMph * kMphToKph : maxMph;
+}
+
 inline int speedStepToScaleSpeed(int speedStepRaw) {
    if (speedStepRaw < 0) speedStepRaw = 0;
    if (speedStepRaw > 126) speedStepRaw = 126;
-   float maxScale = (speedScaleAtMaxStep > 0.0f) ? speedScaleAtMaxStep : 100.0f;
+   float maxScale = scaleSpeedAtMaxStep();
    return (int)(speedStepRaw * maxScale / 126.0f + 0.5f);
 }
 
@@ -351,7 +358,7 @@ inline int powerPctToDisplayValue(int powerPct) {
 
 inline int scaleSpeedToSpeedStep(int scaleSpeed) {
    if (scaleSpeed <= 0) return 0;
-   float maxScale = (speedScaleAtMaxStep > 0.0f) ? speedScaleAtMaxStep : 100.0f;
+   float maxScale = scaleSpeedAtMaxStep();
    int step = (int)(scaleSpeed * 126.0f / maxScale + 0.5f);
    if (step < 0) step = 0;
    if (step > 126) step = 126;
