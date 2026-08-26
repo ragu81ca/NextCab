@@ -332,9 +332,11 @@ pio test -e native_test
     * *U8g2lib.h* -  Search for "U8g2".   Install version 2.35.30 or later. <br/> (later versions should work, but go back to this 2.35.30 if you have problems.)
     * *AiEsp32RotaryEncoder.h* - search for "Ai Esp32 Rotary Encoder".  Install Version 1.6
     * *Keypad.h* - Search for "Keypad" by Mark Stanley.  Install version 3.1.1 or later. <br/> (later versions should work, but go back to this 3.1.1 if you have problems.)
-    * *WiThrottleProtocol.h* - Search for "WiThrottleProtocol" (not "WiThrottle").  Install the latest version available. <br/> (see *version notes* below for which versions of WiTcontroller require which versions of the library.)
+    * *WiThrottleProtocol.h* - Search for "WiThrottleProtocol" (not "WiThrottle").  Install the latest version available. <br/> (see *version notes* below for which versions of WiTcontroller require which versions of the library.) <br/> **NextCab note:** the Library Manager version does not yet include fixes needed for turnout state tracking (see below). PlatformIO builds pin a patched fork automatically; Arduino IDE users must install that fork manually instead.
     
       Note: <br/> **DO NOT** download these libraries *directly*. Use the *Library Manager*. <br/> **DO NOT** put them in the WiTcontroller folder.
+
+      **NextCab exception — WiThrottleProtocol:** NextCab requires a patched build of this library until the fixes are accepted upstream. Without it, turnouts will not toggle correctly: the server's turnout state broadcasts are either discarded or have the last character of the system name stripped. Download <https://github.com/ragu81ca/WiThrottleProtocol/tree/v1.1.27-nextcab.1> and install it manually in place of the Library Manager copy.
 
 5. These should have been automatically installed when you downloaded the esp32 boards. <br/> *YOU SHOULD NOT NEED TO DO ANYTHING SPECIFIC TO GET THESE*
     * *WiFi.h*  - https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFi
