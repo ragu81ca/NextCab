@@ -14,7 +14,6 @@ struct UIState {
 	int lastScreen=0;
 	String lastStringParam="";
 	bool lastBoolParam=false;
-	TurnoutAction lastTurnoutParam=TurnoutToggle;
 	bool directCommandsDisplayed=false;
 	bool hashShowsFunctions=false;
 

@@ -9,8 +9,7 @@ namespace MenuHandlers {
     void handleDropLoco(MenuContext& ctx);
     void handleToggleDirection(MenuContext& ctx);
     void handleSpeedStep(MenuContext& ctx);
-    void handleThrowPoint(MenuContext& ctx);
-    void handleClosePoint(MenuContext& ctx);
+    void handleToggleTurnout(MenuContext& ctx);
     void handleRoute(MenuContext& ctx);
     void handleTrackPower(MenuContext& ctx);
     void handleFunction(MenuContext& ctx);
@@ -29,8 +28,6 @@ namespace MenuHandlers {
     // List renderers
     void renderRosterList();
     void renderFunctionList();
-    void renderTurnoutListThrow();
-    void renderTurnoutListClose();
     void renderRouteList();
 }
 

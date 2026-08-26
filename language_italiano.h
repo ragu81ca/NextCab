@@ -162,6 +162,9 @@
 #ifndef MENU_ITEM_TEXT_TITLE_CLOSE_POINT
   #define MENU_ITEM_TEXT_TITLE_CLOSE_POINT              "Sc. Corretto"                                 // "Close Point"
 #endif
+#ifndef MENU_ITEM_TEXT_TITLE_TURNOUTS
+  #define MENU_ITEM_TEXT_TITLE_TURNOUTS                 "Scambi"                                       // "Turnouts"
+#endif
 #ifndef MENU_ITEM_TEXT_TITLE_ROUTE
   #define MENU_ITEM_TEXT_TITLE_ROUTE                    "Route"                                        // "Route"
 #endif

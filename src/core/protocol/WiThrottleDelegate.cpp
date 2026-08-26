@@ -115,6 +115,15 @@ void WiThrottleDelegate::receivedTurnoutEntry(int index, String sysName, String 
     renderer.receivingServerInfoOled(index, serverDataStore.turnoutListSize());
 }
 
+// Broadcast by the server whenever any throttle changes a turnout.
+void WiThrottleDelegate::receivedTurnoutAction(String systemName, TurnoutState state) {
+    noteServerActivity();
+    debug_print("Turnout state changed: '"); debug_print(systemName);
+    debug_print("' listIndex "); debug_print(serverDataStore.turnoutIndexBySysName(systemName));
+    debug_print(" -> state "); debug_println(state);
+    serverDataStore.setTurnoutStateBySysName(systemName, state);
+}
+
 void WiThrottleDelegate::receivedRouteEntries(int size) { 
     noteServerActivity();
     serverDataStore.setRouteListSize(size); 

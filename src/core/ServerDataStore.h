@@ -41,6 +41,11 @@ public:
     const String &turnoutUserName(int i) const;
     int           turnoutState(int i) const;
 
+    // Lookup by system name (e.g. "LT92") — used to track live state broadcasts
+    int  turnoutIndexBySysName(const String &sysName) const;   // -1 when not in the list
+    int  turnoutStateBySysName(const String &sysName) const;    // TurnoutUnknown when not in the list
+    void setTurnoutStateBySysName(const String &sysName, int state);
+
     // ── Routes ──────────────────────────────────────────────────────────
     int  routeListSize() const { return routeListSize_; }
     void setRouteListSize(int size);

@@ -63,7 +63,6 @@ extern int additionalButtonActions[];
 #define lastOledScreen uiState.lastScreen
 #define lastOledStringParameter uiState.lastStringParam
 #define lastOledBoolParameter uiState.lastBoolParam
-#define lastOledTurnoutParameter uiState.lastTurnoutParam
 
 // broadcast / server-info overlay state (migrated to UIState)
 #define broadcastMessageText uiState.broadcastMessageText

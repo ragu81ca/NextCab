@@ -10,8 +10,19 @@ extern ServerDataStore serverDataStore;
 extern InputManager inputManager;
 extern WiThrottleProtocol wiThrottleProtocol;
 
+void sendTurnoutToggle(const String &sysName) {
+    int idx   = serverDataStore.turnoutIndexBySysName(sysName);
+    int state = (idx < 0) ? TurnoutUnknown : serverDataStore.turnoutState(idx);
+    TurnoutAction action = (state == TurnoutThrown) ? TurnoutClose : TurnoutThrow;
+    debug_print("Turnout toggle: '"); debug_print(sysName);
+    debug_print("' listIndex "); debug_print(idx);
+    debug_print(" state "); debug_print(state);
+    debug_print(" -> action "); debug_println(action);
+    wiThrottleProtocol.setTurnout(sysName, action);
+}
+
 TurnoutSelectionHandler::TurnoutSelectionHandler(Renderer &renderer)
-    : PagedListHandler(renderer), action_(TurnoutThrow) {}
+    : PagedListHandler(renderer) {}
 
 void TurnoutSelectionHandler::configureScreen() {
     auto &s = screen();
@@ -22,19 +33,17 @@ void TurnoutSelectionHandler::configureScreen() {
 
     s.itemLabel = [this](int gi, bool & /*invert*/) -> String {
         int nameMax = renderer_.getLayout().turnoutNameMaxLength;
-        if (serverDataStore.turnoutUserName(gi).length() == 0) return "";
+        // Fall back to the system name, otherwise unnamed turnouts render as a blank
+        // row that is still selectable by its position.
         String name = serverDataStore.turnoutUserName(gi);
+        if (name.length() == 0) name = serverDataStore.turnoutSysName(gi);
         if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
         return name;
     };
 
-    // Capture action_ by value so the lambda is self-contained
-    TurnoutAction action = action_;
-    s.onSelect = [this, action](int index) {
+    s.onSelect = [this](int index) {
         if (index >= 0 && index < serverDataStore.turnoutListSize()) {
-            String turnout = serverDataStore.turnoutSysName(index);
-            debug_print("Turnout Selected: "); debug_println(turnout);
-            wiThrottleProtocol.setTurnout(turnout, action);
+            sendTurnoutToggle(serverDataStore.turnoutSysName(index));
             renderer_.renderSpeed();
             inputManager.setMode(InputMode::Operation);
         }

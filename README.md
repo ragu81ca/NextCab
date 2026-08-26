@@ -493,9 +493,10 @@ NextCab:
     - Showing of the roster function labels (from the WiThrottle server if provided)
     - Quick access to the functions by pressing #. Temporarily enabled via the Extras menu (or permanently enabled in config_button.h)
     - Limited ability to configure which functions are sent to the first or all locos in a consist (defined in config_button.h)
-  - Able to throw/close turnouts/points:
+  - Able to toggle turnouts/points between thrown and closed:
     - from the address
     - from the first 50 turnouts/points in the server list
+    - tracks the current state of each turnout, including changes made by other throttles
   - Able to activate routes:
     - from their address
     - from the first 50 routes in the server list
@@ -538,12 +539,11 @@ NextCab:
      - Otherwise followed directly by \#  to release all e.g. '\*2\#'
   - 3 = Toggle direction.
   - 4 = Set / Unset a 2 times multiplier for the rotary encoder dial.
-  - 5 = Throw turnout/point.  
-     - Followed by the turnout/point number, followed by the \# to complete.  e.g. Throw turnout XX12 '\*512\#'  (where XX is a prefix defined in the sketch) 
+  - 5 = Toggle turnout/point.
+     - Followed by the turnout/point number, followed by the \# to complete.  e.g. Toggle turnout XX12 '\*512\#'  (where XX is a prefix defined in the sketch)
      - or \# alone to show the list from the server   \# again will show the next page
-  - 6 = Close turnout.    
-     - Followed by the turnout/point number, followed by \# to complete.  e.g. Close turnout XX12 '\*612\#'  (where XX is a prefix defined in the sketch)
-     - or \# alone to show the list from the server
+     - The turnout is switched to the opposite of its last known state.  If that state is not known, it is thrown.
+     - **Note the two different numbers.**  When you type a number directly you are entering the turnout's *ID* on the server (its system name, minus any prefix).  The numbers shown down the left of the turnout *list* are simply the row positions on the current page, and they restart at 1 on every page.  They are not turnout IDs and will only coincide by chance.
   - 7 = Set Route.    
       - Followed by the Route number, followed by \# to complete.  e.g. to Set route XX:XX:0012 '\*60012\#'  (where \'XX:XX:\' is a prefix defined in the sketch)
       - or \# alone to show the list from the server   \# again will show the next page

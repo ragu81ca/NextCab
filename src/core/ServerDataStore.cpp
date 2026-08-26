@@ -111,6 +111,25 @@ int ServerDataStore::turnoutState(int i) const {
     return turnoutListState_[i];
 }
 
+int ServerDataStore::turnoutIndexBySysName(const String &sysName) const {
+    if (sysName.length() == 0) return -1;
+    for (int i = 0; i < turnoutListSize_ && i < MAX_TURNOUT_LIST; i++) {
+        if (turnoutListSysName_[i] == sysName) return i;
+    }
+    return -1;
+}
+
+int ServerDataStore::turnoutStateBySysName(const String &sysName) const {
+    int i = turnoutIndexBySysName(sysName);
+    return (i < 0) ? TurnoutUnknown : turnoutListState_[i];
+}
+
+void ServerDataStore::setTurnoutStateBySysName(const String &sysName, int state) {
+    int i = turnoutIndexBySysName(sysName);
+    if (i < 0) return;
+    turnoutListState_[i] = state;
+}
+
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 void ServerDataStore::setRouteListSize(int size) {

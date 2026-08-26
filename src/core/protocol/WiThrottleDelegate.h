@@ -66,6 +66,7 @@ public:
     void receivedRosterEntry(int index, String name, int address, char length) override;
     void receivedTurnoutEntries(int size) override;
     void receivedTurnoutEntry(int index, String sysName, String userName, int state) override;
+    void receivedTurnoutAction(String systemName, TurnoutState state) override;
     void receivedRouteEntries(int size) override;
     void receivedRouteEntry(int index, String sysName, String userName, int state) override;
     void addressStealNeeded(String address, String entry) override;

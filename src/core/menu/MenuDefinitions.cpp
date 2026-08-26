@@ -18,7 +18,6 @@ extern WiThrottleProtocol wiThrottleProtocol;
 extern ThrottleManager throttleManager;
 extern Renderer renderer;
 extern InputManager inputManager;
-extern TurnoutSelectionHandler turnoutSelectionHandler;
 extern ServerDataStore serverDataStore;
 extern LocoManager locoManager;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
@@ -70,24 +69,11 @@ namespace MenuHandlers {
         throttleManager.cycleSpeedStep();
     }
     
-    void handleThrowPoint(MenuContext& ctx) {
+    void handleToggleTurnout(MenuContext& ctx) {
         if (ctx.input.length() > 0) {
-            String turnout = serverDataStore.turnoutPrefix() + ctx.input;
-            wiThrottleProtocol.setTurnout(turnout, TurnoutThrow);
+            sendTurnoutToggle(serverDataStore.turnoutPrefix() + ctx.input);
         } else {
             // No input - show turnout list via InputManager
-            turnoutSelectionHandler.setAction(TurnoutThrow);
-            inputManager.setMode(InputMode::TurnoutSelection);
-        }
-    }
-    
-    void handleClosePoint(MenuContext& ctx) {
-        if (ctx.input.length() > 0) {
-            String turnout = serverDataStore.turnoutPrefix() + ctx.input;
-            wiThrottleProtocol.setTurnout(turnout, TurnoutClose);
-        } else {
-            // No input - show turnout list via InputManager
-            turnoutSelectionHandler.setAction(TurnoutClose);
             inputManager.setMode(InputMode::TurnoutSelection);
         }
     }
@@ -187,16 +173,6 @@ namespace MenuHandlers {
         inputManager.setMode(InputMode::FunctionSelection);
     }
     
-    void renderTurnoutListThrow() {
-        // Switch to TurnoutSelection mode which will render the list via onEnter
-        inputManager.setMode(InputMode::TurnoutSelection);
-    }
-    
-    void renderTurnoutListClose() {
-        // Switch to TurnoutSelection mode which will render the list via onEnter
-        inputManager.setMode(InputMode::TurnoutSelection);
-    }
-    
     void renderRouteList() {
         // Switch to RouteSelection mode which will render the list via onEnter
         inputManager.setMode(InputMode::RouteSelection);
@@ -264,11 +240,12 @@ namespace MenuDefinitions {
         MenuItem::action(4, "X SpeedStep", "N/A",
                         MenuHandlers::handleSpeedStep),
         
-        MenuItem::input(5, "Throw Point", "* Cancel  # List or Enter ID",
-                       MenuHandlers::handleThrowPoint),
+        MenuItem::input(5, "Turnouts", "* Cancel  # List or Turnout ID",
+                       MenuHandlers::handleToggleTurnout),
         
-        MenuItem::input(6, "Close Point", "* Cancel  # List or Enter ID",
-                       MenuHandlers::handleClosePoint),
+        // Placeholder: keypad digits map to array position, so this slot must stay
+        // occupied to keep Route/Power/Extras/Function on their existing keys.
+        MenuItem::action(6, "", "N/A", nullptr, []() { return false; }),
         
         MenuItem::input(7, "Route", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleRoute),

@@ -162,6 +162,9 @@
 #ifndef MENU_ITEM_TEXT_TITLE_CLOSE_POINT
   #define MENU_ITEM_TEXT_TITLE_CLOSE_POINT              "Weiche grad"                                   // "Close Point"
 #endif
+#ifndef MENU_ITEM_TEXT_TITLE_TURNOUTS
+  #define MENU_ITEM_TEXT_TITLE_TURNOUTS                 "Weichen"                                       // "Turnouts"
+#endif
 #ifndef MENU_ITEM_TEXT_TITLE_ROUTE
   #define MENU_ITEM_TEXT_TITLE_ROUTE                    "Route"                                         // "Route"
 #endif

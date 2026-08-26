@@ -22,8 +22,10 @@ void RouteSelectionHandler::configureScreen() {
 
     s.itemLabel = [this](int gi, bool & /*invert*/) -> String {
         int nameMax = renderer_.getLayout().routeNameMaxLength;
-        if (serverDataStore.routeUserName(gi).length() == 0) return "";
+        // Fall back to the system name, otherwise unnamed routes render as a blank
+        // row that is still selectable by its position.
         String name = serverDataStore.routeUserName(gi);
+        if (name.length() == 0) name = serverDataStore.routeSysName(gi);
         if (nameMax > 0 && (int)name.length() > nameMax) name = name.substring(0, nameMax);
         return name;
     };

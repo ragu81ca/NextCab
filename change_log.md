@@ -5,6 +5,8 @@
 - Added Simulator Mode with software-managed momentum, locomotive profiles, braking behavior, and consist-aware acceleration.
 - Added automatic sound-function control for throttle effort, braking, and dynamic braking.
 - Reworked input handling around explicit input devices, events, modes, and focused handlers.
+- Replaced the separate Throw Point and Close Point menu commands with a single Turnouts command that toggles a turnout between thrown and closed.
+- Turnout state is now tracked from server broadcasts, so changes made by other throttles are reflected locally.
 - Reworked menus and selection screens around reusable models, renderers, and navigation handlers.
 - Standardized user-facing selection indexes and keypad mappings so visible choices are consistently 1-based while internal arrays remain safely 0-based.
 - Added modular menu, network, storage, and rendering components under `src/core`.
