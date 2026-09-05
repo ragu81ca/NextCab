@@ -5,6 +5,20 @@
 #include <WiThrottleProtocol.h>
 #include "../../WiTcontroller.h"  // getMultiThrottleChar
 
+static int functionForRole(const LocoConfig &cfg, SoundRole role) {
+    switch (role) {
+        case SoundRole::ThrottleUp: return cfg.funcThrottleUp;
+        case SoundRole::ThrottleDown: return cfg.funcThrottleDown;
+        case SoundRole::BrakeSqueal: return cfg.funcBrakeSqueal;
+        case SoundRole::BrakeRelease: return cfg.funcBrakeRelease;
+        default: return -1;
+    }
+}
+
+static bool isStatefulBrakePair(const LocoConfig &cfg) {
+    return cfg.funcBrakeSqueal >= 0 && cfg.funcBrakeSqueal == cfg.funcBrakeRelease;
+}
+
 SoundController::SoundController() : throttleMgr_(nullptr), proto_(nullptr), locoMgr_(nullptr) {
     for (int i = 0; i < WIT_MAX_THROTTLES; i++) {
         for (int r = 0; r < ROLE_COUNT; r++) {
@@ -17,6 +31,9 @@ SoundController::SoundController() : throttleMgr_(nullptr), proto_(nullptr), loc
         lastNotchTime_[i] = 0;
         idleFlushRemaining_[i] = 0;
         dynamicBraking_[i] = false;
+        brakeActive_[i] = false;
+        brakeSquealTriggered_[i] = false;
+        brakedStop_[i] = false;
     }
 }
 
@@ -24,6 +41,11 @@ void SoundController::begin(ThrottleManager* throttleMgr, WiThrottleProtocol* pr
     throttleMgr_ = throttleMgr;
     proto_ = proto;
     locoMgr_ = locoMgr;
+    if (locoMgr_) {
+        locoMgr_->onLocoChanged([this](const LocoChangeEvent &event) {
+            onLocoChanged(event);
+        });
+    }
     Serial.println("[SoundController] Initialized - Diesel locomotive sound simulation");
 }
 
@@ -60,9 +82,12 @@ void SoundController::onBrakeStateChange(int throttle, bool braking) {
     Serial.print(" Brake: ");
     Serial.println(braking ? "APPLIED" : "RELEASED");
     
-    // Send brake function to each sound-enabled loco using its configured function
-    if (locoMgr_ && locoMgr_->hasSoundThrottle(throttle) && proto_) {
-        triggerBrakeSound(throttle, braking);
+    brakeActive_[throttle] = braking;
+    if (braking) {
+        brakeSquealTriggered_[throttle] = false;
+        brakedStop_[throttle] = false;
+    } else if (!brakedStop_[throttle]) {
+        brakeSquealTriggered_[throttle] = false;
     }
 }
 
@@ -85,16 +110,6 @@ void SoundController::onDynamicBrakeStateChange(int throttle, bool active) {
     // set the correct notch — no need to recalculate here.
     
     triggerDynamicBrakeSound(throttle, active);
-}
-
-void SoundController::triggerBrakeSound(int throttle, bool state) {
-    if (!locoMgr_ || !proto_) return;
-    char tChar = getMultiThrottleChar(throttle);
-    for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
-        if (cfg.funcBrake < 0) continue;
-        proto_->setFunction(tChar, cfg.address, cfg.funcBrake, state, true);
-        debugPrint(throttle, cfg.funcBrake, state ? "ON" : "OFF", "brake");
-    }
 }
 
 void SoundController::triggerDynamicBrakeSound(int throttle, bool state) {
@@ -130,6 +145,45 @@ void SoundController::onSpeedChange(int throttle, int oldSpeed, int newSpeed) {
         Serial.println(")");
         targetNotch_[throttle] = newTargetNotch;
     }
+
+    if (newSpeed > 0 && brakedStop_[throttle]) {
+        triggerFunction(throttle, SoundRole::BrakeRelease, "brake release");
+        brakedStop_[throttle] = false;
+        brakeSquealTriggered_[throttle] = false;
+    }
+}
+
+void SoundController::onActualSpeedChange(int throttle, int oldSpeed, int newSpeed) {
+    if (!config_.enabled || throttle < 0 || throttle >= WIT_MAX_THROTTLES) return;
+    if (!brakeActive_[throttle] || newSpeed >= oldSpeed) return;
+
+    if (!brakeSquealTriggered_[throttle] && newSpeed <= BRAKE_SQUEAL_SPEED) {
+        triggerFunction(throttle, SoundRole::BrakeSqueal, "brake squeal");
+        brakeSquealTriggered_[throttle] = true;
+    }
+    if (newSpeed == 0) brakedStop_[throttle] = true;
+}
+
+void SoundController::onLocoChanged(const LocoChangeEvent &event) {
+    if (!config_.enabled || !proto_ || event.address.length() == 0) return;
+    if (event.type == LocoChangeType::Acquired) {
+        triggerPrimeMover(event.throttleIndex, event.address, true);
+    } else if (event.type == LocoChangeType::Releasing) {
+        triggerPrimeMover(event.throttleIndex, event.address, false);
+    }
+}
+
+void SoundController::triggerPrimeMover(int throttle, const String &address, bool starting) {
+    if (!locoMgr_ || !proto_) return;
+    char tChar = getMultiThrottleChar(throttle);
+    for (const auto &cfg : locoMgr_->soundConfigs(throttle)) {
+        int function = starting ? cfg.funcPrimeMoverStart : cfg.funcPrimeMoverStop;
+        if (cfg.address != address || function < 0) continue;
+        bool sameFunction = cfg.funcPrimeMoverStart >= 0 && cfg.funcPrimeMoverStart == cfg.funcPrimeMoverStop;
+        proto_->setFunction(tChar, address, function, sameFunction ? starting : true, sameFunction);
+        debugPrint(throttle, function, sameFunction ? (starting ? "ON" : "OFF") : "PRESS", starting ? "prime start" : "prime stop");
+        return;
+    }
 }
 
 void SoundController::onDirectionChange(int throttle) {
@@ -148,19 +202,30 @@ void SoundController::triggerFunction(int throttle, SoundRole role, const char* 
     
     unsigned long now = millis();
     int ri = static_cast<int>(role);
+    bool pulsed = false;
     
     char tChar = getMultiThrottleChar(throttle);
     for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
-        int locoFunc = (role == SoundRole::ThrottleUp) ? cfg.funcThrottleUp : cfg.funcThrottleDown;
+        int locoFunc = functionForRole(cfg, role);
         if (locoFunc < 0) continue;
+
+        if (isStatefulBrakePair(cfg) && (role == SoundRole::BrakeSqueal || role == SoundRole::BrakeRelease)) {
+            bool state = (role == SoundRole::BrakeSqueal);
+            proto_->setFunction(tChar, cfg.address, locoFunc, state, true);
+            debugPrint(throttle, locoFunc, state ? "ON" : "OFF", reason);
+            continue;
+        }
+
         proto_->setFunction(tChar, cfg.address, locoFunc, true, true);
         debugPrint(throttle, locoFunc, "ON", reason);
+        pulsed = true;
     }
     
-    // Track pulse state for automatic OFF timing
-    rolePulseActive_[throttle][ri] = true;
-    rolePulseStart_[throttle][ri] = now;
-    lastRoleTime_[throttle][ri] = now;
+    if (pulsed) {
+        rolePulseActive_[throttle][ri] = true;
+        rolePulseStart_[throttle][ri] = now;
+        lastRoleTime_[throttle][ri] = now;
+    }
 }
 
 void SoundController::turnOffFunction(int throttle, SoundRole role) {
@@ -168,7 +233,8 @@ void SoundController::turnOffFunction(int throttle, SoundRole role) {
     
     char tChar = getMultiThrottleChar(throttle);
     for (const auto& cfg : locoMgr_->soundConfigs(throttle)) {
-        int locoFunc = (role == SoundRole::ThrottleUp) ? cfg.funcThrottleUp : cfg.funcThrottleDown;
+        if (isStatefulBrakePair(cfg) && (role == SoundRole::BrakeSqueal || role == SoundRole::BrakeRelease)) continue;
+        int locoFunc = functionForRole(cfg, role);
         if (locoFunc < 0) continue;
         proto_->setFunction(tChar, cfg.address, locoFunc, false, true);
     }

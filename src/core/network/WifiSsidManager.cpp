@@ -1,5 +1,6 @@
 #include "WifiSsidManager.h"
 #include "WiThrottleConnectionManager.h"
+#include "ServerSettingsManager.h"
 #include "../storage/ConfigStore.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -15,6 +16,7 @@
 // Remaining globals that are truly app-wide and written by many consumers
 extern int ssidSelectionSource;
 extern ServerDataStore serverDataStore;
+extern ServerSettingsManager serverSettingsManager;
 
 void WifiSsidManager::begin(SystemStateManager& stateManager,
                Renderer& renderer,
@@ -207,8 +209,7 @@ void WifiSsidManager::getSsidPasswordAndMetadataForFound() {
             // Mirror legacy heuristic: Set default WiT server IP:Port when connecting to DCC-EX AP
             extern WiThrottleConnectionManager connectionManager;
             connectionManager.ipAndPortEntered() = "19216800400102560"; // 192.168.4.1:2560 compressed
-            serverDataStore.setTurnoutPrefix(DCC_EX_TURNOUT_PREFIX);
-            serverDataStore.setRoutePrefix(DCC_EX_ROUTE_PREFIX);
+            serverSettingsManager.applyDccExDefaults();
             debug_println("getSsidPasswordAndMetadataForFound() Using guessed DCC-EX password & defaults");
         } else {
             selectedSsidPasswordStr = "";

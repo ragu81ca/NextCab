@@ -14,10 +14,12 @@ class ServerDataStore;
 class Renderer;
 class UIState;
 class WiThrottleConnectionManager;
+class ServerSettingsManager;
 
 /// What kind of change occurred to a throttle's loco roster.
 enum class LocoChangeType {
     Acquired,       ///< A loco was added (roster select, manual entry, steal, restore)
+    Releasing,      ///< A loco is still addressable but about to be released
     Released,       ///< A loco was removed
 };
 
@@ -38,7 +40,8 @@ public:
     /// Call once during setup() after all dependencies are constructed.
     void begin(WiThrottleProtocol *proto, ThrottleManager *throttle,
                ServerDataStore *dataStore, Renderer *renderer, UIState *uiState,
-               ConfigStore *configStore, WiThrottleConnectionManager *connMgr);
+               ConfigStore *configStore, WiThrottleConnectionManager *connMgr,
+               ServerSettingsManager *serverSettings);
 
     // ── Acquire ─────────────────────────────────────────────────────────
     /// Add a loco to a throttle.  Handles drop-before-acquire, requests
@@ -66,10 +69,6 @@ public:
     bool  dropBeforeAcquire() const { return dropBeforeAcquire_; }
     void  setDropBeforeAcquire(bool v) { dropBeforeAcquire_ = v; }
     void  toggleDropBeforeAcquire();
-
-    // ── Server type (DCC-EX, etc.) ──────────────────────────────────────
-    const String &serverType() const { return serverType_; }
-    void setServerType(const String &t) { serverType_ = t; }
 
     // ── Loco persistence (save/restore acquired locos per server) ───────
     void restoreLocos();
@@ -103,9 +102,9 @@ private:
     UIState                     *uiState_  = nullptr;
     ConfigStore                 *configStore_ = nullptr;
     WiThrottleConnectionManager *connMgr_  = nullptr;
+    ServerSettingsManager       *serverSettings_ = nullptr;
 
     bool   dropBeforeAcquire_ = true;
-    String serverType_;
     bool   locosRestoredForCurrentServer_ = false;
     bool   restoringLocos_ = false;  // suppress auto-save during restore
 

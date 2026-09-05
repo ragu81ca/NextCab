@@ -488,6 +488,16 @@ TEST_F(MomentumTest, SpeedChange_NotifiesSound) {
     EXPECT_EQ(stubSound.lastNewSpeed, 50);
 }
 
+TEST_F(MomentumTest, ActualSpeedChange_NotifiesSound) {
+    mc.setMomentumLevel(0, MomentumLevel::Medium);
+    mc.setTargetSpeed(0, 50);
+    runFor(0, 1000);
+
+    EXPECT_GT(stubSound.actualSpeedChangeCallCount, 0);
+    EXPECT_EQ(stubSound.lastActualSpeedThrottle, 0);
+    EXPECT_GT(stubSound.lastActualNewSpeed, stubSound.lastActualOldSpeed);
+}
+
 // ============================================================================
 // Direction change safety
 // ============================================================================

@@ -48,6 +48,10 @@ struct ServerConfig {
     int port = 0;           // last-known port
     String turnoutPrefix;
     String routePrefix;
+    // Distinguishes "user set this" from "never configured" — an empty string is a
+    // legitimate setting, so absence is tracked separately.
+    bool turnoutPrefixSet = false;
+    bool routePrefixSet   = false;
     // Per-throttle loco addresses in WiThrottle format ("L1234" or "S3").
     // throttleLocos[i] = list of locos acquired on throttle i.
     std::vector<std::vector<String>> throttleLocos;
@@ -70,8 +74,11 @@ struct LocoConfig {
     int    maxSpeedStep   = 126;  // 0..126; caps this loco's top speed in consists
     int    funcThrottleUp   = -1; // -1 = not configured
     int    funcThrottleDown = -1;
-    int    funcBrake        = -1;
+    int    funcBrakeSqueal  = -1;
+    int    funcBrakeRelease = -1;
     int    funcDynamicBrake  = -1; // dynamic brake sound function (hold-to-slow)
+    int    funcPrimeMoverStart = -1;
+    int    funcPrimeMoverStop  = -1;
 };
 
 class ConfigStore {

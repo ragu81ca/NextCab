@@ -8,6 +8,7 @@
 #include "UIState.h"
 #include "storage/ConfigStore.h"
 #include "network/WiThrottleConnectionManager.h"
+#include "network/ServerSettingsManager.h"
 #include "../../WiTcontroller.h"   // getMultiThrottleChar/Index, SHORT_DCC_ADDRESS_LIMIT, etc.
 #include "../../static.h"          // DIRECTION_REVERSE_INDICATOR
 #include "protocol/WiThrottleDelegate.h" // debug_print/debug_println macros
@@ -18,7 +19,8 @@ const std::vector<LocoConfig> LocoManager::emptyConfigs_;
 
 void LocoManager::begin(WiThrottleProtocol *proto, ThrottleManager *throttle,
                          ServerDataStore *dataStore, Renderer *renderer, UIState *uiState,
-                         ConfigStore *configStore, WiThrottleConnectionManager *connMgr) {
+                         ConfigStore *configStore, WiThrottleConnectionManager *connMgr,
+                         ServerSettingsManager *serverSettings) {
     proto_       = proto;
     throttle_    = throttle;
     dataStore_   = dataStore;
@@ -26,6 +28,7 @@ void LocoManager::begin(WiThrottleProtocol *proto, ThrottleManager *throttle,
     uiState_     = uiState;
     configStore_ = configStore;
     connMgr_     = connMgr;
+    serverSettings_ = serverSettings;
 
     // Self-register sound config cache as a loco-changed listener
     onLocoChanged([this](const LocoChangeEvent &e) { handleLocoChanged(e); });
@@ -61,6 +64,7 @@ void LocoManager::releaseAllLocos(int throttleIndex) {
     }
     if (numLocos > 0) {
         for (auto &addr : released) {
+            notifyLocoChanged({throttleIndex, LocoChangeType::Releasing, addr});
             proto_->releaseLocomotive(tChar, addr);
             renderer_->renderSpeed();
         }
@@ -76,6 +80,7 @@ void LocoManager::releaseAllLocos(int throttleIndex) {
 void LocoManager::releaseOneLoco(int throttleIndex, const String &loco) {
     debug_print("releaseOneLoco(): "); debug_print(throttleIndex); debug_print(": "); debug_println(loco);
     char tChar = getMultiThrottleChar(throttleIndex);
+    notifyLocoChanged({throttleIndex, LocoChangeType::Releasing, loco});
     proto_->releaseLocomotive(tChar, loco);
     throttle_->resetFunctionLabels(throttleIndex);
     throttle_->momentum().emergencyStop(throttleIndex);
@@ -90,6 +95,7 @@ void LocoManager::releaseOneLocoByIndex(int throttleIndex, int index) {
     String loco;
     if (index <= proto_->getNumberOfLocomotives(tChar)) {
         loco = proto_->getLocomotiveAtPosition(tChar, index);
+        notifyLocoChanged({throttleIndex, LocoChangeType::Releasing, loco});
         proto_->releaseLocomotive(tChar, loco);
         throttle_->resetFunctionLabels(throttleIndex);
         throttle_->momentum().emergencyStop(throttleIndex);
@@ -167,7 +173,7 @@ String LocoManager::getLocoWithLength(const String &loco) {
     String locoWithLength = "";
     if ((locoNo > SHORT_DCC_ADDRESS_LIMIT)
         || ((locoNo <= SHORT_DCC_ADDRESS_LIMIT) && (loco.charAt(0) == '0')
-            && (!serverType_.equals("DCC-EX")))) {
+            && (!(serverSettings_ && serverSettings_->serverType().equals("DCC-EX"))))) {
         locoWithLength = "L" + loco;
     } else {
         locoWithLength = "S" + loco;
@@ -203,10 +209,6 @@ void LocoManager::restoreLocos() {
 
     ServerConfig cfg = configStore_->findServerConfig(name);
 
-    // Apply turnout/route prefixes if stored (DCC-EX heuristic may override later)
-    if (cfg.turnoutPrefix.length() > 0) dataStore_->setTurnoutPrefix(cfg.turnoutPrefix);
-    if (cfg.routePrefix.length() > 0)   dataStore_->setRoutePrefix(cfg.routePrefix);
-
     // Restore locos
     for (int t = 0; t < (int)cfg.throttleLocos.size() && t < throttle_->getMaxThrottles(); t++) {
         char throttleChar = '0' + t;
@@ -240,15 +242,15 @@ void LocoManager::saveLocos() {
     String name = connMgr_->selectedName();
     if (name.length() == 0) return;
 
-    ServerConfig cfg;
+    // Read-modify-write: saveServer replaces the stored entry wholesale, so the
+    // server's own settings must be carried forward untouched.
+    ServerConfig cfg   = configStore_->findServerConfig(name);
     cfg.name           = name;
     cfg.host           = connMgr_->selectedIP().toString();
     cfg.port           = connMgr_->selectedPort();
-    cfg.turnoutPrefix  = dataStore_->turnoutPrefix();
-    cfg.routePrefix    = dataStore_->routePrefix();
 
     int maxT = throttle_->getMaxThrottles();
-    cfg.throttleLocos.resize(maxT);
+    cfg.throttleLocos.assign(maxT, std::vector<String>());
     for (int t = 0; t < maxT; t++) {
         char throttleChar = '0' + t;
         int numLocos = proto_->getNumberOfLocomotives(throttleChar);
@@ -281,6 +283,8 @@ void LocoManager::notifyLocoChanged(const LocoChangeEvent &event) {
 void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
     int t = event.throttleIndex;
     if (t < 0 || t >= WIT_MAX_THROTTLES) return;
+
+    if (event.type == LocoChangeType::Releasing) return;
 
     // Auto-save locos whenever the roster changes (skip during restore to
     // avoid N redundant writes of the data we just loaded).
@@ -323,7 +327,7 @@ void LocoManager::handleLocoChanged(const LocoChangeEvent &event) {
             Serial.printf("[Locos] T%d: sound throttle enabled for %s\n",
                           t, event.address.c_str());
         }
-    } else {  // Released
+    } else if (event.type == LocoChangeType::Released) {
         auto &vec = soundConfigs_[t];
         vec.erase(
             std::remove_if(vec.begin(), vec.end(),

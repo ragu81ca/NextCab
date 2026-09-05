@@ -195,11 +195,18 @@ void LocoConfigWizardHandler::setupStep(Step step) {
                     textScreen_.inputText = String(cfg_.funcThrottleDown);
                 break;
 
-            case Step::FuncBrake:
+            case Step::FuncBrakeSqueal:
                 textScreen_.promptLine1 = cfg_.address;
-                textScreen_.promptLine2 = "Brake Sound F#";
-                if (cfg_.funcBrake >= 0)
-                    textScreen_.inputText = String(cfg_.funcBrake);
+                textScreen_.promptLine2 = "Brake Squeal F#";
+                if (cfg_.funcBrakeSqueal >= 0)
+                    textScreen_.inputText = String(cfg_.funcBrakeSqueal);
+                break;
+
+            case Step::FuncBrakeRelease:
+                textScreen_.promptLine1 = cfg_.address;
+                textScreen_.promptLine2 = "Brake Release F#";
+                if (cfg_.funcBrakeRelease >= 0)
+                    textScreen_.inputText = String(cfg_.funcBrakeRelease);
                 break;
 
             case Step::FuncDynamicBrake:
@@ -207,6 +214,20 @@ void LocoConfigWizardHandler::setupStep(Step step) {
                 textScreen_.promptLine2 = "Dynamic Brake F#";
                 if (cfg_.funcDynamicBrake >= 0)
                     textScreen_.inputText = String(cfg_.funcDynamicBrake);
+                break;
+
+            case Step::FuncPrimeMoverStart:
+                textScreen_.promptLine1 = cfg_.address;
+                textScreen_.promptLine2 = "Prime Start F#";
+                if (cfg_.funcPrimeMoverStart >= 0)
+                    textScreen_.inputText = String(cfg_.funcPrimeMoverStart);
+                break;
+
+            case Step::FuncPrimeMoverStop:
+                textScreen_.promptLine1 = cfg_.address;
+                textScreen_.promptLine2 = "Prime Stop F#";
+                if (cfg_.funcPrimeMoverStop >= 0)
+                    textScreen_.inputText = String(cfg_.funcPrimeMoverStop);
                 break;
 
             default:
@@ -262,7 +283,7 @@ void LocoConfigWizardHandler::advanceFromTextInput() {
             if (cfg_.locoType == LocoType::Steam) {
                 cfg_.funcThrottleUp = -1;
                 cfg_.funcThrottleDown = -1;
-                setupStep(Step::FuncBrake);
+                setupStep(Step::FuncBrakeSqueal);
             } else {
                 setupStep(Step::FuncThrottleUp);
             }
@@ -276,16 +297,31 @@ void LocoConfigWizardHandler::advanceFromTextInput() {
 
         case Step::FuncThrottleDown:
             cfg_.funcThrottleDown = funcNum;
-            setupStep(Step::FuncBrake);
+            setupStep(Step::FuncBrakeSqueal);
             break;
 
-        case Step::FuncBrake:
-            cfg_.funcBrake = funcNum;
+        case Step::FuncBrakeSqueal:
+            cfg_.funcBrakeSqueal = funcNum;
+            setupStep(Step::FuncBrakeRelease);
+            break;
+
+        case Step::FuncBrakeRelease:
+            cfg_.funcBrakeRelease = funcNum;
             setupStep(Step::FuncDynamicBrake);
             break;
 
         case Step::FuncDynamicBrake:
             cfg_.funcDynamicBrake = funcNum;
+            setupStep(Step::FuncPrimeMoverStart);
+            break;
+
+        case Step::FuncPrimeMoverStart:
+            cfg_.funcPrimeMoverStart = funcNum;
+            setupStep(Step::FuncPrimeMoverStop);
+            break;
+
+        case Step::FuncPrimeMoverStop:
+            cfg_.funcPrimeMoverStop = funcNum;
             finish();
             break;
 
@@ -301,7 +337,9 @@ void LocoConfigWizardHandler::advanceFromTextInput() {
 void LocoConfigWizardHandler::finish() {
     // Derive soundThrottle from whether any function is configured
     cfg_.soundThrottle = (cfg_.funcThrottleUp >= 0 || cfg_.funcThrottleDown >= 0 ||
-                          cfg_.funcBrake >= 0 || cfg_.funcDynamicBrake >= 0);
+                          cfg_.funcBrakeSqueal >= 0 || cfg_.funcBrakeRelease >= 0 ||
+                          cfg_.funcDynamicBrake >= 0 || cfg_.funcPrimeMoverStart >= 0 ||
+                          cfg_.funcPrimeMoverStop >= 0);
 
     // Persist to flash
     configStore_.saveLocoConfig(cfg_);

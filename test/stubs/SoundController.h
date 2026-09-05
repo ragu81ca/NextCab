@@ -25,6 +25,13 @@ public:
         speedChangeCallCount++;
     }
 
+    void onActualSpeedChange(int throttle, int oldSpeed, int newSpeed) {
+        lastActualSpeedThrottle = throttle;
+        lastActualOldSpeed = oldSpeed;
+        lastActualNewSpeed = newSpeed;
+        actualSpeedChangeCallCount++;
+    }
+
     void onPowerLevelChange(int throttle, int powerPercent) {
         lastPowerThrottle = throttle;
         lastPowerPercent = powerPercent;
@@ -47,6 +54,11 @@ public:
     int lastOldSpeed = -1;
     int lastNewSpeed = -1;
     int speedChangeCallCount = 0;
+
+    int lastActualSpeedThrottle = -1;
+    int lastActualOldSpeed = -1;
+    int lastActualNewSpeed = -1;
+    int actualSpeedChangeCallCount = 0;
 
     int lastPowerThrottle = -1;
     int lastPowerPercent = -1;

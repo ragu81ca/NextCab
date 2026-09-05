@@ -387,6 +387,11 @@ void MomentumController::updatePhysics(int throttle, float dtSeconds) {
     }
     
     actualSpeed_[throttle] = newSpeed;
+    int oldRoundedSpeed = (int)round(speed);
+    int newRoundedSpeed = (int)round(newSpeed);
+    if (soundCtrl_ && oldRoundedSpeed != newRoundedSpeed) {
+        soundCtrl_->onActualSpeedChange(throttle, oldRoundedSpeed, newRoundedSpeed);
+    }
 }
 
 // Acceleration rates (speed units per second) at full power from a standstill.

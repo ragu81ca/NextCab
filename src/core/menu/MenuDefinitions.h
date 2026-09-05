@@ -10,6 +10,7 @@ namespace MenuHandlers {
     void handleToggleDirection(MenuContext& ctx);
     void handleSpeedStep(MenuContext& ctx);
     void handleToggleTurnout(MenuContext& ctx);
+    void handleServerConfig(MenuContext& ctx);
     void handleRoute(MenuContext& ctx);
     void handleTrackPower(MenuContext& ctx);
     void handleFunction(MenuContext& ctx);

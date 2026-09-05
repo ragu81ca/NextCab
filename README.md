@@ -141,9 +141,9 @@ The loco configuration wizard lets you enter each locomotive's actual top speed 
 For sound-equipped locomotives, also:
 
 1. Disable automatic notching.
-2. Configure throttle-up, throttle-down, brake, and dynamic-brake sound functions in the loco configuration wizard when those sounds are available.
+2. Configure throttle-up, throttle-down, brake squeal, brake release, dynamic-brake, and prime-mover sound functions in the loco configuration wizard when those sounds are available.
 
-Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Steam locomotives do not require throttle-up/down sound functions.
+Sound-function numbers are stored per locomotive. Leave a function unset when a decoder does not provide that sound. Brake squeal is pulsed once while a braked train slows through the low-speed range. Brake release is pulsed when power is next requested after a braked stop. Prime mover is sent as a normal function press when a locomotive is acquired and released, so a decoder's configured toggle function can start and stop the sound. Steam locomotives skip only the throttle-up/down sound functions.
 
 1. Some basic soldering skills. Soldered wiring is recommended for a compact handheld controller.
 

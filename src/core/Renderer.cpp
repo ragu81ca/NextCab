@@ -50,8 +50,9 @@ void Renderer::renderNewMenu(MenuSystem& menuSys) {
 	if (isInputMode) {
 		// Use the proper TextInputScreen rendering (centred text + blinking caret)
 		TextInputScreen &scr = menuSys.inputScreen();
+		String prefix = currentItem->inputPrefix ? currentItem->inputPrefix() : String();
 		scr.promptLine1 = currentItem->title;      // e.g. "Add Loco"
-		scr.inputText   = input;
+		scr.inputText   = prefix + input;
 		scr.footerText  = currentItem->instructions; // e.g. "# End * Cancel"
 		scr.highlightPos = -1; // blinking cursor
 		renderTextInput(scr);

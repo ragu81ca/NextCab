@@ -1,13 +1,20 @@
 # Change Log
 
-## NextCab v0.2.0 (WIP)
+## NextCab v0.2.1
+
+- Added per-locomotive sound automations for prime mover start/stop, brake squeal, and brake release; matching function numbers are treated as ON/OFF pairs.
+- Fixed saved loco restore state so acquired locos are replaced with the current throttle roster instead of being appended forever.
+- Replaced the separate Throw Point and Close Point menu commands with a single Turnouts command that toggles a turnout between thrown and closed.
+- Turnout state is now tracked from server broadcasts, so changes made by other throttles are reflected locally.
+- Turnout and route lists now fall back to showing the system name when the server supplies no description, instead of leaving the row blank.
+- The turnout and route ID entry screens now show the configured system name prefix ahead of the typed digits, so the full name being sent is visible. The prefix is display-only and cannot be edited.
+- Pinned a patched fork of WiThrottleProtocol (v1.1.27-nextcab.1) that fixes turnout and route state broadcasts being discarded or having their system names truncated. Arduino IDE users must install this fork manually; see the README.
+
+## NextCab v0.2.0
 
 - Added Simulator Mode with software-managed momentum, locomotive profiles, braking behavior, and consist-aware acceleration.
 - Added automatic sound-function control for throttle effort, braking, and dynamic braking.
 - Reworked input handling around explicit input devices, events, modes, and focused handlers.
-- Replaced the separate Throw Point and Close Point menu commands with a single Turnouts command that toggles a turnout between thrown and closed.
-- Turnout state is now tracked from server broadcasts, so changes made by other throttles are reflected locally.
-- Pinned a patched fork of WiThrottleProtocol (v1.1.27-nextcab.1) that fixes turnout and route state broadcasts being discarded or having their system names truncated.
 - Reworked menus and selection screens around reusable models, renderers, and navigation handlers.
 - Standardized user-facing selection indexes and keypad mappings so visible choices are consistently 1-based while internal arrays remain safely 0-based.
 - Added modular menu, network, storage, and rendering components under `src/core`.

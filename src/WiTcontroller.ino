@@ -66,6 +66,8 @@ BatteryMonitor batteryMonitor;
 #include "core/input/EditConsistSelectionHandler.h"
 #include "core/input/SystemActionHandler.h"
 #include "core/input/LocoConfigWizardHandler.h"
+#include "core/input/ServerConfigWizardHandler.h"
+#include "core/network/ServerSettingsManager.h"
 #include "core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
 #include "core/network/WiThrottleConnectionManager.h"
 #include "core/menu/MenuSystem.h"
@@ -85,6 +87,7 @@ LocoManager locoManager;         // loco acquisition, release, consist managemen
 Renderer renderer(displayDriver, activeLayout, activeFonts); // display-agnostic renderer
 MenuSystem menuSystem;           // New table-driven menu system
 WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/connection
+ServerSettingsManager serverSettingsManager;   // per-server settings (type, prefixes)
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
 bool menuCommandStarted = false;
@@ -131,6 +134,7 @@ DropLocoSelectionHandler dropLocoSelectionHandler(renderer);
 EditConsistSelectionHandler editConsistSelectionHandler(renderer);
 SystemActionHandler systemActionHandler(throttleManager, renderer, batteryMonitor, wiThrottleProtocol);
 LocoConfigWizardHandler locoConfigWizardHandler(throttleManager, inputManager, renderer, configStore, locoManager);
+ServerConfigWizardHandler serverConfigWizardHandler(inputManager, renderer, serverDataStore, serverSettingsManager);
 
 // server variables
 // bool ssidConnected = false;
@@ -403,7 +407,8 @@ void setup() {
   // Function arrays + speed/direction initialized inside throttleManager.begin()
   throttleManager.begin(&wiThrottleProtocol);
   locoManager.begin(&wiThrottleProtocol, &throttleManager, &serverDataStore, &renderer, &uiState,
-                    &configStore, &connectionManager);
+                    &configStore, &connectionManager, &serverSettingsManager);
+  serverSettingsManager.begin(&configStore, &serverDataStore, &connectionManager);
   throttleManager.sound().begin(&throttleManager, &wiThrottleProtocol, &locoManager);
   locoManager.setDropBeforeAcquire(DROP_BEFORE_ACQUIRE);
   uiState.functionPage = 0;
@@ -420,6 +425,7 @@ void setup() {
   inputManager.setDropLocoSelectionHandler(&dropLocoSelectionHandler);
   inputManager.setEditConsistHandler(&editConsistSelectionHandler);
   inputManager.setLocoConfigWizardHandler(&locoConfigWizardHandler);
+  inputManager.setServerConfigHandler(&serverConfigWizardHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::WifiSelection); // Start with WiFi selection at boot
   

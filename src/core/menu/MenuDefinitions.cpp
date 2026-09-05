@@ -12,6 +12,7 @@
 #include "../input/TurnoutSelectionHandler.h"
 #include "../SystemState.h"
 #include "../network/WiThrottleConnectionManager.h"
+#include "../network/ServerSettingsManager.h"
 
 // External dependencies
 extern WiThrottleProtocol wiThrottleProtocol;
@@ -23,6 +24,7 @@ extern LocoManager locoManager;
 extern bool hashShowsFunctionsInsteadOfKeyDefs;
 extern HeartbeatMonitor heartbeatMonitor;
 extern WiThrottleConnectionManager connectionManager;
+extern ServerSettingsManager serverSettingsManager;
 extern TrackPower trackPower;
 
 // Forward declarations from main sketch
@@ -78,8 +80,11 @@ namespace MenuHandlers {
         }
     }
     
-    void handleRoute(MenuContext& ctx) {
-        if (ctx.input.length() > 0) {
+    void handleServerConfig(MenuContext& ctx) {
+        inputManager.setMode(InputMode::ServerConfig);
+    }
+    
+    void handleRoute(MenuContext& ctx) {        if (ctx.input.length() > 0) {
             String route = serverDataStore.routePrefix() + ctx.input;
             wiThrottleProtocol.setRoute(route);
         } else {
@@ -144,6 +149,7 @@ namespace MenuHandlers {
     void handleDisconnect(MenuContext& ctx) {
         if (systemStateManager.isOperating()) {
             locoManager.resetRestoreGuard();
+            serverSettingsManager.reset();
             systemStateManager.setState(SystemState::WifiConnected);
             connectionManager.disconnect();
         }
@@ -241,14 +247,18 @@ namespace MenuDefinitions {
                         MenuHandlers::handleSpeedStep),
         
         MenuItem::input(5, "Turnouts", "* Cancel  # List or Turnout ID",
-                       MenuHandlers::handleToggleTurnout),
+                       MenuHandlers::handleToggleTurnout,
+                       nullptr,
+                       []() { return serverDataStore.turnoutPrefix(); }),
         
-        // Placeholder: keypad digits map to array position, so this slot must stay
-        // occupied to keep Route/Power/Extras/Function on their existing keys.
-        MenuItem::action(6, "", "N/A", nullptr, []() { return false; }),
+        MenuItem::action(6, "Server Cfg", "N/A",
+                        MenuHandlers::handleServerConfig,
+                        []() { return systemStateManager.isOperating(); }),
         
         MenuItem::input(7, "Route", "* Cancel  # List or Enter ID",
-                       MenuHandlers::handleRoute),
+                       MenuHandlers::handleRoute,
+                       nullptr,
+                       []() { return serverDataStore.routePrefix(); }),
         
         MenuItem::action(8, "Track Power", "N/A",
                         MenuHandlers::handleTrackPower),

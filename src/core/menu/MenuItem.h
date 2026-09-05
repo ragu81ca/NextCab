@@ -36,6 +36,10 @@ struct MenuItem {
     // Optional guard: if set and returns false, item is shown as disabled
     // and cannot be selected. Evaluated at render time.
     std::function<bool()> enabledCheck;
+
+    // Display-only prefix shown ahead of the typed value on TEXT_INPUT screens.
+    // Never part of the input buffer, so it cannot be backspaced away.
+    std::function<String()> inputPrefix;
     
     // Check if the item is currently enabled (default: always enabled)
     bool isEnabled() const { return !enabledCheck || enabledCheck(); }
@@ -51,7 +55,8 @@ struct MenuItem {
     
     static MenuItem input(uint8_t id, const char* title, const char* instructions,
                          std::function<void(MenuContext&)> handler,
-                         std::function<bool()> enabled = nullptr);
+                         std::function<bool()> enabled = nullptr,
+                         std::function<String()> inputPrefix = nullptr);
     
     static MenuItem list(uint8_t id, const char* title, const char* instructions,
                         std::function<void(MenuContext&)> handler,

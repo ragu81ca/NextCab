@@ -19,7 +19,8 @@ MenuItem MenuItem::action(uint8_t id, const char* title, const char* instruction
 
 MenuItem MenuItem::input(uint8_t id, const char* title, const char* instructions,
                         std::function<void(MenuContext&)> handler,
-                        std::function<bool()> enabled) {
+                        std::function<bool()> enabled,
+                        std::function<String()> inputPrefix) {
     MenuItem item;
     item.id = id;
     item.title = title;
@@ -28,6 +29,7 @@ MenuItem MenuItem::input(uint8_t id, const char* title, const char* instructions
     item.handler = handler;
     item.listRenderer = nullptr;
     item.enabledCheck = enabled;
+    item.inputPrefix = inputPrefix;
     item.submenuItems = nullptr;
     item.submenuCount = 0;
     return item;

@@ -7,6 +7,7 @@
 class ThrottleManager;
 class LocoManager;
 class WiThrottleProtocol;
+struct LocoChangeEvent;
 
 // Sound events that can trigger sound functions
 enum class SoundEvent {
@@ -25,7 +26,9 @@ static constexpr int8_t SOUND_FUNC_NOT_SET = -1;
 enum class SoundRole : uint8_t {
     ThrottleUp = 0,   // notch up (pulsed)
     ThrottleDown = 1, // notch down (pulsed)
-    ROLE_COUNT = 2
+    BrakeSqueal = 2,  // low-speed stopping cue
+    BrakeRelease = 3, // next power request after a braked stop
+    ROLE_COUNT = 4
 };
 
 // Sound configuration (timing only — function numbers live in per-loco LocoConfig)
@@ -60,7 +63,9 @@ public:
     void onBrakeStateChange(int throttle, bool braking);
     void onDynamicBrakeStateChange(int throttle, bool active);
     void onSpeedChange(int throttle, int oldSpeed, int newSpeed);
+    void onActualSpeedChange(int throttle, int oldSpeed, int newSpeed);
     void onDirectionChange(int throttle);
+    void onLocoChanged(const LocoChangeEvent &event);
     
     // Configuration
     void setConfig(const SoundConfig& config) { config_ = config; }
@@ -91,6 +96,9 @@ private:
     int targetNotch_[WIT_MAX_THROTTLES];
     unsigned long lastNotchTime_[WIT_MAX_THROTTLES];
     bool dynamicBraking_[WIT_MAX_THROTTLES];  // Dynamic brake active — forces notch 1
+    bool brakeActive_[WIT_MAX_THROTTLES];
+    bool brakeSquealTriggered_[WIT_MAX_THROTTLES];
+    bool brakedStop_[WIT_MAX_THROTTLES];
     
     // Idle recovery: extra throttle-down pulses to ensure decoder reaches idle
     // Digitrax decoders can miss individual DCC function packets, so we send
@@ -115,9 +123,11 @@ private:
     // Internal methods — per-loco aware dispatch by role
     void triggerFunction(int throttle, SoundRole role, const char* reason);
     void triggerDynamicBrakeSound(int throttle, bool state);
-    void triggerBrakeSound(int throttle, bool state);
+    void triggerPrimeMover(int throttle, const String &address, bool starting);
     void turnOffFunction(int throttle, SoundRole role);
     bool canTriggerRole(int throttle, SoundRole role);
+
+    static constexpr int BRAKE_SQUEAL_SPEED = 16;
     
     // Internal notch simulation for sound effects only
     int calculateNotchFromSpeed(int speed) const;

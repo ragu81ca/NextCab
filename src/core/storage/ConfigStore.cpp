@@ -227,6 +227,8 @@ std::vector<ServerConfig> ConfigStore::loadServers() {
         cfg.port           = srv["port"] | 0;
         cfg.turnoutPrefix  = srv["turnoutPrefix"] | "";
         cfg.routePrefix    = srv["routePrefix"]   | "";
+        cfg.turnoutPrefixSet = srv["turnoutPrefix"].is<const char*>();
+        cfg.routePrefixSet   = srv["routePrefix"].is<const char*>();
 
         // Deserialize per-throttle loco lists
         JsonArray locos = srv["locos"].as<JsonArray>();
@@ -262,6 +264,8 @@ void ConfigStore::saveServer(const ServerConfig& server) {
             srv.port           = server.port;
             srv.turnoutPrefix  = server.turnoutPrefix;
             srv.routePrefix    = server.routePrefix;
+            srv.turnoutPrefixSet = server.turnoutPrefixSet;
+            srv.routePrefixSet   = server.routePrefixSet;
             srv.throttleLocos  = server.throttleLocos;
             found = true;
             break;
@@ -278,8 +282,8 @@ void ConfigStore::saveServer(const ServerConfig& server) {
         obj["name"]           = srv.name;
         obj["host"]           = srv.host;
         obj["port"]           = srv.port;
-        obj["turnoutPrefix"]  = srv.turnoutPrefix;
-        obj["routePrefix"]    = srv.routePrefix;
+        if (srv.turnoutPrefixSet) obj["turnoutPrefix"] = srv.turnoutPrefix;
+        if (srv.routePrefixSet)   obj["routePrefix"]   = srv.routePrefix;
 
         // Serialize per-throttle loco lists
         JsonArray locosArr = obj["locos"].to<JsonArray>();
@@ -332,8 +336,11 @@ static LocoConfig parseLocoFile(const String& address, const String& content) {
     if (cfg.maxSpeedStep > 126) cfg.maxSpeedStep = 126;
     cfg.funcThrottleUp   = doc["funcThrottleUp"]   | -1;
     cfg.funcThrottleDown = doc["funcThrottleDown"] | -1;
-    cfg.funcBrake        = doc["funcBrake"]        | -1;
+    cfg.funcBrakeSqueal  = doc["funcBrakeSqueal"]  | -1;
+    cfg.funcBrakeRelease = doc["funcBrakeRelease"] | -1;
     cfg.funcDynamicBrake = doc["funcDynamicBrake"] | -1;
+    cfg.funcPrimeMoverStart = doc["funcPrimeMoverStart"] | -1;
+    cfg.funcPrimeMoverStop  = doc["funcPrimeMoverStop"]  | -1;
     return cfg;
 }
 
@@ -355,8 +362,11 @@ void ConfigStore::saveLocoConfig(const LocoConfig& cfg) {
     doc["maxSpeedStep"]     = cfg.maxSpeedStep;
     doc["funcThrottleUp"]   = cfg.funcThrottleUp;
     doc["funcThrottleDown"] = cfg.funcThrottleDown;
-    doc["funcBrake"]        = cfg.funcBrake;
+    doc["funcBrakeSqueal"]  = cfg.funcBrakeSqueal;
+    doc["funcBrakeRelease"] = cfg.funcBrakeRelease;
     doc["funcDynamicBrake"] = cfg.funcDynamicBrake;
+    doc["funcPrimeMoverStart"] = cfg.funcPrimeMoverStart;
+    doc["funcPrimeMoverStop"]  = cfg.funcPrimeMoverStop;
 
     String output;
     serializeJsonPretty(doc, output);

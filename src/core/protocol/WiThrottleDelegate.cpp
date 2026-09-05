@@ -5,8 +5,10 @@
 #include "../Renderer.h"
 #include "../../../WiTcontroller.h" // extern throttleManager instance declaration
 #include "../heartbeat/HeartbeatMonitor.h"
+#include "../network/ServerSettingsManager.h"
 extern HeartbeatMonitor heartbeatMonitor;
 extern ServerDataStore serverDataStore;
+extern ServerSettingsManager serverSettingsManager;
 extern LocoManager locoManager;
 
 // Helper to note server activity for heartbeat monitoring
@@ -26,8 +28,9 @@ void WiThrottleDelegate::receivedVersion(String version) {
 
 void WiThrottleDelegate::receivedServerDescription(String description) {
     noteServerActivity();
-    locoManager.setServerType(description.substring(0, description.indexOf(" ")));
-    if (locoManager.serverType().equals("DCC-EX")) { serverDataStore.setTurnoutPrefix(DCC_EX_TURNOUT_PREFIX); serverDataStore.setRoutePrefix(DCC_EX_ROUTE_PREFIX); }
+    // Stored settings load first so they outrank anything the type implies.
+    serverSettingsManager.restoreForCurrentServer();
+    serverSettingsManager.setServerType(description.substring(0, description.indexOf(" ")));
 }
 
 void WiThrottleDelegate::receivedMessage(String message) {

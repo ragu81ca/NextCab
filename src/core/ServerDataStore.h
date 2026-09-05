@@ -56,10 +56,19 @@ public:
     int           routeState(int i) const;
 
     // ── Turnout/Route prefixes (server-type dependent) ──────────────────
+    // set* marks the prefix as user-configured; applyDetected* only fills in a
+    // default while it is not, so auto-detection never overwrites a user setting.
     const String &turnoutPrefix() const { return turnoutPrefix_; }
-    void setTurnoutPrefix(const String &p) { turnoutPrefix_ = p; }
+    void setTurnoutPrefix(const String &p) { turnoutPrefix_ = p; turnoutPrefixConfigured_ = true; }
+    void applyDetectedTurnoutPrefix(const String &p) { if (!turnoutPrefixConfigured_) turnoutPrefix_ = p; }
+    bool turnoutPrefixConfigured() const { return turnoutPrefixConfigured_; }
+
     const String &routePrefix() const { return routePrefix_; }
-    void setRoutePrefix(const String &p) { routePrefix_ = p; }
+    void setRoutePrefix(const String &p) { routePrefix_ = p; routePrefixConfigured_ = true; }
+    void applyDetectedRoutePrefix(const String &p) { if (!routePrefixConfigured_) routePrefix_ = p; }
+    bool routePrefixConfigured() const { return routePrefixConfigured_; }
+
+    void clearPrefixConfiguration() { turnoutPrefixConfigured_ = false; routePrefixConfigured_ = false; }
 
 private:
     static const String empty_;
@@ -91,6 +100,8 @@ private:
     // Prefixes
     String turnoutPrefix_;
     String routePrefix_;
+    bool   turnoutPrefixConfigured_ = false;
+    bool   routePrefixConfigured_   = false;
 
     // qsort comparator (static for C linkage)
     static int compareStrings(const void *a, const void *b);

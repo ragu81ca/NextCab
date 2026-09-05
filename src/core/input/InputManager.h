@@ -15,7 +15,8 @@ enum class InputMode : uint8_t {
     FunctionSelection,
     DropLocoSelection,
     EditConsist,
-    LocoConfigWizard
+    LocoConfigWizard,
+    ServerConfig
 };
 
 class InputManager {
@@ -33,6 +34,7 @@ public:
     void setDropLocoSelectionHandler(IModeHandler *h) { dropLocoHandler_ = h; }
     void setEditConsistHandler(IModeHandler *h) { editConsistHandler_ = h; }
     void setLocoConfigWizardHandler(IModeHandler *h) { locoConfigWizardHandler_ = h; }
+    void setServerConfigHandler(IModeHandler *h) { serverConfigHandler_ = h; }
     void setActionFallbackHandler(IModeHandler *h) { actionHandler_ = h; }
 
     void setMode(InputMode mode);
@@ -50,7 +52,8 @@ public:
                mode_ == InputMode::FunctionSelection ||
                mode_ == InputMode::DropLocoSelection ||
                mode_ == InputMode::EditConsist ||
-               mode_ == InputMode::LocoConfigWizard;
+               mode_ == InputMode::LocoConfigWizard ||
+               mode_ == InputMode::ServerConfig;
     }
 
     // Dispatch event to active mode; if not consumed can implement fallbacks.
@@ -83,6 +86,7 @@ private:
     IModeHandler *dropLocoHandler_ { nullptr };
     IModeHandler *editConsistHandler_ { nullptr };
     IModeHandler *locoConfigWizardHandler_ { nullptr };
+    IModeHandler *serverConfigHandler_ { nullptr };
     IModeHandler *actionHandler_ { nullptr }; // used for Action events if active handler doesn't consume
     IModeHandler *active_ { nullptr };
     static constexpr size_t MaxDevices = 8;
@@ -102,6 +106,7 @@ private:
             case InputMode::DropLocoSelection: return dropLocoHandler_;
             case InputMode::EditConsist: return editConsistHandler_;
             case InputMode::LocoConfigWizard: return locoConfigWizardHandler_;
+            case InputMode::ServerConfig: return serverConfigHandler_;
             default: return nullptr;
         }
     }

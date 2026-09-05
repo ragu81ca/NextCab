@@ -33,8 +33,11 @@ private:
         MaxScaleSpeed,  // Top speed in configured mph/kph units
         FuncThrottleUp, // F-number text input (empty = not set)
         FuncThrottleDown,
-        FuncBrake,
+        FuncBrakeSqueal,
+        FuncBrakeRelease,
         FuncDynamicBrake,
+        FuncPrimeMoverStart,
+        FuncPrimeMoverStop,
         Done
     };
 
