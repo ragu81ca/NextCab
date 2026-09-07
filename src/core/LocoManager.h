@@ -69,6 +69,8 @@ public:
     bool  dropBeforeAcquire() const { return dropBeforeAcquire_; }
     void  setDropBeforeAcquire(bool v) { dropBeforeAcquire_ = v; }
     void  toggleDropBeforeAcquire();
+    bool  restoreAcquiredLocos() const { return restoreAcquiredLocos_; }
+    void  setRestoreAcquiredLocos(bool v) { restoreAcquiredLocos_ = v; }
 
     // ── Loco persistence (save/restore acquired locos per server) ───────
     void restoreLocos();
@@ -105,6 +107,7 @@ private:
     ServerSettingsManager       *serverSettings_ = nullptr;
 
     bool   dropBeforeAcquire_ = true;
+    bool   restoreAcquiredLocos_ = true;
     bool   locosRestoredForCurrentServer_ = false;
     bool   restoringLocos_ = false;  // suppress auto-save during restore
 

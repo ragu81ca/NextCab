@@ -51,6 +51,7 @@ BatteryMonitor batteryMonitor;
 #include "core/input/AdditionalButtonsInput.h"
 #include "core/input/InputEvents.h"
 #include "core/ThrottleManager.h"
+#include "core/DeviceSettingsManager.h"
 #include "core/network/WifiSsidManager.h"
 #include "core/Renderer.h"
 #include "core/DisplayConfig.h"
@@ -67,6 +68,7 @@ BatteryMonitor batteryMonitor;
 #include "core/input/SystemActionHandler.h"
 #include "core/input/LocoConfigWizardHandler.h"
 #include "core/input/ServerConfigWizardHandler.h"
+#include "core/input/DeviceSettingsHandler.h"
 #include "core/network/ServerSettingsManager.h"
 #include "core/protocol/WiThrottleDelegate.h" // ensure debug_print macros before first use
 #include "core/network/WiThrottleConnectionManager.h"
@@ -88,6 +90,7 @@ Renderer renderer(displayDriver, activeLayout, activeFonts); // display-agnostic
 MenuSystem menuSystem;           // New table-driven menu system
 WiThrottleConnectionManager connectionManager; // WiThrottle server discovery/connection
 ServerSettingsManager serverSettingsManager;   // per-server settings (type, prefixes)
+DeviceSettingsManager deviceSettingsManager;   // device-level runtime preferences
 
 // ----------------- Legacy global variables (bridging for refactor) -----------------
 bool menuCommandStarted = false;
@@ -132,9 +135,10 @@ RouteSelectionHandler routeSelectionHandler(renderer);
 FunctionSelectionHandler functionSelectionHandler(renderer);
 DropLocoSelectionHandler dropLocoSelectionHandler(renderer);
 EditConsistSelectionHandler editConsistSelectionHandler(renderer);
-SystemActionHandler systemActionHandler(throttleManager, renderer, batteryMonitor, wiThrottleProtocol);
+SystemActionHandler systemActionHandler(throttleManager, renderer, batteryMonitor, wiThrottleProtocol, deviceSettingsManager);
 LocoConfigWizardHandler locoConfigWizardHandler(throttleManager, inputManager, renderer, configStore, locoManager);
 ServerConfigWizardHandler serverConfigWizardHandler(inputManager, renderer, serverDataStore, serverSettingsManager);
+DeviceSettingsHandler deviceSettingsHandler(inputManager, renderer, deviceSettingsManager);
 
 // server variables
 // bool ssidConnected = false;
@@ -410,7 +414,7 @@ void setup() {
                     &configStore, &connectionManager, &serverSettingsManager);
   serverSettingsManager.begin(&configStore, &serverDataStore, &connectionManager);
   throttleManager.sound().begin(&throttleManager, &wiThrottleProtocol, &locoManager);
-  locoManager.setDropBeforeAcquire(DROP_BEFORE_ACQUIRE);
+  deviceSettingsManager.begin(&configStore, &heartbeatMonitor, &wiThrottleProtocol, &throttleManager, &locoManager, &renderer);
   uiState.functionPage = 0;
   // Wire up generic input manager mode & action handlers
   inputManager.setOperationHandler(&operationModeHandler);
@@ -426,6 +430,7 @@ void setup() {
   inputManager.setEditConsistHandler(&editConsistSelectionHandler);
   inputManager.setLocoConfigWizardHandler(&locoConfigWizardHandler);
   inputManager.setServerConfigHandler(&serverConfigWizardHandler);
+  inputManager.setDeviceSettingsHandler(&deviceSettingsHandler);
   inputManager.setActionFallbackHandler(&systemActionHandler);
   inputManager.forceMode(InputMode::WifiSelection); // Start with WiFi selection at boot
   

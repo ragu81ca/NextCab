@@ -6,6 +6,7 @@
 #include "../Renderer.h"
 #include "../ThrottleManager.h"
 #include "../ServerDataStore.h"
+#include "../DeviceSettingsManager.h"
 #include "../LocoManager.h"
 #include "../heartbeat/HeartbeatMonitor.h"
 #include "../input/InputManager.h"
@@ -25,6 +26,7 @@ extern bool hashShowsFunctionsInsteadOfKeyDefs;
 extern HeartbeatMonitor heartbeatMonitor;
 extern WiThrottleConnectionManager connectionManager;
 extern ServerSettingsManager serverSettingsManager;
+extern DeviceSettingsManager deviceSettingsManager;
 extern TrackPower trackPower;
 
 // Forward declarations from main sketch
@@ -126,24 +128,10 @@ namespace MenuHandlers {
         inputManager.setMode(InputMode::EditConsist);
     }
     
-    void handleHeartbeatToggle(MenuContext& ctx) {
-        heartbeatMonitor.toggleEnabled();
-        wiThrottleProtocol.requireHeartbeat(heartbeatMonitor.enabled());
-        renderer.renderHeartbeatCheck();
-    }
-    
     void handleMomentumToggle(MenuContext& ctx) {
         int idx = throttleManager.getCurrentThrottleIndex();
         throttleManager.momentum().cycleMomentumLevel(idx);
         // Visual feedback will come from adding display indicator later (Stage 2)
-    }
-    
-    void handleIncreaseThrottles(MenuContext& ctx) {
-        throttleManager.changeNumberOfThrottles(true);
-    }
-    
-    void handleDecreaseThrottles(MenuContext& ctx) {
-        throttleManager.changeNumberOfThrottles(false);
     }
     
     void handleDisconnect(MenuContext& ctx) {
@@ -159,12 +147,12 @@ namespace MenuHandlers {
         deepSleepStart();
     }
     
-    void handleDropBeforeAcquireToggle(MenuContext& ctx) {
-        locoManager.toggleDropBeforeAcquire();
-    }
-    
     void handleLocoConfig(MenuContext& ctx) {
         inputManager.setMode(InputMode::LocoConfigWizard);
+    }
+
+    void handleDeviceSettings(MenuContext& ctx) {
+        inputManager.setMode(InputMode::DeviceSettings);
     }
     
     // List renderers (thin wrappers around existing functions)
@@ -205,29 +193,24 @@ namespace MenuDefinitions {
         MenuItem::action(3, "Momentum", "N/A",
                         MenuHandlers::handleMomentumToggle),
         
-        MenuItem::action(4, "Heartbt Tgl", "N/A",
-                        MenuHandlers::handleHeartbeatToggle),
+        MenuItem::action(4, "Device Cfg", "N/A",
+                MenuHandlers::handleDeviceSettings),
         
-        MenuItem::action(5, "#Throttles +", "N/A",
-                        MenuHandlers::handleIncreaseThrottles),
+        MenuItem::action(5, "Server Cfg", "N/A",
+                MenuHandlers::handleServerConfig,
+                []() { return systemStateManager.isOperating(); }),
         
-        MenuItem::action(6, "#Throttles -", "N/A",
-                        MenuHandlers::handleDecreaseThrottles),
+        MenuItem::action(6, "Loco Config", "N/A",
+                MenuHandlers::handleLocoConfig,
+                []() { return wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0; }),
         
         MenuItem::action(7, "Disconnect", "N/A",
                         MenuHandlers::handleDisconnect),
         
         MenuItem::action(8, "OFF / Sleep", "N/A",
-                        MenuHandlers::handleSleep),
-        
-        MenuItem::action(9, "1 Loco Tgl", "N/A",
-                        MenuHandlers::handleDropBeforeAcquireToggle),
-        
-        MenuItem::action(0, "Loco Config", "N/A",
-                        MenuHandlers::handleLocoConfig,
-                        []() { return wiThrottleProtocol.getNumberOfLocomotives(throttleManager.getCurrentThrottleChar()) > 0; })
+                        MenuHandlers::handleSleep)
     };
-    const uint8_t extrasMenuSize = 10;
+    const uint8_t extrasMenuSize = 8;
     
     // Main menu (replicates items 0-9 from menuText array)
     // Items 1-9 followed by item 0 (Function) to match keypad layout
@@ -251,9 +234,7 @@ namespace MenuDefinitions {
                        nullptr,
                        []() { return serverDataStore.turnoutPrefix(); }),
         
-        MenuItem::action(6, "Server Cfg", "N/A",
-                        MenuHandlers::handleServerConfig,
-                        []() { return systemStateManager.isOperating(); }),
+        MenuItem::action(6, "", "N/A", nullptr, []() { return false; }),
         
         MenuItem::input(7, "Route", "* Cancel  # List or Enter ID",
                        MenuHandlers::handleRoute,

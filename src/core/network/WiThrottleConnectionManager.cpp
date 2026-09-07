@@ -259,17 +259,14 @@ void WiThrottleConnectionManager::connectServer() {
         debug_print("WiThrottle Device Name: "); debug_println(appName);
         debug_print("WiThrottle Device ID: ");   debug_println(witDeviceId_);
         protocol_->setCommandsNeedLeadingCrLf(commandsNeedLeadingCrLf_);
-        if (HEARTBEAT_ENABLED) {
-            protocol_->requireHeartbeat(true);
-        }
-
-        systemStateManager_->setState(SystemState::Operating);
-
-        if (HEARTBEAT_ENABLED) {
+        protocol_->requireHeartbeat(heartbeatMonitor_->enabled());
+        if (heartbeatMonitor_->enabled()) {
             heartbeatMonitor_->begin(MAX_HEARTBEAT_PERIOD / 1000, true);
             debug_printf("Heartbeat monitoring started with initial timeout %lus (waiting for server config)\n",
                          (MAX_HEARTBEAT_PERIOD / 1000) * HeartbeatMonitor::TIMEOUT_MULTIPLIER);
         }
+
+        systemStateManager_->setState(SystemState::Operating);
 
         { TitleScreen ts;
           ts.setAppHeader(appName, appVersion);
@@ -314,8 +311,8 @@ void WiThrottleConnectionManager::disconnect() {
     debug_println("disconnectWitServer()");
     connectedSplashEnd_ = 0;
 
-    if (HEARTBEAT_ENABLED) {
-        heartbeatMonitor_->setEnabled(false);
+    if (heartbeatMonitor_) {
+        heartbeatMonitor_->stop();
         debug_println("Heartbeat monitoring stopped");
     }
 

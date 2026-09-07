@@ -575,10 +575,6 @@ extern String witServerIpAndPortEntryMask; // defined in static.cpp
     #define HASH_SHOWS_FUNCTIONS_INSTEAD_OF_KEY_DEFS false  // default if not defined in config_buttons.h
 #endif
 
-#ifndef MAX_THROTTLES
-    #define MAX_THROTTLES 2  // default if not defined in config_buttons.h
-#endif
-
 #ifndef ENCODER_BUTTON_ACTION
     #define ENCODER_BUTTON_ACTION SPEED_STOP_THEN_TOGGLE_DIRECTION  // default if not defined in config_buttons.h
 #endif
@@ -909,10 +905,6 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
    #define MAX_HEARTBEAT_PERIOD 240000
 #endif
 
-#ifndef HEARTBEAT_ENABLED
-   #define HEARTBEAT_ENABLED true
-#endif
-
 #ifndef DEFAULT_HEARTBEAT_PERIOD
    #define DEFAULT_HEARTBEAT_PERIOD 10
 #endif
@@ -953,14 +945,6 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 
 // ***************************************************
 // loco Acquire
-
-#ifndef DROP_BEFORE_ACQUIRE
-   #define DROP_BEFORE_ACQUIRE false
-#endif
-
-#ifndef RESTORE_ACQUIRED_LOCOS
-   #define RESTORE_ACQUIRED_LOCOS true
-#endif
 
 #ifndef CONSIST_RELEASE_BY_INDEX
    #define CONSIST_RELEASE_BY_INDEX true

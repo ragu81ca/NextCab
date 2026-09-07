@@ -18,13 +18,10 @@ namespace MenuHandlers {
     // Extras submenu handlers
     void handleFunctionKeyToggle(MenuContext& ctx);
     void handleEditConsist(MenuContext& ctx);
-    void handleHeartbeatToggle(MenuContext& ctx);
-    void handleIncreaseThrottles(MenuContext& ctx);
-    void handleDecreaseThrottles(MenuContext& ctx);
     void handleDisconnect(MenuContext& ctx);
     void handleSleep(MenuContext& ctx);
-    void handleDropBeforeAcquireToggle(MenuContext& ctx);
     void handleLocoConfig(MenuContext& ctx);
+    void handleDeviceSettings(MenuContext& ctx);
     
     // List renderers
     void renderRosterList();

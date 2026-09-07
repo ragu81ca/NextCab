@@ -97,7 +97,7 @@ private:
 	// Moved former globals (defined in WiTcontroller.ino) into this manager
 	int currentThrottleIndex { 0 }; // which multi throttle is active
 	char currentThrottleIndexChar { '0' }; // cached char
-	int maxThrottles { MAX_THROTTLES }; // configurable number of throttles (<= WIT_MAX_THROTTLES)
+	int maxThrottles { 2 }; // configurable number of throttles (<= WIT_MAX_THROTTLES)
 	// New fixed step levels (configured from base macro and multipliers)
 	int speedStepLevels[3] { speedStep, speedStep * speedStepAdditionalMultiplier, speedStep * speedStepAdditionalMultiplier * 2 };
 	int currentSpeedStepIndex { 0 }; // 0..2

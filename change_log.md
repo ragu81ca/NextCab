@@ -2,6 +2,7 @@
 
 ## NextCab v0.2.1
 
+- Added persistent Device Cfg settings for heartbeat, throttle count, acquire mode, and remembered locos; Server Cfg now lives under Extras.
 - Added per-locomotive sound automations for prime mover start/stop, brake squeal, and brake release; matching function numbers are treated as ON/OFF pairs.
 - Fixed saved loco restore state so acquired locos are replaced with the current throttle roster instead of being appended forever.
 - Replaced the separate Throw Point and Close Point menu commands with a single Turnouts command that toggles a turnout between thrown and closed.

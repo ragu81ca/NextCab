@@ -28,8 +28,10 @@ struct DeviceConfig {
     int              speedStepMultiplier = 3;                           // SPEED_STEP_MULTIPLIER
     SpeedDisplayMode speedDisplayMode    = SpeedDisplayMode::Percentage; // 0-126 / 0-28 / % display selection
     bool             encoderCwIsIncrease = true;                        // ENCODER_ROTATION_CLOCKWISE_IS_INCREASE_SPEED
-    bool             heartbeatEnabled    = true;                        // HEARTBEAT_ENABLED
-    bool             restoreAcquiredLocos = true;                       // RESTORE_ACQUIRED_LOCOS
+    bool             heartbeatEnabled    = true;
+    bool             restoreAcquiredLocos = true;
+    uint8_t          numberOfThrottles    = 2;
+    bool             dropBeforeAcquire    = false;
 };
 
 /// WiFi network credentials (SSID + password).  (Tier 1 — device-level)

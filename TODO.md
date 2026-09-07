@@ -122,7 +122,7 @@ but JMRI users must currently hard-code them.
 
 ## 4. Device Settings Configuration Wizard
 
-**Status:** In progress — `DeviceConfig` storage exists; wizard UI not started  
+**Status:** In progress — core runtime preferences implemented; display and battery settings remain  
 **Depends on:** RadioSelectScreen ✔, TextInputScreen (already exists)  
 **Unblocks:** Runtime configuration of display/speed/hardware settings without recompiling
 
@@ -163,26 +163,25 @@ Frees up menu space by consolidating scattered toggles into one cohesive flow.
 
 - [~] New `DeviceConfig` struct in `ConfigStore.h` (parallel to `LocoConfig`, `ServerConfig`)
   - Struct exists with `speedStep`, `speedStepMultiplier`, `speedDisplayMode`,
-    `encoderCwIsIncrease`, `heartbeatEnabled`, `restoreAcquiredLocos`
+    `encoderCwIsIncrease`, `heartbeatEnabled`, `restoreAcquiredLocos`,
+    `numberOfThrottles`, `dropBeforeAcquire`
   - Still missing the fields below:
   - `speedMetricUnits: bool`
   - `maxScaleSpeed: int` (MPH/KPH value user entered)
   - `speedConversionFactor: float` (computed and stored for fast runtime access)
-  - `numberOfThrottles: uint8_t`
-  - `dropBeforeAcquire: bool`
   - `batteryShowPercentage: bool`
   - [x] JSON load/save methods with fallback defaults (`loadDeviceConfig()` / `saveDeviceConfig()`)
-- [ ] Initialize from config macros at startup (backward compatibility)
-- [ ] Create a new `InputMode::DeviceSettings` handler
-- [ ] Wire into Extras menu: `"Device Settings"` → `inputManager.setMode(InputMode::DeviceSettings)`
-- [ ] Apply settings live after each step or on wizard completion
+- [x] Load the device config at startup and apply runtime values
+- [x] Create a new `InputMode::DeviceSettings` handler
+- [x] Wire `"Device Cfg"` into Extras
+- [x] Apply heartbeat, throttle count, acquire mode, and remembered-loco settings live
 - [ ] Update dependent systems:
-  - `HeartbeatMonitor::setEnabled()` 
-  - `ThrottleManager::changeNumberOfThrottles()`
-  - `LocoManager::setDropBeforeAcquire()`
-  - `LocoManager::setRestoreAcquiredLocos()`
+  - [x] `HeartbeatMonitor::setEnabled()` 
+  - [x] `ThrottleManager::setMaxThrottles()`
+  - [x] `LocoManager::setDropBeforeAcquire()`
+  - [x] `LocoManager::setRestoreAcquiredLocos()`
   - Battery display preference (if monitor exists)
-  - `static.h` conversion factor and unit flag
+  - speed conversion factor and unit flag
 
 ### Benefits
 

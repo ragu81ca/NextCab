@@ -198,7 +198,7 @@ void LocoManager::resetRestoreGuard() {
 void LocoManager::restoreLocos() {
     if (!configStore_ || !connMgr_) return;
 
-#if RESTORE_ACQUIRED_LOCOS
+    if (!restoreAcquiredLocos_) return;
     if (locosRestoredForCurrentServer_) return;
 
     String name = connMgr_->selectedName();
@@ -233,7 +233,6 @@ void LocoManager::restoreLocos() {
         }
     }
     restoringLocos_ = false;
-#endif
 }
 
 void LocoManager::saveLocos() {

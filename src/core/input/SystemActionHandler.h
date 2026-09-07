@@ -3,6 +3,7 @@
 #include "../ThrottleManager.h"
 #include "../Renderer.h"
 #include "../BatteryMonitor.h"
+#include "../DeviceSettingsManager.h"
 #include "InputEvents.h"
 #include "../../../actions.h"
 #include <WiThrottleProtocol.h>
@@ -11,8 +12,9 @@
 class SystemActionHandler : public IModeHandler {
 public:
     SystemActionHandler(ThrottleManager &throttle, Renderer &renderer,
-                        BatteryMonitor &battery, WiThrottleProtocol &proto)
-        : throttle_(throttle), renderer_(renderer), battery_(battery), proto_(proto) {}
+                        BatteryMonitor &battery, WiThrottleProtocol &proto,
+                        DeviceSettingsManager &deviceSettings)
+        : throttle_(throttle), renderer_(renderer), battery_(battery), proto_(proto), deviceSettings_(deviceSettings) {}
     bool handle(const InputEvent &ev) override {
         if (ev.type != InputEventType::Action) return false;
         switch (ev.ivalue) {
@@ -21,8 +23,8 @@ public:
             case POWER_OFF: { powerOnOff(PowerOff); return true; }
             case SLEEP: { deepSleepStart(); return true; }
             case NEXT_THROTTLE: { throttle_.nextThrottle(); return true; }
-            case MAX_THROTTLE_INCREASE: { throttle_.changeNumberOfThrottles(true); return true; }
-            case MAX_THROTTLE_DECREASE: { throttle_.changeNumberOfThrottles(false); return true; }
+            case MAX_THROTTLE_INCREASE: { deviceSettings_.increaseNumberOfThrottles(); return true; }
+            case MAX_THROTTLE_DECREASE: { deviceSettings_.decreaseNumberOfThrottles(); return true; }
             case SHOW_HIDE_BATTERY: { batteryShowToggle(); return true; }
             case THROTTLE_1: { throttle_.selectThrottle(0); return true; }
             case THROTTLE_2: { throttle_.selectThrottle(1); return true; }
@@ -41,6 +43,7 @@ private:
     Renderer &renderer_;
     BatteryMonitor &battery_;
     WiThrottleProtocol &proto_;
+    DeviceSettingsManager &deviceSettings_;
 
     void powerOnOff(TrackPower p) {
         extern TrackPower trackPower;

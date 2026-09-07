@@ -8,6 +8,7 @@ public:
     void loop();
     void toggleEnabled();
     void setEnabled(bool enabled);  // Explicitly set enabled state
+    void stop();
     void setPeriod(unsigned long seconds); // protocol may request heartbeat change
 
     bool enabled() const { return heartbeatCheckEnabled; }
@@ -24,6 +25,7 @@ private:
     unsigned long heartbeatPeriod { 10 }; // seconds
     unsigned long lastServerResponseTime { 0 }; // seconds since boot
     bool heartbeatCheckEnabled { true };
+    bool monitoring_ { false };
     bool timeoutInProgress { false }; // Guard against multiple timeout firings
     unsigned long lastWarningSecs_ { 0 }; // Rate-limit warning log to once per second
 

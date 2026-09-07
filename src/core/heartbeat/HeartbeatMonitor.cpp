@@ -5,6 +5,7 @@
 void HeartbeatMonitor::begin(unsigned long periodSeconds, bool enabled) {
     heartbeatPeriod = periodSeconds; 
     heartbeatCheckEnabled = enabled; 
+    monitoring_ = enabled;
     timeoutInProgress = false; // Reset timeout guard
     lastServerResponseTime = millis() / 1000; // Initialize to current time to prevent immediate timeout
     debug_printf("Heartbeat monitor started: period=%lus, timeout=%lus\n", periodSeconds, periodSeconds * TIMEOUT_MULTIPLIER);
@@ -21,7 +22,7 @@ void HeartbeatMonitor::noteActivity(unsigned long serverReportedSeconds, bool fo
 }
 
 void HeartbeatMonitor::loop() {
-    if (!heartbeatCheckEnabled) return;
+    if (!monitoring_) return;
     if (timeoutInProgress) return; // Prevent multiple timeout firings
     
     unsigned long nowSecs = millis() / 1000;
@@ -50,10 +51,16 @@ void HeartbeatMonitor::toggleEnabled() { heartbeatCheckEnabled = !heartbeatCheck
 
 void HeartbeatMonitor::setEnabled(bool enabled) { 
     heartbeatCheckEnabled = enabled; 
+    monitoring_ = enabled;
     if (enabled) {
         timeoutInProgress = false; // Reset guard when re-enabling
         lastServerResponseTime = millis() / 1000; // Reset activity timer
     }
+}
+
+void HeartbeatMonitor::stop() {
+    monitoring_ = false;
+    timeoutInProgress = false;
 }
 
 void HeartbeatMonitor::setOnTimeout(void (*cb)()) { onTimeout = cb; }

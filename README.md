@@ -556,13 +556,12 @@ NextCab:
   - 9 = Extras. Followed by...
       - 0 then \# to toggle the action the the \# key does as a direct action, either to show the direct action key definitions, or the Function labels.  
       - 1 to change the facing of locos in a consist.
-      - 3 to toggle the heartbeat check.
-      - 4 to increase the number of available throttle (up to 6)
-      - 5 to decrease the number of available throttle (down to 1)
-      - 6 to Disconnect/Reconnect.  
-      - 7 to put into deep sleep
-      - 8 Toggle between Single loco and Consist/MU (Drop before Acquire)
-      - 9 Save the Currently selected locos so they will be automatically acquired on reconnection
+      - 3 to cycle momentum level.
+      - 4 to configure device settings: heartbeat, throttle count, acquire mode, and remembered locos.
+      - 5 to configure turnout and route prefixes for the connected server.
+      - 6 to configure the current locomotive.
+      - 7 to Disconnect/Reconnect.  
+      - 8 to put into deep sleep
 Pressing '\*' again before the '\#' will terminate the current command (but not start a new command)
  - \# = Pressing # alone will show the function the the numbered keys (0-9) perform, outside the menu.
        Optionally, you can configure it so that the the Function labels from the roster show 

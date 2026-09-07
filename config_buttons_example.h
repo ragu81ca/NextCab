@@ -102,8 +102,7 @@
 // NEXT_THROTTLE.  (keypad 5 is by default)
 // Maximum supported by the WiTcontroller is 6
 
-// uncomment and increase the number if you always need more that two throttles
-// #define MAX_THROTTLES                 2 
+// Configure the number of throttles at runtime in Extras > Device Cfg.
 
 // *******************************************************************************************************************
 // speed increase for each click of the encoder 
@@ -457,9 +456,8 @@
 
 // #define MAX_HEARTBEAT_PERIOD 240000
 
-// Heartbeat is enabled by default.  Can be turned on or off in the menus
-// #define HEARTBEAT_ENABLED true 
-// #define DEFAULT_HEARTBEAT_PERIOD 10  // in seconds default period if HEARTBEAT_ENABLED is true
+// Configure heartbeat on or off at runtime in Extras > Device Cfg.
+// #define DEFAULT_HEARTBEAT_PERIOD 10  // in seconds if the server does not provide one
 
 // *******************************************************************************************************************
 // Roster Sorting
@@ -522,21 +520,12 @@
 // ***************************************************
 // Loco Acquire
 
-// If you never want on-the-fly consists/MUs then uncomment this line
-// This can be altered on the fly in the Extras menu
-
-// #define DROP_BEFORE_ACQUIRE true
+// Configure Replace or Consist acquire mode at runtime in Extras > Device Cfg.
 
 // ***************************************************
 // Restore previously acquired locos on connection
 
-// If this option is enabled, and you have deliberately saved the current 
-// locos ( # -> 9 -> 9), then the next time you connect the device it 
-// will try to load the previously acquired locos.
-//
-// enabled by default
-
-// #define RESTORE_ACQUIRED_LOCOS false
+// Configure remembered locos at runtime in Extras > Device Cfg.
 
 // *******************************************************************************************************************
 // Primary Font override (not recommended)

@@ -180,6 +180,8 @@ DeviceConfig ConfigStore::loadDeviceConfig() {
     if (doc["encoderCwIsIncrease"].is<bool>())      cfg.encoderCwIsIncrease = doc["encoderCwIsIncrease"];
     if (doc["heartbeatEnabled"].is<bool>())         cfg.heartbeatEnabled    = doc["heartbeatEnabled"];
     if (doc["restoreAcquiredLocos"].is<bool>())     cfg.restoreAcquiredLocos = doc["restoreAcquiredLocos"];
+    if (doc["numberOfThrottles"].is<int>())         cfg.numberOfThrottles    = doc["numberOfThrottles"];
+    if (doc["dropBeforeAcquire"].is<bool>())        cfg.dropBeforeAcquire    = doc["dropBeforeAcquire"];
 
     Serial.println("[ConfigStore] Loaded device config");
     return cfg;
@@ -195,6 +197,8 @@ void ConfigStore::saveDeviceConfig(const DeviceConfig& cfg) {
     doc["encoderCwIsIncrease"]  = cfg.encoderCwIsIncrease;
     doc["heartbeatEnabled"]     = cfg.heartbeatEnabled;
     doc["restoreAcquiredLocos"] = cfg.restoreAcquiredLocos;
+    doc["numberOfThrottles"]    = cfg.numberOfThrottles;
+    doc["dropBeforeAcquire"]    = cfg.dropBeforeAcquire;
 
     String output;
     serializeJsonPretty(doc, output);
